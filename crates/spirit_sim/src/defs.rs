@@ -325,7 +325,9 @@ fn single_char(s: &str, what: &str) -> Result<char, String> {
     let mut chars = s.chars();
     match (chars.next(), chars.next()) {
         (Some(c), None) => Ok(c),
-        _ => Err(format!("{what}: map_char must be exactly one character, got {s:?}")),
+        _ => Err(format!(
+            "{what}: map_char must be exactly one character, got {s:?}"
+        )),
     }
 }
 
@@ -385,7 +387,7 @@ impl GameDefs {
             }
             let mut jobs = r.jobs;
             // Stable sort keeps file order for equal priorities.
-            jobs.sort_by(|a, b| b.priority.cmp(&a.priority));
+            jobs.sort_by_key(|j| std::cmp::Reverse(j.priority));
             roles.push(RoleDef {
                 skill: skill_id(&r.skill)?,
                 from_soul_separation: r.from_soul_separation,
@@ -408,7 +410,11 @@ impl GameDefs {
                 cost.push((resource_id(&c.resource)?, c.amount));
             }
             buildings.push(BuildingDef {
-                map_char: b.map_char.as_deref().map(|c| single_char(c, &b.id)).transpose()?,
+                map_char: b
+                    .map_char
+                    .as_deref()
+                    .map(|c| single_char(c, &b.id))
+                    .transpose()?,
                 is_main: b.is_main,
                 capacity: b.capacity,
                 accepts_gatherer_deposits: b.accepts_gatherer_deposits,
@@ -464,19 +470,31 @@ impl GameDefs {
     }
 
     pub fn resource_id(&self, id: &str) -> Option<ResourceId> {
-        self.resources.iter().position(|r| r.id == id).map(|i| ResourceId(i as u16))
+        self.resources
+            .iter()
+            .position(|r| r.id == id)
+            .map(|i| ResourceId(i as u16))
     }
 
     pub fn skill_id(&self, id: &str) -> Option<SkillId> {
-        self.skills.iter().position(|s| s.id == id).map(|i| SkillId(i as u16))
+        self.skills
+            .iter()
+            .position(|s| s.id == id)
+            .map(|i| SkillId(i as u16))
     }
 
     pub fn role_id(&self, id: &str) -> Option<RoleId> {
-        self.roles.iter().position(|r| r.id == id).map(|i| RoleId(i as u16))
+        self.roles
+            .iter()
+            .position(|r| r.id == id)
+            .map(|i| RoleId(i as u16))
     }
 
     pub fn building_kind_id(&self, id: &str) -> Option<BuildingKindId> {
-        self.buildings.iter().position(|b| b.id == id).map(|i| BuildingKindId(i as u16))
+        self.buildings
+            .iter()
+            .position(|b| b.id == id)
+            .map(|i| BuildingKindId(i as u16))
     }
 
     pub fn resource(&self, id: ResourceId) -> &ResourceDef {
@@ -512,7 +530,10 @@ impl GameDefs {
     }
 
     pub fn tree_kind_for_char(&self, c: char) -> Option<TreeKindId> {
-        self.trees.iter().position(|t| t.map_char == c).map(|i| TreeKindId(i as u16))
+        self.trees
+            .iter()
+            .position(|t| t.map_char == c)
+            .map(|i| TreeKindId(i as u16))
     }
 
     pub fn building_kind_for_char(&self, c: char) -> Option<BuildingKindId> {

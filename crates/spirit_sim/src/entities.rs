@@ -74,7 +74,12 @@ pub struct Mover {
 
 impl Mover {
     pub fn new(pos: TilePos, ticks_per_tile: u32) -> Self {
-        Self { pos, path: VecDeque::new(), progress: 0, ticks_per_tile }
+        Self {
+            pos,
+            path: VecDeque::new(),
+            progress: 0,
+            ticks_per_tile,
+        }
     }
 
     /// Interpolated position for rendering, in tile units.
@@ -226,7 +231,11 @@ pub struct Player {
 
 impl Player {
     pub fn new(actor: Actor) -> Self {
-        Self { actor, xp: BTreeMap::new(), activity: "Idle".into() }
+        Self {
+            actor,
+            xp: BTreeMap::new(),
+            activity: "Idle".into(),
+        }
     }
 
     pub fn xp(&self, skill: SkillId) -> u64 {

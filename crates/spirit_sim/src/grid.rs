@@ -73,7 +73,11 @@ pub struct MapLayout {
 
 impl MapLayout {
     pub fn parse(text: &str) -> Result<Self, String> {
-        let rows: Vec<&str> = text.lines().map(str::trim_end).filter(|l| !l.is_empty()).collect();
+        let rows: Vec<&str> = text
+            .lines()
+            .map(str::trim_end)
+            .filter(|l| !l.is_empty())
+            .collect();
         let height = rows.len() as i32;
         let width = rows.first().map(|r| r.chars().count()).unwrap_or(0) as i32;
         if width == 0 || height == 0 {
@@ -92,14 +96,22 @@ impl MapLayout {
                     '#' => Terrain::Rock,
                     '=' => Terrain::Bridge,
                     other => {
-                        markers.entry(other).or_default().push(TilePos::new(x as i32, y as i32));
+                        markers
+                            .entry(other)
+                            .or_default()
+                            .push(TilePos::new(x as i32, y as i32));
                         Terrain::Grass
                     }
                 };
                 terrain.push(t);
             }
         }
-        Ok(Self { width, height, terrain, markers })
+        Ok(Self {
+            width,
+            height,
+            terrain,
+            markers,
+        })
     }
 
     pub fn marker(&self, c: char) -> Option<TilePos> {
@@ -186,7 +198,11 @@ impl Grid {
     }
 
     /// Like [`Grid::distance_field`] but treats `extra_block` as occupied.
-    pub fn distance_field_with_block(&self, sources: &[TilePos], extra_block: Option<TilePos>) -> DistanceField {
+    pub fn distance_field_with_block(
+        &self,
+        sources: &[TilePos],
+        extra_block: Option<TilePos>,
+    ) -> DistanceField {
         let mut dist = vec![u32::MAX; self.terrain.len()];
         let mut queue = VecDeque::new();
         for &s in sources {
@@ -208,7 +224,11 @@ impl Grid {
                 }
             }
         }
-        DistanceField { width: self.width, height: self.height, dist }
+        DistanceField {
+            width: self.width,
+            height: self.height,
+            dist,
+        }
     }
 
     /// Distance field seeded from the walkable tiles around `target`
@@ -220,7 +240,9 @@ impl Grid {
 
     /// Shortest distance from `field`'s sources to any interaction tile of `target`.
     pub fn approach_distance(&self, field: &DistanceField, target: TilePos) -> Option<u32> {
-        self.walkable_neighbors(target).filter_map(|n| field.get(n)).min()
+        self.walkable_neighbors(target)
+            .filter_map(|n| field.get(n))
+            .min()
     }
 
     /// BFS path from `from` to any tile satisfying `goal`. The returned path
@@ -275,7 +297,9 @@ mod tests {
     #[test]
     fn path_goes_around_water() {
         let g = grid("...\n.~.\n...\n");
-        let path = g.find_path(TilePos::new(0, 1), |p| p == TilePos::new(2, 1)).unwrap();
+        let path = g
+            .find_path(TilePos::new(0, 1), |p| p == TilePos::new(2, 1))
+            .unwrap();
         assert_eq!(path.len(), 4);
         assert_eq!(*path.last().unwrap(), TilePos::new(2, 1));
     }
@@ -283,7 +307,10 @@ mod tests {
     #[test]
     fn unreachable_returns_none() {
         let g = grid(".~.\n.~.\n");
-        assert!(g.find_path(TilePos::new(0, 0), |p| p == TilePos::new(2, 0)).is_none());
+        assert!(
+            g.find_path(TilePos::new(0, 0), |p| p == TilePos::new(2, 0))
+                .is_none()
+        );
     }
 
     #[test]

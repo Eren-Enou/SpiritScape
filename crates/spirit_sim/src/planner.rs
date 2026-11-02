@@ -11,7 +11,9 @@
 //! The builder physically moves the reserved materials and builds.
 
 use crate::defs::{BuildingKindId, JobKind};
-use crate::entities::{Building, BuildingId, BuildingState, Project, ProjectId, ProjectState, SpiritId};
+use crate::entities::{
+    Building, BuildingId, BuildingState, Project, ProjectId, ProjectState, SpiritId,
+};
 use crate::events::EventKind;
 use crate::grid::TilePos;
 use crate::inventory::Storage;
@@ -49,6 +51,7 @@ pub struct PlannerState {
 }
 
 impl World {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn record_delivery(
         &mut self,
         spirit: SpiritId,
@@ -81,7 +84,14 @@ impl World {
     fn recent_samples(&self) -> Vec<DeliverySample> {
         let rules = &self.defs.planner;
         let min_tick = self.tick.saturating_sub(rules.max_sample_age_ticks);
-        let mut v: Vec<_> = self.settlement.planner.samples.iter().filter(|s| s.tick >= min_tick).cloned().collect();
+        let mut v: Vec<_> = self
+            .settlement
+            .planner
+            .samples
+            .iter()
+            .filter(|s| s.tick >= min_tick)
+            .cloned()
+            .collect();
         let skip = v.len().saturating_sub(rules.delivery_window);
         v.drain(..skip);
         v
@@ -98,7 +108,11 @@ impl World {
         let travel: u64 = samples.iter().map(|s| s.travel_ticks as u64).sum();
         let work: u64 = samples.iter().map(|s| s.work_ticks as u64).sum();
         let travel_share_pct = (travel * 100 / (travel + work).max(1)) as u32;
-        Some(ProblemReport { samples: samples.len(), avg_leg_tiles, travel_share_pct })
+        Some(ProblemReport {
+            samples: samples.len(),
+            avg_leg_tiles,
+            travel_share_pct,
+        })
     }
 
     fn set_status(&mut self, status: impl Into<String>) {
@@ -114,7 +128,11 @@ impl World {
         planner.status = format!("Rejected {name}: {reason}");
         if planner.last_rejection.as_deref() != Some(category) {
             planner.last_rejection = Some(category.to_string());
-            self.events.push(self.tick, EventKind::Planner, format!("Considered a {name} but rejected it: {reason}"));
+            self.events.push(
+                self.tick,
+                EventKind::Planner,
+                format!("Considered a {name} but rejected it: {reason}"),
+            );
         }
     }
 
@@ -137,10 +155,15 @@ impl World {
             let n = self.recent_samples().len();
             self.settlement.planner.problem = None;
             self.settlement.planner.problem_logged = false;
-            self.set_status(format!("Monitoring deliveries ({n}/{} recent samples)", rules.delivery_window));
+            self.set_status(format!(
+                "Monitoring deliveries ({n}/{} recent samples)",
+                rules.delivery_window
+            ));
             return;
         };
-        if report.travel_share_pct < rules.travel_share_threshold_pct || report.avg_leg_tiles < rules.min_leg_tiles {
+        if report.travel_share_pct < rules.travel_share_threshold_pct
+            || report.avg_leg_tiles < rules.min_leg_tiles
+        {
             self.settlement.planner.problem = None;
             self.settlement.planner.problem_logged = false;
             self.set_status(format!(
@@ -151,33 +174,54 @@ impl World {
         }
         let problem_text = format!(
             "gatherer deliveries average {} tiles and walking takes {}% of trip time (limits: {} tiles, {}%)",
-            report.avg_leg_tiles, report.travel_share_pct, rules.min_leg_tiles, rules.travel_share_threshold_pct
+            report.avg_leg_tiles,
+            report.travel_share_pct,
+            rules.min_leg_tiles,
+            rules.travel_share_threshold_pct
         );
         self.settlement.planner.problem = Some(report.clone());
         if !self.settlement.planner.problem_logged {
             self.settlement.planner.problem_logged = true;
-            self.events.push(self.tick, EventKind::Planner, format!("Inefficiency detected: {problem_text}"));
+            self.events.push(
+                self.tick,
+                EventKind::Planner,
+                format!("Inefficiency detected: {problem_text}"),
+            );
         }
         if self.tick < self.settlement.planner.cooldown_until {
-            let secs = (self.settlement.planner.cooldown_until - self.tick) / self.defs.ticks_per_second as u64;
+            let secs = (self.settlement.planner.cooldown_until - self.tick)
+                / self.defs.ticks_per_second as u64;
             self.set_status(format!("Problem persists; re-evaluating in {secs}s"));
             return;
         }
 
         // 2. Evaluate a solution
         // Place the building to serve the long deliveries that cause the problem.
-        let long: Vec<_> = self.recent_samples().into_iter().filter(|s| s.leg_tiles >= rules.min_leg_tiles).collect();
+        let long: Vec<_> = self
+            .recent_samples()
+            .into_iter()
+            .filter(|s| s.leg_tiles >= rules.min_leg_tiles)
+            .collect();
         let long_avg = long.iter().map(|s| s.leg_tiles).sum::<u32>() / (long.len() as u32).max(1);
         let Some((site, est_leg)) = self.find_site(&long) else {
-            self.reject(kind, "site", "no buildable site near the gathering area".into());
+            self.reject(
+                kind,
+                "site",
+                "no buildable site near the gathering area".into(),
+            );
             return;
         };
+        // Depositing always takes at least a step, even from a tile next to the trees.
+        let est_leg = est_leg.max(1);
         let savings_pct = 100u32.saturating_sub(est_leg * 100 / long_avg.max(1));
         if savings_pct < rules.min_savings_pct {
             self.reject(
                 kind,
                 "savings",
-                format!("best site {site} only shortens deliveries by {savings_pct}% (need {}%)", rules.min_savings_pct),
+                format!(
+                    "best site {site} only shortens deliveries by {savings_pct}% (need {}%)",
+                    rules.min_savings_pct
+                ),
             );
             return;
         }
@@ -185,7 +229,9 @@ impl World {
         // 3. Permissions and workers
         let name = self.defs.building(kind).name.clone();
         if !self.settlement.allow_autonomous_construction {
-            self.set_status(format!("{name} at {site} is justified, but autonomous construction is not permitted"));
+            self.set_status(format!(
+                "{name} at {site} is justified, but autonomous construction is not permitted"
+            ));
             if !self.settlement.planner.permission_logged {
                 self.settlement.planner.permission_logged = true;
                 self.events.push(
@@ -198,11 +244,19 @@ impl World {
         }
         self.settlement.planner.permission_logged = false;
         if !self.has_role_with(JobKind::Construct) {
-            self.reject(kind, "builder", "no Construction Spirit exists to build it".into());
+            self.reject(
+                kind,
+                "builder",
+                "no Construction Spirit exists to build it".into(),
+            );
             return;
         }
         if !self.has_role_with(JobKind::Haul) {
-            self.reject(kind, "hauler", "no Hauling Spirit exists to empty it into Main Storage".into());
+            self.reject(
+                kind,
+                "hauler",
+                "no Hauling Spirit exists to empty it into Main Storage".into(),
+            );
             return;
         }
 
@@ -217,7 +271,10 @@ impl World {
         self.events.push(
             self.tick,
             EventKind::Planner,
-            format!("Decision: build a {name} at {site} (cost {}). Reason: {reason}", self.defs.describe_amounts(&cost)),
+            format!(
+                "Decision: build a {name} at {site} (cost {}). Reason: {reason}",
+                self.defs.describe_amounts(&cost)
+            ),
         );
         self.set_status(format!("Started project #{pid}: {name} at {site}"));
     }
@@ -231,7 +288,9 @@ impl World {
     }
 
     fn has_role_with(&self, job: JobKind) -> bool {
-        self.spirits.iter().any(|s| self.defs.role(s.role).has_job(job))
+        self.spirits
+            .iter()
+            .any(|s| self.defs.role(s.role).has_job(job))
     }
 
     /// Finds the buildable tile that minimizes the average walk from the
@@ -269,7 +328,13 @@ impl World {
                 let mut total = 0;
                 let mut ok = true;
                 for g in &gather {
-                    match self.grid.walkable_neighbors(*g).filter(|t| *t != p).filter_map(|t| field.get(t)).min() {
+                    match self
+                        .grid
+                        .walkable_neighbors(*g)
+                        .filter(|t| *t != p)
+                        .filter_map(|t| field.get(t))
+                        .min()
+                    {
                         Some(d) => total += d,
                         None => {
                             ok = false;
@@ -283,7 +348,11 @@ impl World {
             }
         }
         candidates.sort_by_key(|&(d, p)| (d, p.y, p.x));
-        candidates.into_iter().take(10).find(|&(_, p)| self.keeps_connectivity(p)).map(|(d, p)| (p, d))
+        candidates
+            .into_iter()
+            .take(10)
+            .find(|&(_, p)| self.keeps_connectivity(p))
+            .map(|(d, p)| (p, d))
     }
 
     /// True if blocking `p` leaves every currently reachable tree and
@@ -294,9 +363,17 @@ impl World {
         let before = self.grid.distance_field(&sources);
         let after = self.grid.distance_field_with_block(&sources, Some(p));
         let reachable_after = |target: TilePos| {
-            self.grid.walkable_neighbors(target).filter(|t| *t != p).any(|t| after.get(t).is_some())
+            self.grid
+                .walkable_neighbors(target)
+                .filter(|t| *t != p)
+                .any(|t| after.get(t).is_some())
         };
-        let targets = self.trees.iter().map(|t| t.pos).chain(self.buildings.iter().map(|b| b.pos)).chain([p]);
+        let targets = self
+            .trees
+            .iter()
+            .map(|t| t.pos)
+            .chain(self.buildings.iter().map(|b| b.pos))
+            .chain([p]);
         targets.into_iter().all(|t| {
             let was = t == p || self.grid.approach_distance(&before, t).is_some();
             !was || reachable_after(t)
@@ -353,7 +430,9 @@ impl World {
                     .cost
                     .iter()
                     .filter(|&&(r, n)| main.available(r) < n)
-                    .map(|&(r, n)| format!("{}/{n} {}", main.available(r), self.defs.resource(r).name))
+                    .map(|&(r, n)| {
+                        format!("{}/{n} {}", main.available(r), self.defs.resource(r).name)
+                    })
                     .collect();
                 if short.is_empty() {
                     for &(r, n) in &def.cost {
@@ -370,23 +449,36 @@ impl World {
                     );
                     self.events.push(self.tick, EventKind::Construction, msg);
                 } else {
-                    blocked = Some(format!("Waiting for materials: only {} available in Main Storage", short.join(", ")));
+                    blocked = Some(format!(
+                        "Waiting for materials: only {} available in Main Storage",
+                        short.join(", ")
+                    ));
                 }
             }
 
             if self.projects[pid].assigned.is_none() {
-                let busy: Vec<SpiritId> = self.projects.iter().filter(|p| p.is_active()).filter_map(|p| p.assigned).collect();
+                let busy: Vec<SpiritId> = self
+                    .projects
+                    .iter()
+                    .filter(|p| p.is_active())
+                    .filter_map(|p| p.assigned)
+                    .collect();
                 let builder = self
                     .spirits
                     .iter()
-                    .find(|s| self.defs.role(s.role).has_job(JobKind::Construct) && !busy.contains(&s.id))
+                    .find(|s| {
+                        self.defs.role(s.role).has_job(JobKind::Construct) && !busy.contains(&s.id)
+                    })
                     .map(|s| s.id);
                 match builder {
                     Some(sid) => {
                         self.projects[pid].assigned = Some(sid);
                         // Let the builder react immediately.
                         self.spirits[sid].next_think = self.tick;
-                        let msg = format!("Assigned {} to build the {}", self.spirits[sid].name, def.name);
+                        let msg = format!(
+                            "Assigned {} to build the {}",
+                            self.spirits[sid].name, def.name
+                        );
                         self.events.push(self.tick, EventKind::Construction, msg);
                     }
                     None => {

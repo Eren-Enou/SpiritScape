@@ -12,7 +12,10 @@ pub struct Inventory {
 
 impl Inventory {
     pub fn new(capacity: u32) -> Self {
-        Self { items: BTreeMap::new(), capacity }
+        Self {
+            items: BTreeMap::new(),
+            capacity,
+        }
     }
 
     pub fn items(&self) -> &BTreeMap<ResourceId, u32> {
@@ -68,7 +71,10 @@ pub struct Storage {
 
 impl Storage {
     pub fn new(capacity: u32) -> Self {
-        Self { capacity, ..Default::default() }
+        Self {
+            capacity,
+            ..Default::default()
+        }
     }
 
     pub fn contents(&self) -> &BTreeMap<ResourceId, u32> {

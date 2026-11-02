@@ -27,14 +27,22 @@ pub struct EventLog {
 
 impl EventLog {
     pub fn new(capacity: usize) -> Self {
-        Self { entries: VecDeque::new(), capacity, total: 0 }
+        Self {
+            entries: VecDeque::new(),
+            capacity,
+            total: 0,
+        }
     }
 
     pub fn push(&mut self, tick: u64, kind: EventKind, text: impl Into<String>) {
         if self.entries.len() == self.capacity {
             self.entries.pop_front();
         }
-        self.entries.push_back(Event { tick, kind, text: text.into() });
+        self.entries.push_back(Event {
+            tick,
+            kind,
+            text: text.into(),
+        });
         self.total += 1;
     }
 
@@ -44,6 +52,8 @@ impl EventLog {
     }
 
     pub fn contains(&self, kind: EventKind, needle: &str) -> bool {
-        self.entries.iter().any(|e| e.kind == kind && e.text.contains(needle))
+        self.entries
+            .iter()
+            .any(|e| e.kind == kind && e.text.contains(needle))
     }
 }

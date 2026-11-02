@@ -29,12 +29,28 @@ impl Goal {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Task {
-    Move { goal: Goal, label: String },
-    Chop { tree: TreeId },
-    Deposit { building: BuildingId },
-    Withdraw { building: BuildingId, resource: ResourceId, amount: u32, reserved: bool },
-    DeliverToSite { project: ProjectId },
-    Build { project: ProjectId },
+    Move {
+        goal: Goal,
+        label: String,
+    },
+    Chop {
+        tree: TreeId,
+    },
+    Deposit {
+        building: BuildingId,
+    },
+    Withdraw {
+        building: BuildingId,
+        resource: ResourceId,
+        amount: u32,
+        reserved: bool,
+    },
+    DeliverToSite {
+        project: ProjectId,
+    },
+    Build {
+        project: ProjectId,
+    },
 }
 
 impl Task {
@@ -43,7 +59,9 @@ impl Task {
             Task::Move { label, .. } => format!("Walk to {label}"),
             Task::Chop { tree } => format!("Chop tree #{tree}"),
             Task::Deposit { building } => format!("Deposit at building #{building}"),
-            Task::Withdraw { building, amount, .. } => format!("Collect {amount} from building #{building}"),
+            Task::Withdraw {
+                building, amount, ..
+            } => format!("Collect {amount} from building #{building}"),
             Task::DeliverToSite { project } => format!("Supply project #{project}"),
             Task::Build { project } => format!("Build project #{project}"),
         }
@@ -59,10 +77,28 @@ pub enum Who {
 /// Side effects reported back to the world after a task step.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SimEvent {
-    Chopped { who: Who, tree: TreeId, resource: ResourceId, xp: u64 },
-    Deposited { who: Who, building: BuildingId, amount: u32, leg_tiles: u32, work_ticks: u32, gather_pos: Option<TilePos> },
-    SiteSupplied { who: Who, project: ProjectId, amount: u32 },
-    ProjectCompleted { project: ProjectId },
+    Chopped {
+        who: Who,
+        tree: TreeId,
+        resource: ResourceId,
+        xp: u64,
+    },
+    Deposited {
+        who: Who,
+        building: BuildingId,
+        amount: u32,
+        leg_tiles: u32,
+        work_ticks: u32,
+        gather_pos: Option<TilePos>,
+    },
+    SiteSupplied {
+        who: Who,
+        project: ProjectId,
+        amount: u32,
+    },
+    ProjectCompleted {
+        project: ProjectId,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -89,7 +125,13 @@ pub struct TaskCtx<'a> {
 /// `level` is the actor's competency for timed work. `gather_budget`, when
 /// present, limits how many more units the actor should harvest (used to
 /// stop spirits once the settlement objective is met).
-pub fn step(actor: &mut Actor, who: Who, level: u32, gather_budget: Option<&mut i64>, ctx: &mut TaskCtx) -> StepResult {
+pub fn step(
+    actor: &mut Actor,
+    who: Who,
+    level: u32,
+    gather_budget: Option<&mut i64>,
+    ctx: &mut TaskCtx,
+) -> StepResult {
     let Some(task) = actor.queue.front().cloned() else {
         return StepResult::Done;
     };
@@ -97,9 +139,12 @@ pub fn step(actor: &mut Actor, who: Who, level: u32, gather_budget: Option<&mut 
         Task::Move { goal, label } => step_move(actor, goal, &label, ctx),
         Task::Chop { tree } => step_chop(actor, who, level, tree, gather_budget, ctx),
         Task::Deposit { building } => step_deposit(actor, who, building, ctx),
-        Task::Withdraw { building, resource, amount, reserved } => {
-            step_withdraw(actor, building, resource, amount, reserved, ctx)
-        }
+        Task::Withdraw {
+            building,
+            resource,
+            amount,
+            reserved,
+        } => step_withdraw(actor, building, resource, amount, reserved, ctx),
         Task::DeliverToSite { project } => step_supply(actor, who, project, ctx),
         Task::Build { project } => step_build(actor, level, project, ctx),
     }
@@ -175,9 +220,16 @@ fn step_chop(
     }
     actor.leg_tiles = 0;
     actor.last_gather = Some(tree.pos);
-    ctx.events.push(SimEvent::Chopped { who, tree: tree_id, resource: def.resource, xp: def.xp_per_log });
+    ctx.events.push(SimEvent::Chopped {
+        who,
+        tree: tree_id,
+        resource: def.resource,
+        xp: def.xp_per_log,
+    });
     if logs <= 1 {
-        tree.state = TreeState::Depleted { regrow_at: ctx.tick + def.regrow_ticks };
+        tree.state = TreeState::Depleted {
+            regrow_at: ctx.tick + def.regrow_ticks,
+        };
         tree.claimed_by = None;
         return StepResult::Done;
     }
@@ -188,12 +240,22 @@ fn step_chop(
     StepResult::Continue
 }
 
-fn step_deposit(actor: &mut Actor, who: Who, building_id: BuildingId, ctx: &mut TaskCtx) -> StepResult {
+fn step_deposit(
+    actor: &mut Actor,
+    who: Who,
+    building_id: BuildingId,
+    ctx: &mut TaskCtx,
+) -> StepResult {
     let b = &mut ctx.buildings[building_id];
     if !b.is_complete() || !actor.pos().is_adjacent(b.pos) {
         return StepResult::Failed(format!("Cannot reach {}", b.name));
     }
-    let carried: Vec<(ResourceId, u32)> = actor.inventory.items().iter().map(|(r, n)| (*r, *n)).collect();
+    let carried: Vec<(ResourceId, u32)> = actor
+        .inventory
+        .items()
+        .iter()
+        .map(|(r, n)| (*r, *n))
+        .collect();
     let mut amount = 0;
     for (r, n) in carried {
         let stored = b.storage.deposit(r, n);
@@ -242,7 +304,12 @@ fn step_withdraw(
     StepResult::Done
 }
 
-fn step_supply(actor: &mut Actor, who: Who, project_id: ProjectId, ctx: &mut TaskCtx) -> StepResult {
+fn step_supply(
+    actor: &mut Actor,
+    who: Who,
+    project_id: ProjectId,
+    ctx: &mut TaskCtx,
+) -> StepResult {
     let project = &mut ctx.projects[project_id];
     let site = ctx.buildings[project.building].pos;
     if !actor.pos().is_adjacent(site) {
@@ -259,19 +326,31 @@ fn step_supply(actor: &mut Actor, who: Who, project_id: ProjectId, ctx: &mut Tas
         }
     }
     if amount > 0 {
-        ctx.events.push(SimEvent::SiteSupplied { who, project: project_id, amount });
+        ctx.events.push(SimEvent::SiteSupplied {
+            who,
+            project: project_id,
+            amount,
+        });
     }
     StepResult::Done
 }
 
-fn step_build(actor: &mut Actor, level: u32, project_id: ProjectId, ctx: &mut TaskCtx) -> StepResult {
+fn step_build(
+    actor: &mut Actor,
+    level: u32,
+    project_id: ProjectId,
+    ctx: &mut TaskCtx,
+) -> StepResult {
     let project = &mut ctx.projects[project_id];
     let building = &mut ctx.buildings[project.building];
     if !actor.pos().is_adjacent(building.pos) {
         return StepResult::Failed("Not at the construction site".into());
     }
     let def = &ctx.defs.buildings[project.kind.index()];
-    let complete = def.cost.iter().all(|&(r, n)| project.delivered.get(&r).copied().unwrap_or(0) >= n);
+    let complete = def
+        .cost
+        .iter()
+        .all(|&(r, n)| project.delivered.get(&r).copied().unwrap_or(0) >= n);
     if !complete {
         return StepResult::Failed("Construction materials are missing".into());
     }
@@ -292,6 +371,8 @@ fn step_build(actor: &mut Actor, level: u32, project_id: ProjectId, ctx: &mut Ta
     project.completed_tick = Some(ctx.tick);
     project.blocked = None;
     building.state = BuildingState::Complete;
-    ctx.events.push(SimEvent::ProjectCompleted { project: project_id });
+    ctx.events.push(SimEvent::ProjectCompleted {
+        project: project_id,
+    });
     StepResult::Done
 }

@@ -4,7 +4,7 @@
 use crate::defs::{GameDefs, ResourceId};
 use crate::entities::{Actor, Building, BuildingState, Player, Tree, TreeState};
 use crate::events::{EventKind, EventLog};
-use crate::grid::{Grid, MapLayout, BUILTIN_MAP};
+use crate::grid::{BUILTIN_MAP, Grid, MapLayout};
 use crate::inventory::Storage;
 use crate::planner::PlannerState;
 use crate::world::{Ledger, Objective, Settlement, World};
@@ -56,8 +56,11 @@ impl World {
     /// Builds a world from the built-in definitions, map and scenario.
     pub fn from_scenario(kind: ScenarioKind) -> World {
         let defs = GameDefs::builtin();
-        let scenarios = load_scenarios(BUILTIN_SCENARIOS).expect("built-in scenarios must be valid");
-        let scenario = scenarios.get(kind.key()).expect("scenario missing from scenarios.toml");
+        let scenarios =
+            load_scenarios(BUILTIN_SCENARIOS).expect("built-in scenarios must be valid");
+        let scenario = scenarios
+            .get(kind.key())
+            .expect("scenario missing from scenarios.toml");
         let map = MapLayout::parse(BUILTIN_MAP).expect("built-in map must be valid");
         World::build(defs, &map, scenario).expect("built-in scenario must be valid")
     }
@@ -70,7 +73,13 @@ impl World {
             for &pos in positions {
                 if let Some(kind) = defs.tree_kind_for_char(c) {
                     let logs = defs.tree(kind).logs;
-                    trees.push(Tree { id: 0, kind, pos, state: TreeState::Grown { logs }, claimed_by: None });
+                    trees.push(Tree {
+                        id: 0,
+                        kind,
+                        pos,
+                        state: TreeState::Grown { logs },
+                        claimed_by: None,
+                    });
                     grid.set_occupied(pos, true);
                 } else if let Some(kind) = defs.building_kind_for_char(c) {
                     let def = defs.building(kind);
@@ -102,9 +111,16 @@ impl World {
             .ok_or("map has no main storage marker")?;
 
         let player_pos = map.marker('P').ok_or("map has no player start 'P'")?;
-        let player = Player::new(Actor::new(player_pos, defs.player.move_ticks, defs.player.carry_capacity));
+        let player = Player::new(Actor::new(
+            player_pos,
+            defs.player.move_ticks,
+            defs.player.carry_capacity,
+        ));
 
-        let objective = Objective { resource: defs.objective.resource, target: scenario.objective_target };
+        let objective = Objective {
+            resource: defs.objective.resource,
+            target: scenario.objective_target,
+        };
         let event_cap = defs.event_log_capacity;
         let mut world = World {
             defs,
@@ -126,18 +142,29 @@ impl World {
         };
 
         for (skill, &xp) in &scenario.player_xp {
-            let id = world.defs.skill_id(skill).ok_or_else(|| format!("unknown skill {skill:?}"))?;
+            let id = world
+                .defs
+                .skill_id(skill)
+                .ok_or_else(|| format!("unknown skill {skill:?}"))?;
             world.player.add_xp(id, xp);
         }
         for (res, &n) in &scenario.main_storage {
-            let id: ResourceId = world.defs.resource_id(res).ok_or_else(|| format!("unknown resource {res:?}"))?;
+            let id: ResourceId = world
+                .defs
+                .resource_id(res)
+                .ok_or_else(|| format!("unknown resource {res:?}"))?;
             let stored = world.buildings[main_storage].storage.deposit(id, n);
             *world.ledger.seeded.entry(id).or_default() += stored as u64;
         }
         for seed in &scenario.spirits {
-            let role = world.defs.role_id(&seed.role).ok_or_else(|| format!("unknown role {:?}", seed.role))?;
+            let role = world
+                .defs
+                .role_id(&seed.role)
+                .ok_or_else(|| format!("unknown role {:?}", seed.role))?;
             let c = seed.spawn.chars().next().ok_or("empty spawn marker")?;
-            let pos = map.marker(c).ok_or_else(|| format!("map has no spawn marker {c:?}"))?;
+            let pos = map
+                .marker(c)
+                .ok_or_else(|| format!("map has no spawn marker {c:?}"))?;
             world.add_spirit(role, seed.xp, pos);
         }
 

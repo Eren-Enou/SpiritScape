@@ -12,7 +12,14 @@ use std::collections::BTreeMap;
 use std::hash::{Hash, Hasher};
 
 const SPIRIT_NAMES: &[&str] = &[
-    "Oakroot", "Mossbell", "Ashwhisper", "Fernlight", "Birchsong", "Emberleaf", "Thistledown", "Willowmere",
+    "Oakroot",
+    "Mossbell",
+    "Ashwhisper",
+    "Fernlight",
+    "Birchsong",
+    "Emberleaf",
+    "Thistledown",
+    "Willowmere",
 ];
 
 /// Running totals used to verify conservation of resources and XP.
@@ -48,7 +55,10 @@ pub struct Settlement {
 pub enum Command {
     /// Click on a tile: walk there, chop a tree, or deposit into a storage.
     PlayerInteract(TilePos),
-    SoulSeparate { skill: SkillId, xp: u64 },
+    SoulSeparate {
+        skill: SkillId,
+        xp: u64,
+    },
     SetObjectiveTarget(u32),
     SetAutonomousConstruction(bool),
 }
@@ -83,7 +93,15 @@ impl World {
         };
         let level = self.defs.xp_table.level_for_xp(xp);
         let actor = Actor::new(pos, role_def.move_ticks, role_def.capacity_at(level));
-        let spirit = Spirit::new(id, name, role, role_def.skill, xp, &self.defs.xp_table, actor);
+        let spirit = Spirit::new(
+            id,
+            name,
+            role,
+            role_def.skill,
+            xp,
+            &self.defs.xp_table,
+            actor,
+        );
         self.spirits.push(spirit);
         id
     }
@@ -140,9 +158,17 @@ impl World {
     /// Total units of `r` physically present anywhere (storages, inventories, sites).
     pub fn resource_in_world(&self, r: ResourceId) -> u64 {
         let storages: u64 = self.buildings.iter().map(|b| b.storage.get(r) as u64).sum();
-        let carried: u64 = self.spirits.iter().map(|s| s.actor.inventory.get(r) as u64).sum::<u64>()
+        let carried: u64 = self
+            .spirits
+            .iter()
+            .map(|s| s.actor.inventory.get(r) as u64)
+            .sum::<u64>()
             + self.player.actor.inventory.get(r) as u64;
-        let sites: u64 = self.projects.iter().map(|p| p.delivered.get(&r).copied().unwrap_or(0) as u64).sum();
+        let sites: u64 = self
+            .projects
+            .iter()
+            .map(|p| p.delivered.get(&r).copied().unwrap_or(0) as u64)
+            .sum();
         storages + carried + sites
     }
 
@@ -173,7 +199,15 @@ impl World {
         for b in &self.buildings {
             (b.pos, b.is_complete(), b.storage.contents().clone()).hash(&mut h);
         }
-        let mut actor = |a: &Actor| (a.pos(), a.mover.progress, a.inventory.items().clone(), a.queue.len()).hash(&mut h);
+        let mut actor = |a: &Actor| {
+            (
+                a.pos(),
+                a.mover.progress,
+                a.inventory.items().clone(),
+                a.queue.len(),
+            )
+                .hash(&mut h)
+        };
         actor(&self.player.actor);
         for s in &self.spirits {
             actor(&s.actor);
@@ -192,13 +226,16 @@ impl World {
     pub fn apply(&mut self, cmd: Command) -> Result<String, String> {
         match cmd {
             Command::PlayerInteract(p) => self.player_interact(p),
-            Command::SoulSeparate { skill, xp } => self.soul_separate(skill, xp).map(|id| {
-                format!("Created {}", self.spirits[id].name)
-            }),
+            Command::SoulSeparate { skill, xp } => self
+                .soul_separate(skill, xp)
+                .map(|id| format!("Created {}", self.spirits[id].name)),
             Command::SetObjectiveTarget(target) => {
                 let o = &mut self.settlement.objective;
                 o.target = target;
-                let msg = format!("Objective changed: maintain {target} {} in Main Storage", self.defs.resource(o.resource).name);
+                let msg = format!(
+                    "Objective changed: maintain {target} {} in Main Storage",
+                    self.defs.resource(o.resource).name
+                );
                 self.events.push(self.tick, EventKind::Player, msg.clone());
                 Ok(msg)
             }
@@ -226,7 +263,10 @@ impl World {
             }
             (
                 vec![
-                    Task::Move { goal: Goal::Adjacent(p), label: name.clone() },
+                    Task::Move {
+                        goal: Goal::Adjacent(p),
+                        label: name.clone(),
+                    },
                     Task::Chop { tree: tree.id },
                 ],
                 format!("Chopping {name}"),
@@ -237,13 +277,22 @@ impl World {
             }
             (
                 vec![
-                    Task::Move { goal: Goal::Adjacent(p), label: b.name.clone() },
+                    Task::Move {
+                        goal: Goal::Adjacent(p),
+                        label: b.name.clone(),
+                    },
                     Task::Deposit { building: b.id },
                 ],
                 format!("Depositing at {}", b.name),
             )
         } else if self.grid.is_walkable(p) {
-            (vec![Task::Move { goal: Goal::Exact(p), label: p.to_string() }], format!("Walking to {p}"))
+            (
+                vec![Task::Move {
+                    goal: Goal::Exact(p),
+                    label: p.to_string(),
+                }],
+                format!("Walking to {p}"),
+            )
         } else {
             return Err("You can't walk there".into());
         };
@@ -261,12 +310,19 @@ impl World {
             return Err(format!("{} cannot form a spirit yet", skill_def.name));
         };
         if xp < self.defs.soul_min_xp {
-            return Err(format!("At least {} XP is required to form a spirit", self.defs.soul_min_xp));
+            return Err(format!(
+                "At least {} XP is required to form a spirit",
+                self.defs.soul_min_xp
+            ));
         }
         let table = &self.defs.xp_table;
         let before_level = self.player.level(skill, table);
         if !self.player.take_xp(skill, xp) {
-            return Err(format!("Not enough {} XP ({} available)", skill_def.name, self.player.xp(skill)));
+            return Err(format!(
+                "Not enough {} XP ({} available)",
+                skill_def.name,
+                self.player.xp(skill)
+            ));
         }
         let after_level = self.player.level(skill, &self.defs.xp_table);
         self.ledger.xp_separated += xp;
@@ -292,7 +348,10 @@ impl World {
         self.tick += 1;
         self.regrow_trees();
         self.update_projects();
-        if self.tick % self.defs.planner.eval_interval_ticks == 0 {
+        if self
+            .tick
+            .is_multiple_of(self.defs.planner.eval_interval_ticks)
+        {
             self.evaluate_logistics();
         }
 
@@ -315,11 +374,14 @@ impl World {
             if let TreeState::Depleted { regrow_at } = t.state
                 && self.tick >= regrow_at
             {
-                t.state = TreeState::Grown { logs: self.defs.trees[t.kind.index()].logs };
+                t.state = TreeState::Grown {
+                    logs: self.defs.trees[t.kind.index()].logs,
+                };
             }
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn task_ctx<'a>(
         defs: &'a GameDefs,
         grid: &'a Grid,
@@ -330,16 +392,37 @@ impl World {
         tick: u64,
         events: &'a mut Vec<SimEvent>,
     ) -> TaskCtx<'a> {
-        TaskCtx { defs, grid, trees, buildings, projects, ledger, tick, events }
+        TaskCtx {
+            defs,
+            grid,
+            trees,
+            buildings,
+            projects,
+            ledger,
+            tick,
+            events,
+        }
     }
 
     fn step_player(&mut self, events: &mut Vec<SimEvent>) {
         let level = self.player_chop_level();
-        let World { defs, grid, trees, buildings, projects, ledger, tick, player, .. } = self;
+        let World {
+            defs,
+            grid,
+            trees,
+            buildings,
+            projects,
+            ledger,
+            tick,
+            player,
+            ..
+        } = self;
         if player.actor.queue.is_empty() {
             return;
         }
-        let mut ctx = Self::task_ctx(defs, grid, trees, buildings, projects, ledger, *tick, events);
+        let mut ctx = Self::task_ctx(
+            defs, grid, trees, buildings, projects, ledger, *tick, events,
+        );
         match tasks::step(&mut player.actor, Who::Player, level, None, &mut ctx) {
             StepResult::Continue => {}
             StepResult::Done => {
@@ -372,17 +455,36 @@ impl World {
         let o = &self.settlement.objective;
         let mut budget = o.target as i64 - self.projected_stock(o.resource) as i64;
         for sid in 0..self.spirits.len() {
-            if self.spirits[sid].actor.queue.is_empty() && self.tick >= self.spirits[sid].next_think {
+            if self.spirits[sid].actor.queue.is_empty() && self.tick >= self.spirits[sid].next_think
+            {
                 self.think(sid);
             }
-            let World { defs, grid, trees, buildings, projects, ledger, tick, spirits, .. } = self;
+            let World {
+                defs,
+                grid,
+                trees,
+                buildings,
+                projects,
+                ledger,
+                tick,
+                spirits,
+                ..
+            } = self;
             let spirit = &mut spirits[sid];
             if spirit.actor.queue.is_empty() {
                 continue;
             }
             let level = spirit.level();
-            let mut ctx = Self::task_ctx(defs, grid, trees, buildings, projects, ledger, *tick, events);
-            match tasks::step(&mut spirit.actor, Who::Spirit(sid), level, Some(&mut budget), &mut ctx) {
+            let mut ctx = Self::task_ctx(
+                defs, grid, trees, buildings, projects, ledger, *tick, events,
+            );
+            match tasks::step(
+                &mut spirit.actor,
+                Who::Spirit(sid),
+                level,
+                Some(&mut budget),
+                &mut ctx,
+            ) {
                 StepResult::Continue => {}
                 StepResult::Done => {
                     spirit.actor.queue.pop_front();
@@ -401,7 +503,12 @@ impl World {
 
     fn handle_event(&mut self, e: SimEvent) {
         match e {
-            SimEvent::Chopped { who: Who::Player, tree, xp, .. } => {
+            SimEvent::Chopped {
+                who: Who::Player,
+                tree,
+                xp,
+                ..
+            } => {
                 let skill = self.defs.tree(self.trees[tree].kind).skill;
                 let table = &self.defs.xp_table;
                 let before = self.player.level(skill, table);
@@ -409,26 +516,45 @@ impl World {
                 self.ledger.xp_earned += xp;
                 let after = self.player.level(skill, &self.defs.xp_table);
                 if after > before {
-                    let msg = format!("{} level up! You are now level {after}.", self.defs.skill(skill).name);
+                    let msg = format!(
+                        "{} level up! You are now level {after}.",
+                        self.defs.skill(skill).name
+                    );
                     self.events.push(self.tick, EventKind::Player, msg);
                 }
             }
             // Spirits harvest but never gain experience.
-            SimEvent::Chopped { who: Who::Spirit(sid), .. } => {
+            SimEvent::Chopped {
+                who: Who::Spirit(sid),
+                ..
+            } => {
                 self.spirits[sid].units_gathered += 1;
             }
-            SimEvent::Deposited { who: Who::Spirit(sid), building, amount, leg_tiles, work_ticks, gather_pos } => {
+            SimEvent::Deposited {
+                who: Who::Spirit(sid),
+                building,
+                amount,
+                leg_tiles,
+                work_ticks,
+                gather_pos,
+            } => {
                 self.spirits[sid].units_delivered += amount;
                 let role = self.defs.role(self.spirits[sid].role);
                 if role.has_job(JobKind::Gather)
                     && let Some(gather_pos) = gather_pos
                 {
                     let move_ticks = role.move_ticks;
-                    self.record_delivery(sid, building, gather_pos, leg_tiles, work_ticks, amount, move_ticks);
+                    self.record_delivery(
+                        sid, building, gather_pos, leg_tiles, work_ticks, amount, move_ticks,
+                    );
                 }
             }
-            SimEvent::Deposited { who: Who::Player, .. } => {}
-            SimEvent::SiteSupplied { project, amount, .. } => {
+            SimEvent::Deposited {
+                who: Who::Player, ..
+            } => {}
+            SimEvent::SiteSupplied {
+                project, amount, ..
+            } => {
                 let p = &self.projects[project];
                 let def = self.defs.building(p.kind);
                 let msg = format!(

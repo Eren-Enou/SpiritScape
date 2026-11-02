@@ -55,18 +55,25 @@ impl World {
                 parts.join(", ")
             }
             Condition::ProjectAssigned => match self.project_for(sid) {
-                Some(p) => format!("assigned to the {} project", self.defs.building(self.projects[p].kind).name),
+                Some(p) => format!(
+                    "assigned to the {} project",
+                    self.defs.building(self.projects[p].kind).name
+                ),
                 None => "no project".into(),
             },
         }
     }
 
     fn outposts(&self) -> impl Iterator<Item = &crate::entities::Building> {
-        self.buildings.iter().filter(|b| b.id != self.main_storage && b.is_complete())
+        self.buildings
+            .iter()
+            .filter(|b| b.id != self.main_storage && b.is_complete())
     }
 
     pub(crate) fn project_for(&self, sid: SpiritId) -> Option<usize> {
-        self.projects.iter().position(|p| p.is_active() && p.assigned == Some(sid))
+        self.projects
+            .iter()
+            .position(|p| p.is_active() && p.assigned == Some(sid))
     }
 
     /// Picks the highest-priority applicable job and installs its tasks.
@@ -109,7 +116,12 @@ impl World {
         };
         if changed {
             let s = &self.spirits[sid];
-            let msg = format!("{} is {}: {}", s.name, activity.label().to_lowercase(), activity.text());
+            let msg = format!(
+                "{} is {}: {}",
+                s.name,
+                activity.label().to_lowercase(),
+                activity.text()
+            );
             let key = match &activity {
                 Activity::Blocked(r) => format!("blocked:{r}"),
                 _ => "idle".into(),
@@ -139,7 +151,14 @@ impl World {
         "nothing to do".into()
     }
 
-    fn install(&mut self, sid: SpiritId, job: JobKind, plan: JobPlan, previous: &Activity, why: &str) {
+    fn install(
+        &mut self,
+        sid: SpiritId,
+        job: JobKind,
+        plan: JobPlan,
+        previous: &Activity,
+        why: &str,
+    ) {
         if let Some(t) = plan.claim_tree {
             self.trees[t].claimed_by = Some(sid);
         }
@@ -148,21 +167,17 @@ impl World {
             let msg = format!("{}: {} - {why}", s.name, plan.description);
             self.log_spirit(sid, format!("job:{job:?}"), msg);
         }
-        let mut notes = Vec::new();
         let s = &self.spirits[sid];
-        if let Some(target) = plan.deliver_target {
-            if let Some(old) = s.last_deliver_target
-                && old != target
-            {
-                let dist = self.path_distance_to(sid, target).unwrap_or(0);
-                notes.push(format!(
-                    "{} now delivers to {} ({dist} tiles away) instead of {}",
-                    s.name, self.buildings[target].name, self.buildings[old].name
-                ));
-            }
-        }
-        for n in notes {
-            self.events.push(self.tick, EventKind::Spirit, n);
+        if let Some(target) = plan.deliver_target
+            && let Some(old) = s.last_deliver_target
+            && old != target
+        {
+            let dist = self.path_distance_to(sid, target).unwrap_or(0);
+            let msg = format!(
+                "{} now delivers to {} ({dist} tiles away) instead of {}",
+                s.name, self.buildings[target].name, self.buildings[old].name
+            );
+            self.events.push(self.tick, EventKind::Spirit, msg);
         }
         let s = &mut self.spirits[sid];
         if plan.deliver_target.is_some() {
@@ -186,7 +201,8 @@ impl World {
 
     fn path_distance_to(&self, sid: SpiritId, building: BuildingId) -> Option<u32> {
         let field = self.grid.distance_field(&[self.spirits[sid].actor.pos()]);
-        self.grid.approach_distance(&field, self.buildings[building].pos)
+        self.grid
+            .approach_distance(&field, self.buildings[building].pos)
     }
 
     fn plan_job(&self, sid: SpiritId, job: JobKind) -> Result<JobPlan, String> {
@@ -234,8 +250,14 @@ impl World {
             if t.claimed_by.is_some_and(|c| c != sid) {
                 continue;
             }
-            let Some(walk) = self.grid.approach_distance(&from, t.pos) else { continue };
-            let Some(haul) = storage_fields.iter().filter_map(|f| self.grid.approach_distance(f, t.pos)).min() else {
+            let Some(walk) = self.grid.approach_distance(&from, t.pos) else {
+                continue;
+            };
+            let Some(haul) = storage_fields
+                .iter()
+                .filter_map(|f| self.grid.approach_distance(f, t.pos))
+                .min()
+            else {
                 continue;
             };
             // Prefer trees that are close to us and close to a drop-off point.
@@ -255,7 +277,13 @@ impl World {
         let name = self.defs.tree(t.kind).name.clone();
         Ok(JobPlan {
             description: format!("Gathering at {name} {}", t.pos),
-            tasks: vec![Task::Move { goal: Goal::Adjacent(t.pos), label: name }, Task::Chop { tree }],
+            tasks: vec![
+                Task::Move {
+                    goal: Goal::Adjacent(t.pos),
+                    label: name,
+                },
+                Task::Chop { tree },
+            ],
             claim_tree: Some(tree),
             deliver_target: None,
         })
@@ -271,7 +299,11 @@ impl World {
         let target = self
             .deposit_targets(role.deliver_to)
             .into_iter()
-            .filter_map(|b| self.grid.approach_distance(&field, self.buildings[b].pos).map(|d| (d, b)))
+            .filter_map(|b| {
+                self.grid
+                    .approach_distance(&field, self.buildings[b].pos)
+                    .map(|d| (d, b))
+            })
             .min();
         let Some((_, b)) = target else {
             return Err("No reachable storage has free space".into());
@@ -284,7 +316,10 @@ impl World {
                 building.name
             ),
             tasks: vec![
-                Task::Move { goal: Goal::Adjacent(building.pos), label: building.name.clone() },
+                Task::Move {
+                    goal: Goal::Adjacent(building.pos),
+                    label: building.name.clone(),
+                },
                 Task::Deposit { building: b },
             ],
             claim_tree: None,
@@ -310,7 +345,9 @@ impl World {
             .iter()
             .max_by_key(|(r, n)| (**n, std::cmp::Reverse(**r)))
             .unwrap();
-        let amount = amount.min(s.actor.inventory.free()).min(main.storage.free());
+        let amount = amount
+            .min(s.actor.inventory.free())
+            .min(main.storage.free());
         Ok(JobPlan {
             description: format!(
                 "Hauling {amount} {} from {} to {}",
@@ -319,9 +356,20 @@ impl World {
                 main.name
             ),
             tasks: vec![
-                Task::Move { goal: Goal::Adjacent(source.pos), label: source.name.clone() },
-                Task::Withdraw { building: source.id, resource, amount, reserved: false },
-                Task::Move { goal: Goal::Adjacent(main.pos), label: main.name.clone() },
+                Task::Move {
+                    goal: Goal::Adjacent(source.pos),
+                    label: source.name.clone(),
+                },
+                Task::Withdraw {
+                    building: source.id,
+                    resource,
+                    amount,
+                    reserved: false,
+                },
+                Task::Move {
+                    goal: Goal::Adjacent(main.pos),
+                    label: main.name.clone(),
+                },
                 Task::Deposit { building: main.id },
             ],
             claim_tree: None,
@@ -330,7 +378,9 @@ impl World {
     }
 
     fn plan_construct(&self, sid: SpiritId) -> Result<JobPlan, String> {
-        let pid = self.project_for(sid).ok_or_else(|| "No construction project assigned".to_string())?;
+        let pid = self
+            .project_for(sid)
+            .ok_or_else(|| "No construction project assigned".to_string())?;
         let p = &self.projects[pid];
         let def = self.defs.building(p.kind);
         let site = self.buildings[p.building].pos;
@@ -340,11 +390,19 @@ impl World {
         let missing: Vec<_> = def
             .cost
             .iter()
-            .map(|&(r, n)| (r, n.saturating_sub(p.delivered.get(&r).copied().unwrap_or(0))))
+            .map(|&(r, n)| {
+                (
+                    r,
+                    n.saturating_sub(p.delivered.get(&r).copied().unwrap_or(0)),
+                )
+            })
             .filter(|&(_, n)| n > 0)
             .collect();
 
-        let to_site = Task::Move { goal: Goal::Adjacent(site), label: site_label.clone() };
+        let to_site = Task::Move {
+            goal: Goal::Adjacent(site),
+            label: site_label.clone(),
+        };
         if carrying_materials {
             return Ok(JobPlan {
                 description: format!("Carrying materials to the {site_label}"),
@@ -362,7 +420,10 @@ impl World {
             });
         }
         if !p.reserved || p.state == ProjectState::AwaitingMaterials {
-            return Err(p.blocked.clone().unwrap_or_else(|| "Waiting for materials".into()));
+            return Err(p
+                .blocked
+                .clone()
+                .unwrap_or_else(|| "Waiting for materials".into()));
         }
         let (resource, need) = missing[0];
         let amount = need.min(s.actor.inventory.free());
@@ -375,8 +436,16 @@ impl World {
                 def.name
             ),
             tasks: vec![
-                Task::Move { goal: Goal::Adjacent(main.pos), label: main.name.clone() },
-                Task::Withdraw { building: main.id, resource, amount, reserved: true },
+                Task::Move {
+                    goal: Goal::Adjacent(main.pos),
+                    label: main.name.clone(),
+                },
+                Task::Withdraw {
+                    building: main.id,
+                    resource,
+                    amount,
+                    reserved: true,
+                },
                 to_site,
                 Task::DeliverToSite { project: pid },
             ],
