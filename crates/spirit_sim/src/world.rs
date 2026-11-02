@@ -55,6 +55,13 @@ pub struct Settlement {
 pub enum Command {
     /// Click on a tile: walk there, chop a tree, or deposit into a storage.
     PlayerInteract(TilePos),
+    /// Keyboard movement: step one tile in a direction (dx, dy each -1..=1).
+    /// Repeating it while a step is in progress queues the following tile,
+    /// so a held key walks smoothly.
+    PlayerStep {
+        dx: i32,
+        dy: i32,
+    },
     SoulSeparate {
         skill: SkillId,
         xp: u64,
@@ -226,6 +233,7 @@ impl World {
     pub fn apply(&mut self, cmd: Command) -> Result<String, String> {
         match cmd {
             Command::PlayerInteract(p) => self.player_interact(p),
+            Command::PlayerStep { dx, dy } => self.player_step(dx, dy),
             Command::SoulSeparate { skill, xp } => self
                 .soul_separate(skill, xp)
                 .map(|id| format!("Created {}", self.spirits[id].name)),
@@ -250,6 +258,35 @@ impl World {
                 Ok(msg.into())
             }
         }
+    }
+
+    fn player_step(&mut self, dx: i32, dy: i32) -> Result<String, String> {
+        let actor = &mut self.player.actor;
+        // Mid-step, keep walking into the tile we're entering and plan from there.
+        let mid_step = actor.mover.progress > 0;
+        let from = match actor.mover.path.front() {
+            Some(&next) if mid_step => next,
+            _ => actor.pos(),
+        };
+        let target = TilePos::new(from.x + dx.signum(), from.y + dy.signum());
+        let goal = Goal::Exact(target);
+        if matches!(actor.queue.front(), Some(Task::Move { goal: g, .. }) if *g == goal) {
+            return Ok("Walking".into());
+        }
+        if !self.grid.is_walkable(target) {
+            return Err("Blocked".into());
+        }
+        actor.queue.clear();
+        actor.action_ticks = 0;
+        // Pre-fill the route so there is no pause at tile boundaries.
+        actor.mover.path.truncate(if mid_step { 1 } else { 0 });
+        actor.mover.path.push_back(target);
+        actor.queue.push_back(Task::Move {
+            goal,
+            label: target.to_string(),
+        });
+        self.player.activity = "Walking".into();
+        Ok("Walking".into())
     }
 
     fn player_interact(&mut self, p: TilePos) -> Result<String, String> {

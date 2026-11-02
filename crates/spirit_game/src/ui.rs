@@ -1,7 +1,6 @@
 //! Functional UI: status panel, Soul Separation, objective and simulation
 //! controls, spirit roster, planner/project status and the event log.
 
-use crate::render::{LOG_HEIGHT, PANEL_WIDTH};
 use crate::sim_runner::{SPEEDS, Sim};
 use bevy::picking::Pickable;
 use bevy::prelude::*;
@@ -16,6 +15,17 @@ const BUTTON_ACTIVE: Color = Color::srgb(0.25, 0.45, 0.30);
 const HEADING: Color = Color::srgb(0.95, 0.85, 0.55);
 const BODY: Color = Color::srgb(0.88, 0.90, 0.92);
 const LOG_LINES: usize = 11;
+
+/// Screen space covered by the UI: right-hand panel and bottom event log.
+pub const PANEL_WIDTH: f32 = 430.0;
+pub const LOG_HEIGHT: f32 = 230.0;
+
+/// Whether the panels are shown (`H` toggles them).
+#[derive(Resource)]
+pub struct UiVisible(pub bool);
+
+#[derive(Component)]
+struct PanelRoot;
 
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
 enum UiAction {
@@ -46,8 +56,9 @@ pub struct UiPlugin;
 
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, build_ui)
-            .add_systems(Update, (update_texts, update_buttons));
+        app.insert_resource(UiVisible(true))
+            .add_systems(Startup, build_ui)
+            .add_systems(Update, (update_texts, update_buttons, toggle_panels));
     }
 }
 
@@ -121,6 +132,7 @@ fn build_ui(mut commands: Commands) {
                 ..default()
             },
             BackgroundColor(PANEL_BG),
+            PanelRoot,
         ))
         .with_children(|p| {
             section(p, Section::Header);
@@ -191,11 +203,30 @@ fn build_ui(mut commands: Commands) {
                 ..default()
             },
             BackgroundColor(PANEL_BG),
+            PanelRoot,
         ))
         .with_children(|p| {
             heading(p, "Event Log - why things happen");
             section(p, Section::Log);
         });
+}
+
+fn toggle_panels(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut visible: ResMut<UiVisible>,
+    mut panels: Query<&mut Node, With<PanelRoot>>,
+) {
+    if !keys.just_pressed(KeyCode::KeyH) {
+        return;
+    }
+    visible.0 = !visible.0;
+    for mut node in &mut panels {
+        node.display = if visible.0 {
+            Display::Flex
+        } else {
+            Display::None
+        };
+    }
 }
 
 fn on_button(ev: On<Activate>, actions: Query<&UiAction>, mut sim: ResMut<Sim>) {
@@ -298,7 +329,7 @@ fn header_text(sim: &Sim) -> String {
         ScenarioKind::Demo => "Demo Scenario",
     };
     format!(
-        "SpiritScape - {scenario}\nTime {:02}:{:02}  |  {}  |  Space pause, 1-4 speed, R restart",
+        "SpiritScape - {scenario}  |  Time {:02}:{:02}  |  {}\nWASD/click move, E use, C overview, wheel zoom, H hide UI\nSpace pause, 1-4 speed, F5 restart",
         secs / 60,
         secs % 60,
         if sim.paused {
@@ -320,7 +351,7 @@ fn player_text(sim: &Sim) -> String {
     };
     let logs = w.player.actor.inventory.get(w.defs.objective.resource);
     let mut s = format!(
-        "Woodcutting level {level}  (XP {xp} / next {next})\nCarrying {logs}/{} logs  |  {}\nClick a tree to chop, a storage to deposit, grass to walk.",
+        "Woodcutting level {level}  (XP {xp} / next {next})\nCarrying {logs}/{} logs  |  {}\nClick or face a tree and press E to chop; a storage to deposit.",
         w.player.actor.inventory.capacity, w.player.activity
     );
     if !sim.message.is_empty() {

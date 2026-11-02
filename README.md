@@ -1,6 +1,8 @@
 # SpiritScape: Spirit Automation RPG (proof of concept)
 
-A single-player 2D automation RPG prototype in Rust and Bevy 0.20.1.
+A single-player 2.5D automation RPG prototype in Rust and Bevy 0.20.1. The game
+rules run on a 2D tile grid; the world is drawn in 3D with free CC0 models from
+Kenney (Nature Kit, Fantasy Town Kit) and KayKit (Adventurers).
 
 You train Woodcutting yourself, then use **Soul Separation** to sacrifice XP and
 create a permanent Woodcutting Spirit with that fixed competency. You give the
@@ -31,11 +33,15 @@ saves screenshots at those simulation seconds and then exits (a development aid)
 
 | Input | Action |
 |---|---|
+| `W` `A` `S` `D` / arrow keys | Walk one tile at a time (hold to keep walking) |
+| `E` | Use what you're facing or standing next to: chop a tree, or deposit at a storage |
 | Left click on a tree | Walk to it and chop until your inventory is full or the tree is depleted |
 | Left click on a storage | Walk to it and deposit your logs |
 | Left click on grass | Walk there |
+| Mouse wheel / `C` | Zoom / toggle the whole-map overview (the demo starts in overview) |
+| `H` | Hide or show the UI panels |
+| `Space` / `1`-`4` / `F5` | Pause / speed / restart |
 | Panel buttons | Pause, speed (1x/2x/4x/8x), restart, load scenario, Soul Separation, objective target, autonomous-building permission |
-| `Space` / `1`-`4` / `R` / `N` / `D` | Pause / speed / restart / new game / demo |
 
 ## Playing the normal game
 
@@ -76,7 +82,7 @@ cargo run -p spirit_sim --example headless_demo -- 600
 cargo test -p spirit_sim
 ```
 
-25 tests: 20 end-to-end simulation tests in `crates/spirit_sim/tests/simulation.rs` plus unit tests for pathfinding and storage. They cover:
+26 tests: 21 end-to-end simulation tests in `crates/spirit_sim/tests/simulation.rs` plus unit tests for pathfinding and storage. They cover:
 
 - **XP and Soul Separation:** the XP curve, XP gained from chopping, exact XP conservation and level recalculation on separation, rejection of invalid requests, and that spirits never gain XP.
 - **Resources:** a conservation ledger (seeded + harvested = present + consumed) checked every tick across a full build cycle, inventory capacity, and deposits.
@@ -86,12 +92,22 @@ cargo test -p spirit_sim
 - **Absence of a problem:** short routes or no woodcutter means nothing is built.
 - **Determinism:** two runs with the same commands give identical state hashes and event logs.
 - **Normal-game loop:** the player trains, separates a spirit and sets a goal, and the settlement builds on its own.
+- **Keyboard movement:** a held direction walks tile by tile without stalling; walking into a tree is refused.
+
+## Assets
+
+The game loads models from `assets/models/`: a curated copy (about 3.5 MB) of
+the pieces it uses from the three packs, with each pack's CC0 license next to
+them. The raw downloaded packs in `assets/` are ignored by git. Which model
+represents which game object is set in `data/visuals.toml`, so models can be
+swapped without touching code.
 
 ## Layout
 
 ```
-data/                      game definitions (TOML) and the ASCII map
+data/                      game definitions, visuals mapping (TOML) and the ASCII map
+assets/models/             curated CC0 models used by the game
 crates/spirit_sim/         engine-free deterministic simulation and tests
-crates/spirit_game/        Bevy front end: rendering, UI, input, pacing
+crates/spirit_game/        Bevy front end: 3D view, characters, camera/input, UI, pacing
 docs/ARCHITECTURE.md       design, decisions, limitations, playtest focus
 ```

@@ -6,4 +6,6 @@ license.workspace = true
 
 [dependencies]
 spirit_sim = { path = "../spirit_sim" }
-bevy = { version = "0.20.1", default-features = false, features = ["2d", "ui"] }
+bevy = { version = "0.20.1", default-features = false, features = ["3d", "ui"] }
+serde = { version = "1", features = ["derive"] }
+toml = "0.9"

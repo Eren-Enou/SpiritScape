@@ -21,7 +21,10 @@
                   |                               v
  +--------------  spirit_game (Bevy 0.20.1)  ------------------------------+
  | sim_runner  real-time pacing, pause/speed/restart                       |
- | render      sprites per tile, tree, building and actor; path gizmos      |
+ | visuals     data/visuals.toml: which glTF model shows which object      |
+ | world_view  3D terrain, trees, buildings, labels, path gizmos           |
+ | characters  KayKit characters, retargeted animations, spirit look       |
+ | camera      tilted follow camera, lighting, WASD/E/click input          |
  | ui          panel text, buttons (bevy_ui_widgets Button + Activate)     |
  | capture     dev-only screenshot capture                                 |
  +-------------------------------------------------------------------------+
@@ -49,7 +52,12 @@
   - Delivery samples are cleared when a building completes.
   - Rejections start a cooldown and are logged once per kind of rejection.
   - Materials come only from completed storages, never from a building still under construction.
-- **Rendering** uses plain sprites for tiles, trees, buildings and actors, and gizmos for paths, claimed trees and construction sites.
+- **2.5D: grid rules, 3D presentation.** The simulation stays a 2D tile grid; tile (x, y) is drawn at world (x, 0, y) with one tile per world unit, which matches the Kenney models' 1-unit footprint. A perspective camera looks down at about 50 degrees and follows the player (or shows the whole map in overview). Mouse clicks are turned into tiles by intersecting the camera ray with the ground plane.
+- **Keyboard movement is a simulation command.** `Command::PlayerStep` moves one tile. The front end re-sends it every frame while a key is held; the sim ignores repeats and, mid-step, queues the next tile so walking is continuous. This keeps keyboard play deterministic and replayable like everything else.
+- **Models are data.** `data/visuals.toml` maps terrain, tree types, buildings (as lists of rotated parts, a construction-site look and a log pile), the player and each spirit role to models under `assets/models/`. Buildings rise out of the ground while being built, log piles grow with stock, trees shrink as they're cut and turn into stumps.
+- **Character animation.** The KayKit character files contain no animations, so the glTF loader doesn't mark their bones as animation targets. Once a character spawns, the game adds an `AnimationPlayer` to its `Rig_Medium` root and tags each bone with the same name-path `AnimationTargetId` the loader would have used; clips from the shared Rig_Medium animation files (idle, walk, interact) then drive every character. An axe is attached to the `handslot.r` bone of the player and the woodcutter.
+- **Spirits look like spirits.** Each spirit's materials are copied and made translucent, tinted and glowing in its role colour (from `defs.toml`), so they read differently from the player.
+- **Overlays** are gizmos drawn just above the ground: walking paths, claimed trees, construction sites (yellow, red when blocked) and the tile under the mouse. Names and storage counts are screen-space labels that follow their objects.
 - **UI.** Bevy 0.20 removed the `Interaction` component, so buttons are `bevy_ui_widgets::Button` entities with `On<Activate>` observers.
 
 ## Resource and XP conservation
@@ -67,8 +75,9 @@ that adds XP to a spirit.
 - **Only one autonomous building type (Field Storage) and one resource (Logs).** The definitions support more, but the planner's "detect" step only measures gatherer delivery distance.
 - **Simplified movement.** Spirits move tile to tile on a 4-connected grid with BFS pathfinding and pass through each other. The return leg is assumed to equal the delivery leg when measuring travel share.
 - **No save or load.** Restarting reproduces a scenario exactly; there are no mid-game saves.
-- **Fixed camera and layout.** The view is tuned for the default 1600x920 window. Smaller windows clip the map under the panel. There is no zoom or pan.
-- **Not verified by interacting with the running game.** The UI buttons (Soul Separation, objective, toggles) and map clicks call the same `Command`s that the tests exercise. The game was checked with automated screenshots of the demo, not by clicking through the UI.
+- **Camera and layout.** The camera follows the player or shows a fixed overview; it can zoom but not rotate or pan freely. The UI panels are tuned for the default 1600x920 window (press `H` to hide them).
+- **3D presentation limits.** Characters walk through each other and through the bridge rails, and labels can overlap when characters stand together. The ground is one model per tile (about 1,350 tiles), which is fine at this map size but would need batching for much larger maps.
+- **Keyboard and mouse input haven't been checked by hand in the 3D version.** The 3D view was verified with automated screenshots (follow view, overview, construction and completion). Keyboard stepping is covered by a simulation test, but WASD, `E`, zoom and clicking haven't been tried in the running game.
 - **Field Storage capacity.** If the hauler falls behind and the Field Storage fills up (40 logs), gatherers fall back to Main Storage. This isn't tuned.
 - **Planner thresholds are tuned for this map.** They are configurable in `[planner]`.
 

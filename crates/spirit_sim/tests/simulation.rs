@@ -543,3 +543,31 @@ fn normal_game_loop_from_player_xp_to_autonomous_building() {
     );
     w.check_conservation().unwrap();
 }
+
+#[test]
+fn player_steps_tile_by_tile_with_keyboard_commands() {
+    let mut w = World::from_scenario(ScenarioKind::NewGame);
+    let start = w.player.actor.pos();
+    // A held key re-sends the same step every frame; it must not stall or skip.
+    let mut steps = 0;
+    while w.player.actor.pos().y > start.y - 3 && steps < 200 {
+        w.apply(Command::PlayerStep { dx: 0, dy: -1 }).unwrap();
+        w.step();
+        steps += 1;
+    }
+    assert_eq!(
+        w.player.actor.pos(),
+        spirit_sim::grid::TilePos::new(start.x, start.y - 3)
+    );
+    let per_tile = w.defs.player.move_ticks as u64;
+    assert!(
+        steps as u64 <= 3 * per_tile + 1,
+        "walked 3 tiles in {steps} ticks"
+    );
+
+    // Walking into a tree is refused and leaves the player where they are.
+    let tree = w.trees[0].pos;
+    let mut blocked = World::from_scenario(ScenarioKind::NewGame);
+    blocked.player.actor.mover.pos = spirit_sim::grid::TilePos::new(tree.x - 1, tree.y);
+    assert!(blocked.apply(Command::PlayerStep { dx: 1, dy: 0 }).is_err());
+}

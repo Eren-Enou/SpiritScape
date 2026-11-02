@@ -1,0 +1,94 @@
+# Presentation-only data: which 3D model represents each simulation object.
+# The simulation never reads this file. Paths are relative to assets/.
+#
+# World layout: tile (x, y) is centred at world (x, 0, y); one tile = 1 unit.
+# Rotations are degrees about the vertical axis; +90 turns the model's +x
+# side to face north (-z).
+
+[terrain]
+grass = "models/nature/ground_grass.glb"
+water = "models/nature/ground_riverOpen.glb"
+# Water tile with a bank on the model's north (-z) edge.
+water_bank = "models/nature/ground_riverSide.glb"
+bridge = "models/nature/bridge_wood.glb"
+bridge_rot = 0
+rocks = [
+    "models/nature/stone_largeA.glb",
+    "models/nature/stone_largeB.glb",
+    "models/nature/stone_largeC.glb",
+    "models/nature/stone_tallA.glb",
+]
+# Purely decorative ground cover scattered on some grass tiles.
+decorations = [
+    "models/nature/grass.glb",
+    "models/nature/grass_large.glb",
+    "models/nature/grass_leafs.glb",
+    "models/nature/flower_yellowA.glb",
+    "models/nature/flower_purpleA.glb",
+    "models/nature/flower_redA.glb",
+    "models/nature/plant_bushSmall.glb",
+    "models/nature/mushroom_red.glb",
+]
+decoration_chance_pct = 12
+
+[trees.oak]
+models = [
+    "models/nature/tree_oak.glb",
+    "models/nature/tree_default.glb",
+    "models/nature/tree_detailed.glb",
+    "models/nature/tree_fat.glb",
+]
+stump = "models/nature/stump_round.glb"
+scale = 1.1
+
+[buildings.main_storage]
+stockpile = "models/nature/log_stackLarge.glb"
+stockpile_offset = [-0.72, 0.0]
+parts = [
+    { model = "models/town/wall-wood.glb", rot = 0 },
+    { model = "models/town/wall-wood-window-shutters.glb", rot = 90 },
+    { model = "models/town/wall-wood.glb", rot = 180 },
+    { model = "models/town/wall-wood-door.glb", rot = 270 },
+    { model = "models/town/roof-high-point.glb", y = 1.0 },
+]
+
+[buildings.field_storage]
+stockpile = "models/nature/log_stack.glb"
+# Shown while the project is waiting for or receiving materials.
+site = [{ model = "models/town/planks.glb" }]
+parts = [
+    { model = "models/town/poles.glb", rot = 0 },
+    { model = "models/town/poles.glb", rot = 90 },
+    { model = "models/town/poles.glb", rot = 180 },
+    { model = "models/town/poles.glb", rot = 270 },
+    { model = "models/town/roof-point.glb", y = 1.0 },
+]
+
+[characters]
+scale = 0.36
+animations = [
+    "models/animations/Rig_Medium_General.glb",
+    "models/animations/Rig_Medium_MovementBasic.glb",
+]
+idle = "Idle_A"
+walk = "Walking_A"
+work = "Interact"
+
+[characters.player]
+model = "models/characters/Knight.glb"
+hand_item = "models/characters/axe_1handed.gltf"
+
+# Spirits are drawn translucent and glowing in their role colour (defs.toml).
+[characters.roles.woodcutter]
+model = "models/characters/Barbarian.glb"
+hand_item = "models/characters/axe_1handed.gltf"
+
+[characters.roles.hauler]
+model = "models/characters/Rogue_Hooded.glb"
+
+[characters.roles.builder]
+model = "models/characters/Mage.glb"
+
+[spirit_look]
+alpha = 0.65
+glow = 0.45

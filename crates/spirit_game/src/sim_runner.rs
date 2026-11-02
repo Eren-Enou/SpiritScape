@@ -91,14 +91,8 @@ fn keyboard_controls(keys: Res<ButtonInput<KeyCode>>, mut sim: ResMut<Sim>) {
             sim.speed = speed;
         }
     }
-    if keys.just_pressed(KeyCode::KeyR) {
+    if keys.just_pressed(KeyCode::F5) {
         let s = sim.scenario;
         sim.restart(s);
-    }
-    if keys.just_pressed(KeyCode::KeyN) {
-        sim.restart(ScenarioKind::NewGame);
-    }
-    if keys.just_pressed(KeyCode::KeyD) {
-        sim.restart(ScenarioKind::Demo);
     }
 }
