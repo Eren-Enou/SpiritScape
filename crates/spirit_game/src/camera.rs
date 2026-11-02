@@ -2,7 +2,7 @@
 //! tile grid, lighting, and player input (WASD steps, clicks, E to use).
 
 use crate::sim_runner::Sim;
-use crate::ui::{LOG_HEIGHT, PANEL_WIDTH, UiVisible};
+use crate::ui::{LOG_HEIGHT, PANEL_WIDTH, UiVisible, cursor_over_panel};
 use crate::world_view::tile_world;
 use bevy::input::mouse::AccumulatedMouseScroll;
 use bevy::prelude::*;
@@ -119,12 +119,15 @@ fn keyboard_movement(
 fn camera_controls(
     keys: Res<ButtonInput<KeyCode>>,
     scroll: Res<AccumulatedMouseScroll>,
+    ui: Res<UiVisible>,
+    windows: Query<&Window>,
     mut rig: ResMut<CameraRig>,
 ) {
     if keys.just_pressed(KeyCode::KeyC) {
         rig.overview = !rig.overview;
     }
-    if scroll.delta.y != 0.0 {
+    let over_panel = windows.single().is_ok_and(|w| cursor_over_panel(w, ui.0));
+    if scroll.delta.y != 0.0 && !over_panel {
         rig.distance =
             (rig.distance * (1.0 - scroll.delta.y * 0.1)).clamp(MIN_DISTANCE, MAX_DISTANCE);
     }

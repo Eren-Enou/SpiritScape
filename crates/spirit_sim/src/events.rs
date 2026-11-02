@@ -15,6 +15,9 @@ pub struct Event {
     pub tick: u64,
     pub kind: EventKind,
     pub text: String,
+    /// Routine detail (a spirit starting a job, going idle). The game hides
+    /// these unless the player asks for every event.
+    pub detail: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -35,13 +38,23 @@ impl EventLog {
     }
 
     pub fn push(&mut self, tick: u64, kind: EventKind, text: impl Into<String>) {
+        self.push_entry(tick, kind, text.into(), false);
+    }
+
+    /// Like `push`, for routine detail.
+    pub fn push_detail(&mut self, tick: u64, kind: EventKind, text: impl Into<String>) {
+        self.push_entry(tick, kind, text.into(), true);
+    }
+
+    fn push_entry(&mut self, tick: u64, kind: EventKind, text: String, detail: bool) {
         if self.entries.len() == self.capacity {
             self.entries.pop_front();
         }
         self.entries.push_back(Event {
             tick,
             kind,
-            text: text.into(),
+            text,
+            detail,
         });
         self.total += 1;
     }

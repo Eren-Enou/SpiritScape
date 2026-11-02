@@ -50,6 +50,8 @@ models = [
 ]
 stump = "models/nature/stump_round.glb"
 scale = 1.1
+# Golden crowns mark the higher tier.
+crown_tint = [1.0, 0.68, 0.18]
 
 [buildings.main_storage]
 stockpile = "models/nature/log_stackLarge.glb"

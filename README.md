@@ -59,6 +59,8 @@ The last three are development aids.
 | Mouse wheel / `C` | Zoom / toggle the whole-map overview (the demo starts in overview) |
 | `H` | Hide or show the UI panels |
 | `G` | Switch between the Settlement and Gathering tabs |
+| Mouse wheel over the panel | Scroll the panel |
+| Hover a tree or building | Describe it: tier, level needed, logs left, regrowth time |
 | `Space` / `1`-`4` / `F5` | Pause / speed / restart |
 | Panel buttons | Pause, speed, restart, load scenario, Soul Separation, objective target, autonomous building, and (Gathering tab) whether spirits may gather at each site |
 
@@ -68,7 +70,7 @@ The last three are development aids.
 2. Click Main Storage to deposit your logs.
 3. Under **Soul Separation**, choose an amount (at least 100 XP) and read the preview: your level before and after, the spirit's permanent level, and any trees you would lose. Press **Separate Soul** to confirm. The XP leaves you, and a Woodcutting Spirit appears with that XP as its fixed level. A spirit needs at least 388 XP (level 5) to cut Oak.
 4. The spirit works toward the settlement objective (default: maintain 50 logs in Main Storage). Raise the target with **Target +10** to create more demand.
-5. Press `G` for the Gathering tab. It shows how much each site produces, how spirits spend their time and what limits output. Clicking **Starting Grove** there reserves it for your own training, which sends Oak-capable spirits across the bridge to the Distant Forest. Long delivery trips from there are what make the planner build a field storage.
+5. Press `G` for the Gathering tab. It shows how much each site produces, how spirits spend their time and what limits output. Clicking **Reserve for me** under Starting Grove reserves it for your own training, which sends Oak-capable spirits across the bridge to the Distant Forest. Long delivery trips from there are what make the planner build a field storage.
 
 The settlement starts with a Hauling Spirit and a Construction Spirit. Hauling
 and Construction aren't trainable skills yet, so these two stand in for them.

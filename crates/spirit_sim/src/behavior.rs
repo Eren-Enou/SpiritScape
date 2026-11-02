@@ -246,8 +246,15 @@ impl World {
         if last.is_some_and(|t| self.tick < t + repeat_after) {
             return;
         }
+        // Waiting for regrowth is shown on the map and repeats often.
+        let waiting = self.spirits[sid].wait == Some(WaitKind::Recovery);
+        let detail = key == "idle" || key.starts_with("job:") || waiting;
         self.spirits[sid].log_times.insert(key, self.tick);
-        self.events.push(self.tick, EventKind::Spirit, msg);
+        if detail {
+            self.events.push_detail(self.tick, EventKind::Spirit, msg);
+        } else {
+            self.events.push(self.tick, EventKind::Spirit, msg);
+        }
     }
 
     fn path_distance_to(&self, sid: SpiritId, building: BuildingId) -> Option<u32> {

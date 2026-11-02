@@ -10,8 +10,10 @@
 
 mod camera;
 mod capture;
+mod cards;
 mod characters;
 mod sim_runner;
+mod status;
 mod ui;
 mod visuals;
 mod world_view;
