@@ -19,7 +19,7 @@ spirits = [
 
 [demo]
 title = "Demo: Autonomous Field Storage"
-description = "A level 10 Woodcutting Spirit already works toward a high log objective. Watch the settlement detect long delivery routes and build a field storage."
+description = "A level 10 Woodcutting Spirit works toward a high log objective. The Starting Grove is reserved for your training, so it gathers in the Distant Forest. Watch the settlement detect long delivery routes and build a field storage."
 objective_target = 150
 player_xp = { woodcutting = 1500 }
 main_storage = { logs = 20 }
@@ -28,3 +28,42 @@ spirits = [
     { role = "hauler", xp = 388, spawn = "H" },
     { role = "builder", xp = 388, spawn = "B" },
 ]
+closed_sites = ["starting_grove"]
+
+[regrind]
+title = "Regrind"
+description = "You are 28 XP short of cutting Oak. Train on Trees, unlock and cut Oak, then sacrifice at least 388 XP: you drop below Oak level, but your spirit keeps it permanently. Retrain on Trees while the spirit supplies the settlement."
+objective_target = 60
+player_xp = { woodcutting = 360 }
+main_storage = { logs = 20 }
+spirits = [
+    { role = "hauler", xp = 388, spawn = "H" },
+    { role = "builder", xp = 388, spawn = "B" },
+]
+
+[grove_sustainable]
+title = "Grove: sustainable"
+description = "One level 5 Woodcutting Spirit works the Starting Grove (the Distant Forest is closed). Extraction stays below the grove's regrowth, so it rarely waits."
+objective_target = 250
+main_storage = { logs = 0 }
+spirits = [
+    { role = "woodcutter", xp = 388, spawn = "W" },
+    { role = "hauler", xp = 388, spawn = "H" },
+    { role = "builder", xp = 388, spawn = "B" },
+]
+closed_sites = ["distant_forest"]
+
+[grove_oversubscribed]
+title = "Grove: oversubscribed"
+description = "Four level 5 Woodcutting Spirits share the Starting Grove (the Distant Forest is closed). Extraction outpaces regrowth: watch the trees run out and the spirits wait."
+objective_target = 250
+main_storage = { logs = 0 }
+spirits = [
+    { role = "woodcutter", xp = 388, spawn = "W" },
+    { role = "woodcutter", xp = 388, spawn = "W" },
+    { role = "woodcutter", xp = 388, spawn = "W" },
+    { role = "woodcutter", xp = 388, spawn = "W" },
+    { role = "hauler", xp = 388, spawn = "H" },
+    { role = "builder", xp = 388, spawn = "B" },
+]
+closed_sites = ["distant_forest"]

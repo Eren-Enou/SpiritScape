@@ -20,7 +20,14 @@ macro_rules! id_type {
         }
     )*};
 }
-id_type!(ResourceId, SkillId, RoleId, BuildingKindId, TreeKindId);
+id_type!(
+    ResourceId,
+    SkillId,
+    RoleId,
+    BuildingKindId,
+    TreeKindId,
+    SiteId
+);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -78,6 +85,8 @@ pub struct TreeTypeDef {
     pub map_char: char,
     pub resource: ResourceId,
     pub skill: SkillId,
+    /// Minimum skill level to cut this tree. Applies to the player and spirits.
+    pub level_required: u32,
     pub logs: u32,
     pub regrow_ticks: u64,
     pub xp_per_log: u64,
@@ -95,6 +104,36 @@ impl TreeTypeDef {
             .max(self.min_chop_ticks)
             .max(1)
     }
+}
+
+/// A named, permanent gathering location: every tree inside `area` belongs to it.
+#[derive(Clone, Debug)]
+pub struct SiteDef {
+    pub id: String,
+    pub name: String,
+    /// Inclusive tile bounds [x0, y0, x1, y1].
+    pub area: [i32; 4],
+    /// Regrowth time of trees here, as a percentage of the tree type's time.
+    pub regrow_pct: u32,
+}
+
+impl SiteDef {
+    pub fn contains(&self, x: i32, y: i32) -> bool {
+        let [x0, y0, x1, y1] = self.area;
+        (x0..=x1).contains(&x) && (y0..=y1).contains(&y)
+    }
+
+    pub fn center(&self) -> (f32, f32) {
+        let [x0, y0, x1, y1] = self.area;
+        ((x0 + x1) as f32 / 2.0, (y0 + y1) as f32 / 2.0)
+    }
+}
+
+/// Measurement and gathering-behavior tuning.
+#[derive(Clone, Debug)]
+pub struct GatheringRules {
+    /// Rolling window for measured throughput and time use.
+    pub window_ticks: u64,
 }
 
 #[derive(Clone, Debug)]
@@ -183,6 +222,8 @@ pub struct GameDefs {
     pub resources: Vec<ResourceDef>,
     pub skills: Vec<SkillDef>,
     pub trees: Vec<TreeTypeDef>,
+    pub sites: Vec<SiteDef>,
+    pub gathering: GatheringRules,
     pub player: PlayerRules,
     pub soul_min_xp: u64,
     pub roles: Vec<RoleDef>,
@@ -202,6 +243,9 @@ struct RawDefs {
     resources: Vec<ResourceDef>,
     skills: Vec<SkillDef>,
     tree_types: Vec<RawTreeType>,
+    #[serde(default)]
+    sites: Vec<RawSite>,
+    gathering: RawGathering,
     player: RawPlayer,
     soul_separation: RawSoul,
     roles: Vec<RawRole>,
@@ -229,12 +273,36 @@ struct RawTreeType {
     map_char: String,
     resource: String,
     skill: String,
+    #[serde(default = "one")]
+    level_required: u32,
     logs: u32,
     regrow_seconds: f32,
     xp_per_log: u64,
     chop_seconds: f32,
     chop_seconds_per_level: f32,
     min_chop_seconds: f32,
+}
+
+#[derive(Deserialize)]
+struct RawSite {
+    id: String,
+    name: String,
+    area: [i32; 4],
+    #[serde(default = "hundred")]
+    regrow_pct: u32,
+}
+
+#[derive(Deserialize)]
+struct RawGathering {
+    measure_window_seconds: f32,
+}
+
+fn one() -> u32 {
+    1
+}
+
+fn hundred() -> u32 {
+    100
 }
 
 #[derive(Deserialize)]
@@ -369,6 +437,7 @@ impl GameDefs {
                 map_char: single_char(&t.map_char, &t.id)?,
                 resource: resource_id(&t.resource)?,
                 skill: skill_id(&t.skill)?,
+                level_required: t.level_required.max(1),
                 logs: t.logs.max(1),
                 regrow_ticks: ticks(t.regrow_seconds),
                 xp_per_log: t.xp_per_log,
@@ -379,6 +448,20 @@ impl GameDefs {
                 name: t.name,
             });
         }
+
+        let sites: Vec<SiteDef> = raw
+            .sites
+            .into_iter()
+            .map(|s| SiteDef {
+                id: s.id,
+                name: s.name,
+                area: s.area,
+                regrow_pct: s.regrow_pct.max(1),
+            })
+            .collect();
+        let gathering = GatheringRules {
+            window_ticks: ticks(raw.gathering.measure_window_seconds).max(1),
+        };
 
         let mut roles = Vec::new();
         for r in raw.roles {
@@ -462,6 +545,8 @@ impl GameDefs {
             resources,
             skills,
             trees,
+            sites,
+            gathering,
             roles,
             buildings,
             objective,
@@ -527,6 +612,35 @@ impl GameDefs {
             .iter()
             .position(|r| r.from_soul_separation && r.skill == skill)
             .map(|i| RoleId(i as u16))
+    }
+
+    pub fn site_id(&self, id: &str) -> Option<SiteId> {
+        self.sites
+            .iter()
+            .position(|s| s.id == id)
+            .map(|i| SiteId(i as u16))
+    }
+
+    pub fn site(&self, id: SiteId) -> &SiteDef {
+        &self.sites[id.index()]
+    }
+
+    /// The site whose area contains a tile, if any.
+    pub fn site_at(&self, x: i32, y: i32) -> Option<SiteId> {
+        self.sites
+            .iter()
+            .position(|s| s.contains(x, y))
+            .map(|i| SiteId(i as u16))
+    }
+
+    /// Tree types of `skill`, ordered by level requirement.
+    pub fn tree_tiers(&self, skill: SkillId) -> Vec<TreeKindId> {
+        let mut kinds: Vec<TreeKindId> = (0..self.trees.len())
+            .map(|i| TreeKindId(i as u16))
+            .filter(|&k| self.tree(k).skill == skill)
+            .collect();
+        kinds.sort_by_key(|&k| self.tree(k).level_required);
+        kinds
     }
 
     pub fn tree_kind_for_char(&self, c: char) -> Option<TreeKindId> {

@@ -1,11 +1,12 @@
 //! The simulation state and its fixed-step update.
 
-use crate::defs::{GameDefs, JobKind, ResourceId, RoleId, SkillId};
+use crate::defs::{GameDefs, JobKind, ResourceId, RoleId, SiteId, SkillId, TreeKindId};
 use crate::entities::{
     Activity, Actor, Building, BuildingId, Player, Project, Spirit, SpiritId, Tree, TreeState,
 };
 use crate::events::{EventKind, EventLog};
 use crate::grid::{Grid, TilePos};
+use crate::metrics::{SNAPSHOT_TICKS, SiteStats, WaitKind};
 use crate::planner::PlannerState;
 use crate::tasks::{self, Goal, SimEvent, StepResult, Task, TaskCtx, Who};
 use std::collections::BTreeMap;
@@ -48,6 +49,27 @@ pub struct Settlement {
     pub objective: Objective,
     pub allow_autonomous_construction: bool,
     pub planner: PlannerState,
+    /// Per site: may spirits gather there? Closing a site reserves it for
+    /// the player's own training.
+    pub site_open: Vec<bool>,
+}
+
+/// What a Soul Separation would do, shown before the player confirms.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SoulPreview {
+    pub current_xp: u64,
+    pub current_level: u32,
+    pub transfer: u64,
+    pub after_xp: u64,
+    pub after_level: u32,
+    /// The new spirit's permanent level.
+    pub spirit_level: u32,
+    /// Tree types the player can cut now but could not afterwards.
+    pub lost: Vec<TreeKindId>,
+    /// Tree types the new spirit will be able to cut.
+    pub spirit_can_cut: Vec<TreeKindId>,
+    /// Why the ritual can't be performed, if it can't.
+    pub error: Option<String>,
 }
 
 /// Player-issued commands. Applied between ticks so runs can be replayed.
@@ -68,6 +90,11 @@ pub enum Command {
     },
     SetObjectiveTarget(u32),
     SetAutonomousConstruction(bool),
+    /// Open or close a gathering site to spirits.
+    SetSiteOpen {
+        site: SiteId,
+        open: bool,
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -84,6 +111,8 @@ pub struct World {
     pub events: EventLog,
     pub ledger: Ledger,
     pub main_storage: BuildingId,
+    /// Harvest records per gathering site.
+    pub site_stats: Vec<SiteStats>,
 }
 
 impl World {
@@ -219,6 +248,12 @@ impl World {
         for s in &self.spirits {
             actor(&s.actor);
         }
+        for s in &self.spirits {
+            s.time.total.hash(&mut h);
+        }
+        for st in &self.site_stats {
+            st.harvested_total.hash(&mut h);
+        }
         for p in &self.projects {
             (p.site, p.state as u8, p.build_progress).hash(&mut h);
         }
@@ -257,7 +292,29 @@ impl World {
                 self.events.push(self.tick, EventKind::Player, msg);
                 Ok(msg.into())
             }
+            Command::SetSiteOpen { site, open } => {
+                let Some(slot) = self.settlement.site_open.get_mut(site.index()) else {
+                    return Err("Unknown site".into());
+                };
+                *slot = open;
+                let name = &self.defs.site(site).name;
+                let msg = if open {
+                    format!("{name} is open to spirits")
+                } else {
+                    format!(
+                        "{name} is reserved for your own training: spirits will not gather there"
+                    )
+                };
+                self.events.push(self.tick, EventKind::Player, msg.clone());
+                Ok(msg)
+            }
         }
+    }
+
+    /// Whether the player's current level allows cutting this tree type.
+    pub fn player_can_cut(&self, kind: TreeKindId) -> bool {
+        let def = self.defs.tree(kind);
+        self.player.level(def.skill, &self.defs.xp_table) >= def.level_required
     }
 
     fn player_step(&mut self, dx: i32, dy: i32) -> Result<String, String> {
@@ -294,7 +351,16 @@ impl World {
             return Err("Outside the map".into());
         }
         let (tasks, activity) = if let Some(tree) = self.tree_at(p) {
-            let name = &self.defs.tree(tree.kind).name;
+            let def = self.defs.tree(tree.kind);
+            let name = &def.name;
+            if !self.player_can_cut(tree.kind) {
+                let level = self.player.level(def.skill, &self.defs.xp_table);
+                return Err(format!(
+                    "You need {} level {} to cut {name} (you are level {level})",
+                    self.defs.skill(def.skill).name,
+                    def.level_required
+                ));
+            }
             if !tree.is_grown() {
                 return Err(format!("The {name} is depleted"));
             }
@@ -340,39 +406,100 @@ impl World {
         Ok(activity)
     }
 
-    /// Soul Separation: moves `xp` from the player's skill into a new spirit.
-    pub fn soul_separate(&mut self, skill: SkillId, xp: u64) -> Result<SpiritId, String> {
-        let skill_def = self.defs.skill(skill).clone();
-        let Some(role) = self.defs.soul_role_for(skill) else {
-            return Err(format!("{} cannot form a spirit yet", skill_def.name));
-        };
-        if xp < self.defs.soul_min_xp {
-            return Err(format!(
+    /// Predicts a Soul Separation of `xp` from `skill` without performing it.
+    pub fn soul_preview(&self, skill: SkillId, xp: u64) -> SoulPreview {
+        let table = &self.defs.xp_table;
+        let current_xp = self.player.xp(skill);
+        let current_level = table.level_for_xp(current_xp);
+        let after_xp = current_xp.saturating_sub(xp);
+        let after_level = table.level_for_xp(after_xp);
+        let spirit_level = table.level_for_xp(xp);
+        let tiers = self.defs.tree_tiers(skill);
+        let required = |k: &TreeKindId| self.defs.tree(*k).level_required;
+        let skill_name = &self.defs.skill(skill).name;
+        let error = if self.defs.soul_role_for(skill).is_none() {
+            Some(format!("{skill_name} cannot form a spirit yet"))
+        } else if xp < self.defs.soul_min_xp {
+            Some(format!(
                 "At least {} XP is required to form a spirit",
                 self.defs.soul_min_xp
-            ));
+            ))
+        } else if xp > current_xp {
+            Some(format!(
+                "Not enough {skill_name} XP ({current_xp} available)"
+            ))
+        } else {
+            None
+        };
+        SoulPreview {
+            current_xp,
+            current_level,
+            transfer: xp,
+            after_xp,
+            after_level,
+            spirit_level,
+            lost: tiers
+                .iter()
+                .copied()
+                .filter(|k| current_level >= required(k) && after_level < required(k))
+                .collect(),
+            spirit_can_cut: tiers
+                .iter()
+                .copied()
+                .filter(|k| spirit_level >= required(k))
+                .collect(),
+            error,
         }
-        let table = &self.defs.xp_table;
-        let before_level = self.player.level(skill, table);
+    }
+
+    pub(crate) fn tree_names(&self, kinds: &[TreeKindId]) -> String {
+        kinds
+            .iter()
+            .map(|k| self.defs.tree(*k).name.clone())
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
+    /// Soul Separation: moves `xp` from the player's skill into a new spirit.
+    pub fn soul_separate(&mut self, skill: SkillId, xp: u64) -> Result<SpiritId, String> {
+        let preview = self.soul_preview(skill, xp);
+        if let Some(e) = preview.error {
+            return Err(e);
+        }
+        let skill_name = self.defs.skill(skill).name.clone();
+        let role = self.defs.soul_role_for(skill).expect("checked by preview");
         if !self.player.take_xp(skill, xp) {
-            return Err(format!(
-                "Not enough {} XP ({} available)",
-                skill_def.name,
-                self.player.xp(skill)
-            ));
+            return Err(format!("Not enough {skill_name} XP"));
         }
-        let after_level = self.player.level(skill, &self.defs.xp_table);
+        self.player.record_sacrifice(skill, xp);
         self.ledger.xp_separated += xp;
+        // A level drop can make the current chop target illegal.
+        if matches!(self.player.actor.queue.front(), Some(Task::Chop { tree }) if !self.player_can_cut(self.trees[*tree].kind))
+        {
+            self.player.actor.clear_tasks();
+            self.player.activity = "Idle".into();
+        }
         let pos = self.player.actor.pos();
         let id = self.add_spirit(role, xp, pos);
         let s = &self.spirits[id];
-        let msg = format!(
-            "Soul Separation: sacrificed {xp} {} XP (level {before_level} -> {after_level}). {} awakens as a {} at level {}.",
-            skill_def.name,
+        let mut msg = format!(
+            "Soul Separation: sacrificed {xp} {skill_name} XP (level {} -> {}). {} awakens as a {} at permanent level {}",
+            preview.current_level,
+            preview.after_level,
             s.name,
             self.defs.role(role).name,
             s.level()
         );
+        if !preview.spirit_can_cut.is_empty() {
+            msg += &format!(" and can cut {}", self.tree_names(&preview.spirit_can_cut));
+        }
+        msg.push('.');
+        if !preview.lost.is_empty() {
+            msg += &format!(
+                " You can no longer cut {} until you retrain.",
+                self.tree_names(&preview.lost)
+            );
+        }
         self.events.push(self.tick, EventKind::Player, msg);
         Ok(id)
     }
@@ -384,6 +511,15 @@ impl World {
     pub fn step(&mut self) {
         self.tick += 1;
         self.regrow_trees();
+        let window = self.defs.gathering.window_ticks;
+        for st in &mut self.site_stats {
+            st.trim(self.tick, window);
+        }
+        if self.tick.is_multiple_of(SNAPSHOT_TICKS) {
+            for s in &mut self.spirits {
+                s.time.snapshot(self.tick, window);
+            }
+        }
         self.update_projects();
         if self
             .tick
@@ -496,6 +632,7 @@ impl World {
             {
                 self.think(sid);
             }
+            self.spirits[sid].account_tick();
             let World {
                 defs,
                 grid,
@@ -529,6 +666,7 @@ impl World {
                 StepResult::Failed(reason) => {
                     spirit.actor.clear_tasks();
                     spirit.next_think = *tick + defs.idle_rethink_ticks;
+                    spirit.wait = Some(WaitKind::Other);
                     let msg = format!("{}: task failed - {reason}", spirit.name);
                     let key = format!("fail:{reason}");
                     spirit.activity = Activity::Blocked(reason);
@@ -538,34 +676,47 @@ impl World {
         }
     }
 
+    fn player_earned_xp(&mut self, tree: usize, xp: u64) {
+        let skill = self.defs.tree(self.trees[tree].kind).skill;
+        let table = &self.defs.xp_table;
+        let before = self.player.level(skill, table);
+        let highest_before = self.player.history(skill).highest_level;
+        self.player.add_xp(skill, xp, &self.defs.xp_table);
+        self.ledger.xp_earned += xp;
+        let after = self.player.level(skill, &self.defs.xp_table);
+        if after <= before {
+            return;
+        }
+        let skill_name = &self.defs.skill(skill).name;
+        let mut msg = if after <= highest_before {
+            format!("{skill_name} level {after} regained (highest ever: {highest_before}).")
+        } else {
+            format!("{skill_name} level up! You are now level {after}.")
+        };
+        let unlocked: Vec<TreeKindId> = self
+            .defs
+            .tree_tiers(skill)
+            .into_iter()
+            .filter(|k| (before + 1..=after).contains(&self.defs.tree(*k).level_required))
+            .collect();
+        if !unlocked.is_empty() {
+            msg += &format!(" You can now cut {}.", self.tree_names(&unlocked));
+        }
+        self.events.push(self.tick, EventKind::Player, msg);
+    }
+
     fn handle_event(&mut self, e: SimEvent) {
         match e {
-            SimEvent::Chopped {
-                who: Who::Player,
-                tree,
-                xp,
-                ..
-            } => {
-                let skill = self.defs.tree(self.trees[tree].kind).skill;
-                let table = &self.defs.xp_table;
-                let before = self.player.level(skill, table);
-                self.player.add_xp(skill, xp);
-                self.ledger.xp_earned += xp;
-                let after = self.player.level(skill, &self.defs.xp_table);
-                if after > before {
-                    let msg = format!(
-                        "{} level up! You are now level {after}.",
-                        self.defs.skill(skill).name
-                    );
-                    self.events.push(self.tick, EventKind::Player, msg);
+            SimEvent::Chopped { who, tree, xp, .. } => {
+                if let Some(site) = self.trees[tree].site {
+                    let window = self.defs.gathering.window_ticks;
+                    self.site_stats[site.index()].record(self.tick, window);
                 }
-            }
-            // Spirits harvest but never gain experience.
-            SimEvent::Chopped {
-                who: Who::Spirit(sid),
-                ..
-            } => {
-                self.spirits[sid].units_gathered += 1;
+                match who {
+                    Who::Player => self.player_earned_xp(tree, xp),
+                    // Spirits harvest but never gain experience.
+                    Who::Spirit(sid) => self.spirits[sid].units_gathered += 1,
+                }
             }
             SimEvent::Deposited {
                 who: Who::Spirit(sid),

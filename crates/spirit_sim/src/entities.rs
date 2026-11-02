@@ -1,8 +1,9 @@
 //! Physical things in the world: trees, buildings, the player and spirits.
 
-use crate::defs::{BuildingKindId, JobKind, ResourceId, RoleId, SkillId, TreeKindId};
+use crate::defs::{BuildingKindId, JobKind, ResourceId, RoleId, SiteId, SkillId, TreeKindId};
 use crate::grid::TilePos;
 use crate::inventory::{Inventory, Storage};
+use crate::metrics::{TimeLog, WaitKind};
 use crate::skills::XpTable;
 use crate::tasks::Task;
 use std::collections::{BTreeMap, VecDeque};
@@ -24,6 +25,10 @@ pub struct Tree {
     pub kind: TreeKindId,
     pub pos: TilePos,
     pub state: TreeState,
+    /// The gathering site this tree belongs to.
+    pub site: Option<SiteId>,
+    /// Regrowth time for this tree (type time scaled by its site).
+    pub regrow_ticks: u64,
     /// A spirit currently working this tree, so others pick a different one.
     pub claimed_by: Option<SpiritId>,
 }
@@ -196,6 +201,13 @@ pub struct Spirit {
     pub last_deliver_target: Option<BuildingId>,
     pub units_gathered: u32,
     pub units_delivered: u32,
+    /// Why the spirit is currently not working, when blocked.
+    pub wait: Option<WaitKind>,
+    /// Site of the last tree this spirit chose; it prefers to stay there.
+    pub home_site: Option<SiteId>,
+    pub last_tree_kind: Option<TreeKindId>,
+    /// How this spirit has spent its time.
+    pub time: TimeLog,
     /// Last tick each kind of decision was logged, to rate-limit repeats.
     pub(crate) log_times: BTreeMap<String, u64>,
 }
@@ -224,6 +236,10 @@ impl Spirit {
             last_deliver_target: None,
             units_gathered: 0,
             units_delivered: 0,
+            wait: None,
+            home_site: None,
+            last_tree_kind: None,
+            time: TimeLog::default(),
             log_times: BTreeMap::new(),
         }
     }
@@ -241,10 +257,19 @@ impl Spirit {
     }
 }
 
+/// Lifetime progression in one skill, kept separately from current XP.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SkillHistory {
+    pub highest_level: u32,
+    pub xp_sacrificed: u64,
+    pub spirits_created: u32,
+}
+
 #[derive(Clone, Debug)]
 pub struct Player {
     pub actor: Actor,
     xp: BTreeMap<SkillId, u64>,
+    history: BTreeMap<SkillId, SkillHistory>,
     pub activity: String,
 }
 
@@ -253,6 +278,7 @@ impl Player {
         Self {
             actor,
             xp: BTreeMap::new(),
+            history: BTreeMap::new(),
             activity: "Idle".into(),
         }
     }
@@ -265,8 +291,25 @@ impl Player {
         table.level_for_xp(self.xp(skill))
     }
 
-    pub(crate) fn add_xp(&mut self, skill: SkillId, amount: u64) {
+    pub fn history(&self, skill: SkillId) -> SkillHistory {
+        let h = self.history.get(&skill).copied().unwrap_or_default();
+        SkillHistory {
+            highest_level: h.highest_level.max(1),
+            ..h
+        }
+    }
+
+    pub(crate) fn add_xp(&mut self, skill: SkillId, amount: u64, table: &XpTable) {
         *self.xp.entry(skill).or_default() += amount;
+        let level = self.level(skill, table);
+        let h = self.history.entry(skill).or_default();
+        h.highest_level = h.highest_level.max(level);
+    }
+
+    pub(crate) fn record_sacrifice(&mut self, skill: SkillId, amount: u64) {
+        let h = self.history.entry(skill).or_default();
+        h.xp_sacrificed += amount;
+        h.spirits_created += 1;
     }
 
     /// Removes exactly `amount` XP, or nothing if the player has less.
