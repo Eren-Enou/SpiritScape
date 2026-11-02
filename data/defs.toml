@@ -1,0 +1,165 @@
+# SpiritScape game definitions.
+#
+# All durations are written in seconds and converted to simulation ticks at
+# load time (see [simulation].ticks_per_second). Percentages are integers so
+# that planner decisions stay fully deterministic.
+
+[simulation]
+ticks_per_second = 10
+# How often an idle or blocked spirit re-evaluates its jobs.
+idle_rethink_seconds = 0.5
+event_log_capacity = 200
+
+[progression]
+# Cumulative XP required to reach each level. Index 0 is level 1.
+# Shared by every skill, for the player and for spirit competency.
+xp_table = [
+    0, 83, 174, 276, 388, 512, 650, 801, 969, 1154,
+    1358, 1584, 1833, 2107, 2411, 2746, 3115, 3523, 3973, 4470,
+]
+
+[[resources]]
+id = "logs"
+name = "Logs"
+
+[[skills]]
+id = "woodcutting"
+name = "Woodcutting"
+trainable = true
+
+# Not trainable by the player yet; only used for seeded demonstration spirits.
+[[skills]]
+id = "hauling"
+name = "Hauling"
+trainable = false
+
+[[skills]]
+id = "construction"
+name = "Construction"
+trainable = false
+
+[[tree_types]]
+id = "oak"
+name = "Oak"
+map_char = "T"
+resource = "logs"
+skill = "woodcutting"
+logs = 5
+regrow_seconds = 240.0
+xp_per_log = 25
+chop_seconds = 3.0
+chop_seconds_per_level = 0.1
+min_chop_seconds = 0.8
+
+[player]
+move_seconds_per_tile = 0.25
+carry_capacity = 28
+
+[soul_separation]
+# Smallest XP sacrifice that can form a spirit.
+min_xp = 100
+
+# ---------------------------------------------------------------------------
+# Spirit roles. Each role lists prioritized job rules: every time a spirit
+# finishes its task queue it picks the highest-priority job whose condition
+# holds and which can actually be planned in the current world state.
+#
+# Conditions: always, inventory_full, carrying_any, objective_unmet,
+#             outpost_stock_available, project_assigned
+# Jobs:       gather, deliver, haul, construct
+# ---------------------------------------------------------------------------
+
+[[roles]]
+id = "woodcutter"
+name = "Woodcutting Spirit"
+skill = "woodcutting"
+from_soul_separation = true
+move_seconds_per_tile = 0.3
+carry_capacity = 10
+deliver_to = "nearest"
+color = [0.35, 0.85, 0.45]
+jobs = [
+    { job = "deliver", priority = 100, when = "inventory_full" },
+    { job = "gather", priority = 50, when = "objective_unmet" },
+    { job = "deliver", priority = 20, when = "carrying_any" },
+]
+
+[[roles]]
+id = "hauler"
+name = "Hauling Spirit"
+skill = "hauling"
+move_seconds_per_tile = 0.3
+carry_capacity = 15
+capacity_per_level = 1
+deliver_to = "main"
+haul_min = 5
+color = [0.95, 0.75, 0.30]
+jobs = [
+    { job = "deliver", priority = 100, when = "carrying_any" },
+    { job = "haul", priority = 50, when = "outpost_stock_available" },
+]
+
+[[roles]]
+id = "builder"
+name = "Construction Spirit"
+skill = "construction"
+move_seconds_per_tile = 0.3
+carry_capacity = 10
+deliver_to = "nearest"
+color = [0.55, 0.65, 1.0]
+jobs = [
+    { job = "construct", priority = 80, when = "project_assigned" },
+    { job = "deliver", priority = 10, when = "carrying_any" },
+]
+
+# ---------------------------------------------------------------------------
+# Buildings
+# ---------------------------------------------------------------------------
+
+[[buildings]]
+id = "main_storage"
+name = "Main Storage"
+map_char = "M"
+is_main = true
+capacity = 300
+accepts_gatherer_deposits = true
+color = [0.75, 0.55, 0.30]
+
+[[buildings]]
+id = "field_storage"
+name = "Field Storage"
+capacity = 40
+accepts_gatherer_deposits = true
+# The settlement planner may decide to build this on its own.
+autonomous = true
+max_count = 1
+cost = [{ resource = "logs", amount = 15 }]
+build_seconds = 15.0
+build_seconds_per_level = 0.5
+min_build_seconds = 5.0
+color = [0.85, 0.65, 0.40]
+
+[objective]
+# "Maintain <target> <resource> in the main settlement storage."
+resource = "logs"
+target = 50
+
+# ---------------------------------------------------------------------------
+# Settlement planner: detects inefficient delivery routes and decides whether
+# an autonomous building (field storage) would fix them.
+# ---------------------------------------------------------------------------
+[planner]
+eval_interval_seconds = 5.0
+# Number of recent gatherer deliveries averaged when judging route efficiency.
+delivery_window = 3
+# Older samples are ignored: the problem must be current.
+max_sample_age_seconds = 240.0
+# A route is inefficient when walking takes at least this share of a trip...
+travel_share_threshold_pct = 40
+# ...and the one-way delivery leg is at least this long.
+min_leg_tiles = 12
+# A candidate site must cut the estimated delivery leg by at least this much.
+min_savings_pct = 50
+site_search_radius = 6
+# After rejecting or failing a plan, wait before re-evaluating.
+reject_cooldown_seconds = 60.0

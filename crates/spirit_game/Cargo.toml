@@ -1,0 +1,9 @@
+[package]
+name = "spirit_game"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+spirit_sim = { path = "../spirit_sim" }
+bevy = { version = "0.20.1", default-features = false, features = ["2d", "ui"] }

@@ -1,0 +1,30 @@
+# Starting scenarios. Normal gameplay and the development demonstration are
+# kept separate: both use the same rules (defs.toml) and map, and differ only
+# in starting state.
+#
+# Spawn markers refer to characters in the map file (H, B, W, P).
+
+[new_game]
+title = "New Game"
+description = "Start with no Woodcutting XP. Chop trees, then use Soul Separation to create a Woodcutting Spirit."
+objective_target = 50
+player_xp = {}
+main_storage = {}
+# Hauling and Construction skills do not exist yet, so the settlement starts
+# with founding spirits for those roles.
+spirits = [
+    { role = "hauler", xp = 388, spawn = "H" },
+    { role = "builder", xp = 388, spawn = "B" },
+]
+
+[demo]
+title = "Demo: Autonomous Field Storage"
+description = "A level 10 Woodcutting Spirit already works toward a high log objective. Watch the settlement detect long delivery routes and build a field storage."
+objective_target = 150
+player_xp = { woodcutting = 1500 }
+main_storage = { logs = 20 }
+spirits = [
+    { role = "woodcutter", xp = 1154, spawn = "W" },
+    { role = "hauler", xp = 388, spawn = "H" },
+    { role = "builder", xp = 388, spawn = "B" },
+]

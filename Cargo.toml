@@ -1,0 +1,16 @@
+[workspace]
+resolver = "3"
+members = ["crates/spirit_sim", "crates/spirit_game"]
+default-members = ["crates/spirit_game"]
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+license = "MIT OR Apache-2.0"
+
+# Bevy recommends optimizing dependencies even in dev builds.
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
