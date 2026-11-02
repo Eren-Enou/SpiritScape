@@ -15,6 +15,7 @@
  | behavior  spirit job rules: condition -> plan -> task queue             |
  | planner   settlement planner and construction project upkeep           |
  | world     World::step() fixed tick, commands, conservation ledger       |
+ | metrics   time use, site output, bottleneck report                      |
  | scenario  new game and demo setup from scenarios.toml                   |
  +-------------------------------------------------------------------------+
                   ^ Command                       | read-only state
@@ -39,7 +40,7 @@
 - **The behavior system is deliberately small.** Each role has a list of `{ job, priority, when }` rules. When a spirit's task queue is empty, it picks the highest-priority rule whose condition holds and which can actually be planned now (a tree is reachable, a storage has room, and so on). That job expands into a task queue (`Move`, `Chop`, `Deposit`, `Withdraw`, `DeliverToSite`, `Build`). If a task fails, the queue is cleared, the spirit is marked Blocked with a reason, and it re-plans shortly after. Jobs change because conditions change, not because of a fixed script.
 - **The objective counts stock in transit.** "Maintain N logs in Main Storage" is measured as unreserved stock in Main Storage, plus outpost stock, plus logs carried by gatherers and haulers. Without this, a woodcutter would overfill the field storage while a hauler was already bringing logs in. Logs reserved for construction don't count, so a project draws stock down and the woodcutter goes back to work.
 - **How the planner decides** (`planner.rs`):
-  1. **Detect.** Every gatherer delivery records its delivery leg (tiles walked since the last log was cut), its chopping time and where the logs were cut. Over the last 3 recent deliveries, the planner flags a problem when walking takes at least 40% of the trip and the average leg is at least 12 tiles.
+  1. **Detect.** Every gatherer delivery records its delivery leg (tiles walked since the last log was cut), its chopping time and where the logs were cut. Over the last 3 recent deliveries, the planner flags a problem when walking takes at least 40% of the trip and the average leg is at least 16 tiles.
   2. **Evaluate.** Candidate sites are buildable tiles near the gathering spots of the *long* deliveries. The planner picks the site with the shortest average walk from those spots. A site must have at least two open sides and must not cut off any tree or building that is currently reachable. It must shorten the delivery leg by at least 50%.
   3. **Check.** Autonomous construction must be permitted (a UI toggle), the building's count limit must not be reached, and both a Construction Spirit and a Hauling Spirit must exist. A field storage is useless without a hauler to empty it.
   4. **Create.** A construction site is placed (it blocks the tile immediately) along with a project.
@@ -56,6 +57,16 @@
 - **Keyboard movement is a simulation command.** `Command::PlayerStep` moves one tile. The front end re-sends it every frame while a key is held; the sim ignores repeats and, mid-step, queues the next tile so walking is continuous. This keeps keyboard play deterministic and replayable like everything else.
 - **Models are data.** `data/visuals.toml` maps terrain, tree types, buildings (as lists of rotated parts, a construction-site look and a log pile), the player and each spirit role to models under `assets/models/`. Buildings rise out of the ground while being built, log piles grow with stock, trees shrink as they're cut and turn into stumps.
 - **Character animation.** The KayKit character files contain no animations, so the glTF loader doesn't mark their bones as animation targets. Once a character spawns, the game adds an `AnimationPlayer` to its `Rig_Medium` root and tags each bone with the same name-path `AnimationTargetId` the loader would have used; clips from the shared Rig_Medium animation files (idle, walk, interact) then drive every character. An axe is attached to the `handslot.r` bone of the player and the woodcutter.
+- **Tiers are a level requirement on tree types.** `level_required` is checked when the player clicks a tree, inside the chop task (so a chop stops if a Soul Separation drops the player below the requirement), and when spirits choose a tree. There's one rule for everyone, so losing a level always means losing the same access a spirit of that level would lack.
+- **Soul Separation is previewed by the simulation.** `World::soul_preview` is the single source for the UI text, the banner and validation. The player keeps a lifetime `SkillHistory` (highest level, XP sacrificed, spirits created) next to current XP, so the cost stays visible after retraining.
+- **Sites are map areas, not new entities.** Trees keep their existing deplete-and-regrow rules; a site groups trees, scales their regrowth, and can be closed to spirits. A site's output is limited only by regrowth, and nothing is ever permanently destroyed.
+- **Gatherers stay put and move only when it pays.** A spirit keeps working its current site while it has a free tree it can cut. It only moves to another site that has a full load of free logs; otherwise it waits for regrowth and records why. This stops spirits ping-ponging whenever a single tree regrows.
+- **Measurements are integer counters; rates are derived on read.** Each spirit adds one tick per tick to a time-use bucket chosen from its current task or wait reason, with snapshots every 10 s for a two-minute rolling window. Sites record harvest ticks. `gathering_report` turns these into rates, shares and a bottleneck, using fixed rules in priority order:
+  1. idle more than half the time → demand met;
+  2. waiting for regrowth at least 25% → resource recovery;
+  3. blocked by storage, or an outpost at least 80% full → hauling or storage capacity;
+  4. walking at least 40% → travel distance;
+  5. otherwise → gathering speed.
 - **Spirits look like spirits.** Each spirit's materials are copied and made translucent, tinted and glowing in its role colour (from `defs.toml`), so they read differently from the player.
 - **Overlays** are gizmos drawn just above the ground: walking paths, claimed trees, construction sites (yellow, red when blocked) and the tile under the mouse. Names and storage counts are screen-space labels that follow their objects.
 - **UI.** Bevy 0.20 removed the `Interaction` component, so buttons are `bevy_ui_widgets::Button` entities with `On<Activate>` observers.
@@ -71,6 +82,8 @@ that adds XP to a spirit.
 
 ## Known limitations
 
+- **One gathering skill and two tiers.** Higher levels mostly unlock Oak; chop speed improves only slightly per level. Retraining after a sacrifice currently takes under two minutes (see `docs/V0.3_GATHERING.md`).
+- **Waiting spirits stand still** where they ran out of work. They don't fall back to lower tiers or help with other jobs.
 - **Hauling and Construction aren't trainable skills.** Those spirits are founding spirits seeded by the scenario, in both the normal game and the demo.
 - **Only one autonomous building type (Field Storage) and one resource (Logs).** The definitions support more, but the planner's "detect" step only measures gatherer delivery distance.
 - **Simplified movement.** Spirits move tile to tile on a 4-connected grid with BFS pathfinding and pass through each other. The return leg is assumed to equal the delivery leg when measuring travel share.
@@ -78,6 +91,7 @@ that adds XP to a spirit.
 - **Camera and layout.** The camera follows the player or shows a fixed overview; it can zoom but not rotate or pan freely. The UI panels are tuned for the default 1600x920 window (press `H` to hide them).
 - **3D presentation limits.** Characters walk through each other and through the bridge rails, and labels can overlap when characters stand together. The ground is one model per tile (about 1,350 tiles), which is fine at this map size but would need batching for much larger maps.
 - **Input was playtested by hand in the 3D version.** WASD, `E`, clicking, zoom and the camera distance felt right. Spam-clicking used to snap the player back to the start of its current step; clicks now finish the step under way and ignore a repeat of the current order.
+- **v0.3 panels weren't clicked by hand.** The Gathering tab, banner, site labels and tiers were checked in screenshots, but the new buttons haven't been clicked in the running game.
 - **Field Storage capacity.** If the hauler falls behind and the Field Storage fills up (40 logs), gatherers fall back to Main Storage. This isn't tuned.
 - **Planner thresholds are tuned for this map.** They are configurable in `[planner]`.
 

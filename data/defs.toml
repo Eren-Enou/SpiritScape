@@ -199,7 +199,7 @@ max_sample_age_seconds = 240.0
 # A route is inefficient when walking takes at least this share of a trip...
 travel_share_threshold_pct = 40
 # ...and the one-way delivery leg is at least this long.
-min_leg_tiles = 12
+min_leg_tiles = 16
 # A candidate site must cut the estimated delivery leg by at least this much.
 min_savings_pct = 50
 site_search_radius = 6

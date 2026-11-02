@@ -5,8 +5,10 @@ use crate::sim_runner::{SPEEDS, Sim};
 use bevy::picking::Pickable;
 use bevy::prelude::*;
 use bevy::ui_widgets::{Activate, Button};
+use spirit_sim::defs::SiteId;
 use spirit_sim::entities::{Activity, ProjectState};
 use spirit_sim::events::EventKind;
+use spirit_sim::metrics::TimeUse;
 use spirit_sim::{Command, ScenarioKind, World};
 
 const PANEL_BG: Color = Color::srgba(0.06, 0.07, 0.09, 0.96);
@@ -39,7 +41,28 @@ enum UiAction {
     SoulSeparate,
     ObjectiveAdjust(i32),
     ToggleConstruction,
+    ShowTab(Tab),
+    ToggleSite(usize),
 }
+
+/// Which half of the lower right panel is shown.
+#[derive(Resource, Clone, Copy, PartialEq, Eq, Debug)]
+enum Tab {
+    Settlement,
+    Gathering,
+}
+
+/// Development flag: open the Gathering tab at start (`--gathering`).
+#[derive(Resource)]
+pub struct StartOnGatheringTab(pub bool);
+
+/// Root node of a tab's content.
+#[derive(Component)]
+struct TabPanel(Tab);
+
+/// The large Soul Separation notice.
+#[derive(Component)]
+struct Banner;
 
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
 enum Section {
@@ -49,6 +72,7 @@ enum Section {
     Settlement,
     Spirits,
     Planner,
+    Gathering,
 }
 
 /// Clipping box that holds the event log lines.
@@ -64,6 +88,7 @@ pub struct UiPlugin;
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(UiVisible(true))
+            .insert_resource(Tab::Settlement)
             .add_systems(Startup, build_ui)
             .add_systems(
                 Update,
@@ -73,6 +98,8 @@ impl Plugin for UiPlugin {
                     fit_log,
                     update_buttons,
                     toggle_panels,
+                    show_tab,
+                    update_banner,
                 ),
             );
     }
@@ -132,7 +159,22 @@ fn button_row(p: &mut ChildSpawnerCommands, buttons: &[(&str, UiAction)]) {
     });
 }
 
-fn build_ui(mut commands: Commands) {
+fn build_ui(
+    mut commands: Commands,
+    sim: Res<Sim>,
+    start: Res<StartOnGatheringTab>,
+    mut tab: ResMut<Tab>,
+) {
+    if start.0 {
+        *tab = Tab::Gathering;
+    }
+    let site_names: Vec<String> = sim
+        .world
+        .defs
+        .sites
+        .iter()
+        .map(|s| s.name.clone())
+        .collect();
     commands
         .spawn((
             Node {
@@ -167,7 +209,13 @@ fn build_ui(mut commands: Commands) {
                 &[
                     ("Restart", UiAction::Restart),
                     ("New Game", UiAction::Load(ScenarioKind::NewGame)),
-                    ("Demo Scenario", UiAction::Load(ScenarioKind::Demo)),
+                    ("Demo", UiAction::Load(ScenarioKind::Demo)),
+                    ("Regrind", UiAction::Load(ScenarioKind::Regrind)),
+                    ("Grove OK", UiAction::Load(ScenarioKind::GroveSustainable)),
+                    (
+                        "Grove Over",
+                        UiAction::Load(ScenarioKind::GroveOversubscribed),
+                    ),
                 ],
             );
 
@@ -187,22 +235,72 @@ fn build_ui(mut commands: Commands) {
                 ],
             );
 
-            heading(p, "Settlement");
-            section(p, Section::Settlement);
             button_row(
                 p,
                 &[
-                    ("Target -10", UiAction::ObjectiveAdjust(-10)),
-                    ("Target +10", UiAction::ObjectiveAdjust(10)),
-                    ("Autonomous building", UiAction::ToggleConstruction),
+                    ("Settlement", UiAction::ShowTab(Tab::Settlement)),
+                    ("Gathering (G)", UiAction::ShowTab(Tab::Gathering)),
                 ],
             );
 
-            heading(p, "Settlement Planner");
-            section(p, Section::Planner);
+            tab_panel(p, Tab::Settlement, |p| {
+                heading(p, "Settlement");
+                section(p, Section::Settlement);
+                button_row(
+                    p,
+                    &[
+                        ("Target -10", UiAction::ObjectiveAdjust(-10)),
+                        ("Target +10", UiAction::ObjectiveAdjust(10)),
+                        ("Autonomous building", UiAction::ToggleConstruction),
+                    ],
+                );
 
-            heading(p, "Spirits");
-            section(p, Section::Spirits);
+                heading(p, "Settlement Planner");
+                section(p, Section::Planner);
+
+                heading(p, "Spirits");
+                section(p, Section::Spirits);
+            });
+
+            tab_panel(p, Tab::Gathering, |p| {
+                heading(p, "Gathering sites");
+                let buttons: Vec<(&str, UiAction)> = site_names
+                    .iter()
+                    .enumerate()
+                    .map(|(i, name)| (name.as_str(), UiAction::ToggleSite(i)))
+                    .collect();
+                button_row(p, &buttons);
+                section(p, Section::Gathering);
+            });
+        });
+
+    commands
+        .spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                left: Val::Px(0.0),
+                right: Val::Px(PANEL_WIDTH),
+                top: Val::Px(70.0),
+                justify_content: JustifyContent::Center,
+                ..default()
+            },
+            Pickable::IGNORE,
+        ))
+        .with_children(|p| {
+            p.spawn((
+                Banner,
+                Text::new(""),
+                TextFont::from_font_size(20.0),
+                TextColor(HEADING),
+                TextLayout::justify(Justify::Center),
+                Node {
+                    padding: UiRect::axes(Val::Px(24.0), Val::Px(14.0)),
+                    display: Display::None,
+                    ..default()
+                },
+                BackgroundColor(Color::srgba(0.10, 0.06, 0.16, 0.92)),
+                Pickable::IGNORE,
+            ));
         });
 
     commands
@@ -246,6 +344,71 @@ fn build_ui(mut commands: Commands) {
         });
 }
 
+fn tab_panel(
+    p: &mut ChildSpawnerCommands,
+    tab: Tab,
+    content: impl FnOnce(&mut ChildSpawnerCommands),
+) {
+    p.spawn((
+        TabPanel(tab),
+        Node {
+            flex_direction: FlexDirection::Column,
+            row_gap: Val::Px(4.0),
+            ..default()
+        },
+    ))
+    .with_children(content);
+}
+
+fn show_tab(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut tab: ResMut<Tab>,
+    mut panels: Query<(&TabPanel, &mut Node)>,
+) {
+    if keys.just_pressed(KeyCode::KeyG) {
+        *tab = match *tab {
+            Tab::Settlement => Tab::Gathering,
+            Tab::Gathering => Tab::Settlement,
+        };
+    }
+    for (panel, mut node) in &mut panels {
+        let display = if panel.0 == *tab {
+            Display::Flex
+        } else {
+            Display::None
+        };
+        if node.display != display {
+            node.display = display;
+        }
+    }
+}
+
+fn update_banner(
+    time: Res<Time>,
+    mut sim: ResMut<Sim>,
+    mut banner: Query<(&mut Text, &mut Node), With<Banner>>,
+) {
+    let Ok((mut text, mut node)) = banner.single_mut() else {
+        return;
+    };
+    let remaining = sim.banner.as_ref().map(|(_, t)| *t - time.delta_secs());
+    match (remaining, sim.banner.as_mut()) {
+        (Some(t), Some(b)) if t > 0.0 => {
+            b.1 = t;
+            if text.0 != b.0 {
+                text.0 = b.0.clone();
+            }
+            node.display = Display::Flex;
+        }
+        _ => {
+            sim.banner = None;
+            if node.display != Display::None {
+                node.display = Display::None;
+            }
+        }
+    }
+}
+
 fn toggle_panels(
     keys: Res<ButtonInput<KeyCode>>,
     mut visible: ResMut<UiVisible>,
@@ -264,7 +427,12 @@ fn toggle_panels(
     }
 }
 
-fn on_button(ev: On<Activate>, actions: Query<&UiAction>, mut sim: ResMut<Sim>) {
+fn on_button(
+    ev: On<Activate>,
+    actions: Query<&UiAction>,
+    mut sim: ResMut<Sim>,
+    mut tab: ResMut<Tab>,
+) {
     let Ok(&action) = actions.get(ev.entity) else {
         return;
     };
@@ -293,7 +461,7 @@ fn on_button(ev: On<Activate>, actions: Query<&UiAction>, mut sim: ResMut<Sim>) 
         UiAction::SoulAll => sim.soul_amount = available.max(min),
         UiAction::SoulSeparate => {
             let xp = sim.soul_amount;
-            sim.command(Command::SoulSeparate { skill, xp });
+            sim.separate_soul(skill, xp);
         }
         UiAction::ObjectiveAdjust(d) => {
             let target = (sim.world.settlement.objective.target as i32 + d).max(0) as u32;
@@ -303,11 +471,20 @@ fn on_button(ev: On<Activate>, actions: Query<&UiAction>, mut sim: ResMut<Sim>) 
             let allow = !sim.world.settlement.allow_autonomous_construction;
             sim.command(Command::SetAutonomousConstruction(allow));
         }
+        UiAction::ShowTab(t) => *tab = t,
+        UiAction::ToggleSite(i) => {
+            let open = !sim.world.settlement.site_open[i];
+            sim.command(Command::SetSiteOpen {
+                site: SiteId(i as u16),
+                open,
+            });
+        }
     }
 }
 
 fn update_buttons(
     sim: Res<Sim>,
+    tab: Res<Tab>,
     mut buttons: Query<(&UiAction, &mut BackgroundColor), With<Button>>,
     mut labels: Query<(&UiAction, &mut Text), Without<Section>>,
 ) {
@@ -316,6 +493,9 @@ fn update_buttons(
             UiAction::Speed(s) => *s == sim.speed && !sim.paused,
             UiAction::TogglePause => sim.paused,
             UiAction::ToggleConstruction => sim.world.settlement.allow_autonomous_construction,
+            UiAction::ShowTab(t) => *t == *tab,
+            UiAction::Load(s) => *s == sim.scenario,
+            UiAction::ToggleSite(i) => sim.world.settlement.site_open[*i],
             _ => false,
         };
         bg.0 = if active { BUTTON_ACTIVE } else { BUTTON_BG };
@@ -333,6 +513,17 @@ fn update_buttons(
                 let on = sim.world.settlement.allow_autonomous_construction;
                 text.0 = format!("Autonomous building: {}", if on { "ON" } else { "OFF" });
             }
+            UiAction::ToggleSite(i) => {
+                let name = &sim.world.defs.sites[*i].name;
+                let content = if sim.world.settlement.site_open[*i] {
+                    format!("{name}: spirits allowed")
+                } else {
+                    format!("{name}: reserved for you")
+                };
+                if text.0 != content {
+                    text.0 = content;
+                }
+            }
             _ => {}
         }
     }
@@ -348,6 +539,7 @@ fn update_texts(sim: Res<Sim>, mut texts: Query<(&Section, &mut Text)>) {
             Section::Settlement => settlement_text(w),
             Section::Spirits => spirits_text(w),
             Section::Planner => planner_text(w),
+            Section::Gathering => gathering_text(w),
         };
         if text.0 != content {
             text.0 = content;
@@ -360,10 +552,13 @@ fn header_text(sim: &Sim) -> String {
     let secs = w.tick / w.defs.ticks_per_second as u64;
     let scenario = match sim.scenario {
         ScenarioKind::NewGame => "New Game",
-        ScenarioKind::Demo => "Demo Scenario",
+        ScenarioKind::Demo => "Demo",
+        ScenarioKind::Regrind => "Regrind",
+        ScenarioKind::GroveSustainable => "Grove: sustainable",
+        ScenarioKind::GroveOversubscribed => "Grove: oversubscribed",
     };
     format!(
-        "SpiritScape - {scenario}  |  Time {:02}:{:02}  |  {}\nWASD/click move, E use, C overview, wheel zoom, H hide UI\nSpace pause, 1-4 speed, F5 restart",
+        "SpiritScape - {scenario}  |  Time {:02}:{:02}  |  {}\nWASD/click move, E use, C overview, wheel zoom, H hide UI\nSpace pause, 1-4 speed, F5 restart, G gathering tab",
         secs / 60,
         secs % 60,
         if sim.paused {
@@ -384,9 +579,36 @@ fn player_text(sim: &Sim) -> String {
         None => "max".into(),
     };
     let logs = w.player.actor.inventory.get(w.defs.objective.resource);
+    let h = w.player.history(skill);
+    let (can, locked): (Vec<_>, Vec<_>) = w
+        .defs
+        .tree_tiers(skill)
+        .into_iter()
+        .partition(|k| w.player_can_cut(*k));
+    let names = |ks: &[spirit_sim::defs::TreeKindId], with_level: bool| {
+        ks.iter()
+            .map(|k| {
+                let d = w.defs.tree(*k);
+                if with_level {
+                    format!("{} (lvl {})", d.name, d.level_required)
+                } else {
+                    d.name.clone()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    let mut access = format!("Can cut: {}", names(&can, false));
+    if !locked.is_empty() {
+        access += &format!("  |  Locked: {}", names(&locked, true));
+    }
     let mut s = format!(
-        "Woodcutting level {level}  (XP {xp} / next {next})\nCarrying {logs}/{} logs  |  {}\nClick or face a tree and press E to chop; a storage to deposit.",
-        w.player.actor.inventory.capacity, w.player.activity
+        "Woodcutting level {level}  (XP {xp} / next {next})  |  highest ever {}\nSacrificed {} XP into {} spirit(s)\n{access}\nCarrying {logs}/{} logs  |  {}",
+        h.highest_level,
+        h.xp_sacrificed,
+        h.spirits_created,
+        w.player.actor.inventory.capacity,
+        w.player.activity
     );
     if !sim.message.is_empty() {
         s.push_str(&format!("\n> {}", sim.message));
@@ -397,24 +619,97 @@ fn player_text(sim: &Sim) -> String {
 fn soul_text(sim: &Sim) -> String {
     let w = &sim.world;
     let skill = w.defs.skill_id("woodcutting").unwrap();
-    let have = w.player.xp(skill);
-    let amount = sim.soul_amount;
-    let table = &w.defs.xp_table;
-    let preview = if amount > have {
-        format!("Not enough XP (you have {have}).")
+    let p = w.soul_preview(skill, sim.soul_amount);
+    let mut s = format!(
+        "Transfer {} of your {} Woodcutting XP (min {})",
+        p.transfer, p.current_xp, w.defs.soul_min_xp
+    );
+    if let Some(e) = &p.error {
+        s += &format!("\nCan't separate: {e}");
+        return s;
+    }
+    s += &format!(
+        "\nYou: level {} -> {} ({} XP left)\nSpirit: permanent level {}, can cut {}",
+        p.current_level,
+        p.after_level,
+        p.after_xp,
+        p.spirit_level,
+        if p.spirit_can_cut.is_empty() {
+            "nothing".to_string()
+        } else {
+            tree_list(w, &p.spirit_can_cut)
+        }
+    );
+    if p.lost.is_empty() {
+        s += "\nYou keep access to every tree you can cut now.";
     } else {
-        format!(
-            "Spirit would be Woodcutting level {} (permanent).\nYou would drop from level {} to {} ({} XP left).",
-            table.level_for_xp(amount),
-            table.level_for_xp(have),
-            table.level_for_xp(have - amount),
-            have - amount
-        )
-    };
+        s += &format!(
+            "\n!! You lose access to {} until you retrain.",
+            tree_list(w, &p.lost)
+        );
+    }
+    s
+}
+
+fn tree_list(w: &World, kinds: &[spirit_sim::defs::TreeKindId]) -> String {
+    kinds
+        .iter()
+        .map(|k| w.defs.tree(*k).name.clone())
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn time_use_line(t: &TimeUse) -> String {
     format!(
-        "Sacrifice {amount} Woodcutting XP (min {}).\n{preview}",
-        w.defs.soul_min_xp
+        "chop {}%  walk {}%  wait {}%  storage {}%",
+        t.pct_of_working(t.gathering),
+        t.pct_of_working(t.traveling),
+        t.pct_of_working(t.waiting_recovery),
+        t.pct_of_working(t.blocked_storage),
     )
+}
+
+fn gathering_text(w: &World) -> String {
+    let r = w.gathering_report();
+    let window = w.defs.gathering.window_ticks / w.defs.ticks_per_second as u64;
+    let mut s = String::new();
+    for site in &r.sites {
+        s += &format!(
+            "{}: {}/{} trees grown, {}/{} logs ready\n   measured {:.1} logs/min (last {window}s), sustainable ~{:.1}/min, {} spirit(s)\n",
+            site.name,
+            site.trees_grown,
+            site.trees_total,
+            site.logs_available,
+            site.logs_max,
+            site.measured_per_min,
+            site.sustainable_per_min,
+            site.workers
+        );
+    }
+    s += &format!(
+        "\nBottleneck: {}\n{}\nGatherers could chop up to {:.0} logs/min (estimate).",
+        r.bottleneck.label(),
+        r.summary,
+        r.chop_capacity_per_min
+    );
+    let gatherers: Vec<_> = w
+        .spirits
+        .iter()
+        .filter(|s| {
+            w.defs
+                .role(s.role)
+                .has_job(spirit_sim::defs::JobKind::Gather)
+        })
+        .collect();
+    if !gatherers.is_empty() {
+        s += &format!("\n\nTime use (last {window}s):");
+        for g in gatherers {
+            let t = g.time.recent();
+            let idle = (t.idle * 100).checked_div(t.total()).unwrap_or(0);
+            s += &format!("\n{}: {}  |  idle {idle}%", g.name, time_use_line(&t));
+        }
+    }
+    s
 }
 
 fn settlement_text(w: &World) -> String {

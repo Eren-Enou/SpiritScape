@@ -215,6 +215,11 @@ impl World {
             world.defs.resource(o.resource).name
         );
         world.events.push(0, EventKind::Planner, msg);
+        if !scenario.description.is_empty() {
+            world
+                .events
+                .push(0, EventKind::Player, scenario.description.clone());
+        }
         Ok(world)
     }
 }

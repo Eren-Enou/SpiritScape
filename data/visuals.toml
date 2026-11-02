@@ -31,12 +31,22 @@ decorations = [
 ]
 decoration_chance_pct = 12
 
+# Basic trees (level 1): small and slender.
+[trees.tree]
+models = [
+    "models/nature/tree_simple.glb",
+    "models/nature/tree_small.glb",
+    "models/nature/tree_thin.glb",
+]
+stump = "models/nature/stump_old.glb"
+scale = 1.0
+
+# Oaks (level 5): broad, round crowns so the tier reads at a glance.
 [trees.oak]
 models = [
     "models/nature/tree_oak.glb",
-    "models/nature/tree_default.glb",
-    "models/nature/tree_detailed.glb",
     "models/nature/tree_fat.glb",
+    "models/nature/tree_detailed.glb",
 ]
 stump = "models/nature/stump_round.glb"
 scale = 1.1

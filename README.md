@@ -16,18 +16,36 @@ goal, and watch the world physically change because the spirit's work causes a
 problem that autonomous planning can solve?* See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 for design decisions and known limitations.
 
+**v0.3** adds Woodcutting tiers (Tree at level 1, Oak at level 5) and a Soul
+Separation preview that shows exactly what you give up. It also adds two
+gathering sites with limited, renewable output; measurements that name the
+current bottleneck; and scenarios for sustainable and oversubscribed
+gathering and for retraining after a sacrifice. See
+[docs/V0.3_GATHERING.md](docs/V0.3_GATHERING.md) for the design, observed
+production rates and open questions.
+
 ## Running
 
 Requires a stable Rust toolchain (tested with 1.99) and Windows (other desktop
 platforms should work but are untested).
 
 ```bash
-cargo run --release              # normal game
-cargo run --release -- --demo    # development demonstration scenario
+cargo run --release                                     # normal game
+cargo run --release -- --demo                           # field-storage demonstration
+cargo run --release -- --scenario regrind               # train, sacrifice, retrain
+cargo run --release -- --scenario grove_sustainable     # one spirit, renewable grove
+cargo run --release -- --scenario grove_oversubscribed  # four spirits, shortages
 ```
 
-Options: `--speed N` sets the starting simulation speed. `--capture DIR --at 20,160`
-saves screenshots at those simulation seconds and then exits (a development aid).
+The scenario buttons in the panel switch between these too.
+
+Options:
+- `--speed N` sets the starting simulation speed.
+- `--gathering` opens the Gathering tab at start.
+- `--separate XP` performs a Soul Separation at start.
+- `--capture DIR --at 20,160` saves screenshots at those simulation seconds, then exits.
+
+The last three are development aids.
 
 ### Controls
 
@@ -40,16 +58,17 @@ saves screenshots at those simulation seconds and then exits (a development aid)
 | Left click on grass | Walk there |
 | Mouse wheel / `C` | Zoom / toggle the whole-map overview (the demo starts in overview) |
 | `H` | Hide or show the UI panels |
+| `G` | Switch between the Settlement and Gathering tabs |
 | `Space` / `1`-`4` / `F5` | Pause / speed / restart |
-| Panel buttons | Pause, speed (1x/2x/4x/8x), restart, load scenario, Soul Separation, objective target, autonomous-building permission |
+| Panel buttons | Pause, speed, restart, load scenario, Soul Separation, objective target, autonomous building, and (Gathering tab) whether spirits may gather at each site |
 
 ## Playing the normal game
 
-1. Click the trees near Main Storage (the brown square on the left) to chop. Each log gives 25 Woodcutting XP.
+1. Click the slender **Trees** in the Starting Grove (next to Main Storage) to chop. Each log gives 15 Woodcutting XP. The round **Oaks** need level 5 and give 30 XP per log.
 2. Click Main Storage to deposit your logs.
-3. Under **Soul Separation**, choose an amount (at least 100 XP) and press **Separate Soul**. The XP leaves you, and a Woodcutting Spirit appears with that XP as its fixed level.
+3. Under **Soul Separation**, choose an amount (at least 100 XP) and read the preview: your level before and after, the spirit's permanent level, and any trees you would lose. Press **Separate Soul** to confirm. The XP leaves you, and a Woodcutting Spirit appears with that XP as its fixed level. A spirit needs at least 388 XP (level 5) to cut Oak.
 4. The spirit works toward the settlement objective (default: maintain 50 logs in Main Storage). Raise the target with **Target +10** to create more demand.
-5. Once the trees near town are used up (they regrow after 4 minutes), the spirit walks across the bridge to the eastern forest. Long delivery trips are what make the planner act.
+5. Press `G` for the Gathering tab. It shows how much each site produces, how spirits spend their time and what limits output. Clicking **Starting Grove** there reserves it for your own training, which sends Oak-capable spirits across the bridge to the Distant Forest. Long delivery trips from there are what make the planner build a field storage.
 
 The settlement starts with a Hauling Spirit and a Construction Spirit. Hauling
 and Construction aren't trainable skills yet, so these two stand in for them.
@@ -58,22 +77,25 @@ and Construction aren't trainable skills yet, so these two stand in for them.
 
 The demo starts with a level 10 Woodcutting Spirit, the two founding spirits,
 20 logs in storage, a 150-log objective and a player with 1500 Woodcutting XP.
-It runs at 4x speed. The same events happen every time, at these simulation times:
+The Starting Grove is reserved for the player, so the spirit works the
+Distant Forest. It runs at 4x speed. The same events happen every time, at
+these simulation times:
 
 | Time | What happens |
 |---|---|
-| 0:00-1:30 | Oakroot chops the grove near town (short trips) |
-| ~1:30 | The grove is depleted; Oakroot crosses the bridge to the forest (about 46 tiles each way) |
-| 2:35 | **Planner:** "Inefficiency detected" (walking is about 49% of trip time), then "Decision: build a Field Storage at (34, 11)". 15 logs are reserved and Ashwhisper is assigned |
+| 0:00 | Oakroot crosses the bridge to the forest (about 47 tiles each way). The Gathering tab shows "Travel distance" as the bottleneck, at about 12 logs/min |
+| 2:35 | **Planner:** "Inefficiency detected" (walking is about 57% of trip time), then "Decision: build a Field Storage at (34, 11)". 15 logs are reserved and Ashwhisper is assigned |
 | 2:35-3:17 | Ashwhisper carries the reserved logs from Main Storage to the site in two trips |
 | 3:30 | Field Storage completes and its 15 logs are consumed |
-| ~4:00 | Oakroot now delivers to the Field Storage (5 tiles away). Mossbell hauls its stock back to Main Storage |
+| ~4:00 | Oakroot now delivers to the Field Storage (4 tiles away). Mossbell hauls its stock back to Main Storage. Output roughly doubles to about 23 logs/min |
 | ~8:00 | Objective met. Oakroot goes idle and the planner builds nothing more |
 
-To print the same run as text without a window:
+To print the same run as text without a window (any scenario key works, and
+a gathering report is printed every minute):
 
 ```bash
-cargo run -p spirit_sim --example headless_demo -- 600
+cargo run -p spirit_sim --example headless_demo -- 600 demo
+cargo run -p spirit_sim --example regrind_playtest -- 400
 ```
 
 ## Tests
@@ -82,7 +104,12 @@ cargo run -p spirit_sim --example headless_demo -- 600
 cargo test -p spirit_sim
 ```
 
-27 tests: 22 end-to-end simulation tests in `crates/spirit_sim/tests/simulation.rs` plus unit tests for pathfinding and storage. They cover:
+40 tests:
+- 22 end-to-end simulation tests in `crates/spirit_sim/tests/simulation.rs`;
+- 13 gathering and progression tests in `crates/spirit_sim/tests/gathering.rs`;
+- 5 unit tests for pathfinding and storage.
+
+They cover:
 
 - **XP and Soul Separation:** the XP curve, XP gained from chopping, exact XP conservation and level recalculation on separation, rejection of invalid requests, and that spirits never gain XP.
 - **Resources:** a conservation ledger (seeded + harvested = present + consumed) checked every tick across a full build cycle, inventory capacity, and deposits.
@@ -92,6 +119,18 @@ cargo test -p spirit_sim
 - **Absence of a problem:** short routes or no woodcutter means nothing is built.
 - **Determinism:** two runs with the same commands give identical state hashes and event logs.
 - **Normal-game loop:** the player trains, separates a spirit and sets a goal, and the settlement builds on its own.
+- **Tiers and retraining:**
+  - the player and spirits obey level requirements;
+  - the Soul Separation preview;
+  - losing access, even mid-chop, while the spirit keeps it permanently;
+  - regaining access by retraining, with lifetime history kept.
+- **Gathering sites:**
+  - a site recovers fully after exhaustion;
+  - one spirit gathers sustainably, while four cause measurable waiting;
+  - waiting spirits resume;
+  - spirits relocate without oscillating;
+  - reserving a site never creates resources;
+  - every scenario conserves resources and replays exactly.
 - **Keyboard and mouse movement:** a held direction walks tile by tile without stalling; walking into a tree is refused; spam-clicking a destination never restarts the step in progress.
 
 ## Assets

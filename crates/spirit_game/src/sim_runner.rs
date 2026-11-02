@@ -2,6 +2,7 @@
 //! chosen speed. Rendering never changes simulation state.
 
 use bevy::prelude::*;
+use spirit_sim::defs::SkillId;
 use spirit_sim::{Command, ScenarioKind, World};
 
 pub const SPEEDS: [u32; 4] = [1, 2, 4, 8];
@@ -21,6 +22,8 @@ pub struct Sim {
     pub message: String,
     /// Bumped on restart so the renderer rebuilds its entities.
     pub generation: u32,
+    /// Large on-screen notice and its remaining seconds.
+    pub banner: Option<(String, f32)>,
 }
 
 impl Sim {
@@ -31,10 +34,16 @@ impl Sim {
             world,
             scenario,
             paused: false,
-            speed: if scenario == ScenarioKind::Demo { 4 } else { 1 },
+            speed: match scenario {
+                ScenarioKind::Demo
+                | ScenarioKind::GroveSustainable
+                | ScenarioKind::GroveOversubscribed => 4,
+                _ => 1,
+            },
             accumulator: 0.0,
             message: String::new(),
             generation: 0,
+            banner: None,
         }
     }
 
@@ -43,6 +52,44 @@ impl Sim {
         *self = Sim::new(scenario);
         self.generation = generation;
         self.message = "Simulation restarted".into();
+    }
+
+    /// Performs a Soul Separation and, on success, shows what was given up.
+    pub fn separate_soul(&mut self, skill: SkillId, xp: u64) {
+        let preview = self.world.soul_preview(skill, xp);
+        let spirits = self.world.spirits.len();
+        self.command(Command::SoulSeparate { skill, xp });
+        if self.world.spirits.len() == spirits {
+            return;
+        }
+        let w = &self.world;
+        let s = &w.spirits[spirits];
+        let skill_name = &w.defs.skill(skill).name;
+        let mut text = format!(
+            "SOUL SEPARATION
+{skill_name} level {} -> {}   (-{xp} XP)
+{} awakens: permanent {skill_name} level {}",
+            preview.current_level,
+            preview.after_level,
+            s.name,
+            s.level()
+        );
+        if !preview.lost.is_empty() {
+            let lost: Vec<String> = preview
+                .lost
+                .iter()
+                .map(|k| {
+                    let d = w.defs.tree(*k);
+                    format!("{} (level {})", d.name, d.level_required)
+                })
+                .collect();
+            text += &format!(
+                "
+You can no longer cut {} - retrain to regain it",
+                lost.join(", ")
+            );
+        }
+        self.banner = Some((text, 6.0));
     }
 
     pub fn command(&mut self, cmd: Command) {

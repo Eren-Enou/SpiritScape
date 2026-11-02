@@ -323,8 +323,19 @@ impl World {
         let mut any_permitted = false;
         let mut any_grown = false;
         // A spirit stays at its current site while that site has a free tree
-        // it can cut, and only then looks elsewhere. This avoids bouncing
-        // between sites each time a single tree regrows.
+        // it can cut. It only moves to another site that has at least a full
+        // load of free logs; otherwise it waits for local regrowth. This
+        // avoids crossing the map for a single regrown tree.
+        let mut free_logs = vec![0u32; self.defs.sites.len()];
+        for t in &self.trees {
+            if let Some(site) = t.site
+                && self.spirit_can_cut(s, t.kind)
+                && t.claimed_by.is_none_or(|c| c == sid)
+            {
+                free_logs[site.index()] += t.logs_left();
+            }
+        }
+        let load = s.actor.inventory.capacity;
         let mut best_home: Option<(u32, TreeId)> = None;
         let mut best: Option<(u32, TreeId)> = None;
         for t in &self.trees {
@@ -363,7 +374,10 @@ impl World {
             {
                 best_home = Some((score, t.id));
             }
-            if best.is_none_or(|(b, _)| score < b) {
+            let worth_moving = s.home_site.is_none()
+                || t.site == s.home_site
+                || t.site.is_none_or(|site| free_logs[site.index()] >= load);
+            if worth_moving && best.is_none_or(|(b, _)| score < b) {
                 best = Some((score, t.id));
             }
         }

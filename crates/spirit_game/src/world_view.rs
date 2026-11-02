@@ -37,6 +37,8 @@ pub enum WorldLabel {
     Player,
     Spirit(usize),
     Building(usize),
+    /// Name and availability of a gathering site.
+    Site(usize),
 }
 
 /// Tile centre in world space.
@@ -165,6 +167,10 @@ fn rebuild_on_restart(
                 }
             }
         }
+    }
+
+    for i in 0..w.defs.sites.len() {
+        spawn_label(&mut commands, WorldLabel::Site(i), 14.0);
     }
 
     for tree in &w.trees {
@@ -366,11 +372,14 @@ fn update_labels(
                 let s = &w.spirits[id];
                 let (x, y) = s.actor.mover.visual_pos();
                 let carried = s.actor.inventory.total();
-                let content = if carried > 0 {
+                let mut content = if carried > 0 {
                     format!("{} L{} [{carried}]", s.name, s.level())
                 } else {
                     format!("{} L{}", s.name, s.level())
                 };
+                if s.wait == Some(spirit_sim::metrics::WaitKind::Recovery) {
+                    content.push_str(" (waiting)");
+                }
                 (tile_world(x, y), 1.05, content)
             }
             WorldLabel::Building(id) => {
@@ -392,6 +401,26 @@ fn update_labels(
                     }
                 };
                 (tile_world(b.pos.x as f32, b.pos.y as f32), 1.9, content)
+            }
+            WorldLabel::Site(i) => {
+                let def = &w.defs.sites[i];
+                let site = spirit_sim::defs::SiteId(i as u16);
+                let (grown, total) = w
+                    .trees
+                    .iter()
+                    .filter(|t| t.site == Some(site))
+                    .fold((0, 0), |(g, n), t| (g + t.is_grown() as u32, n + 1));
+                let reserved = if w.settlement.site_open[i] {
+                    ""
+                } else {
+                    " - reserved for you"
+                };
+                let (x, _) = def.center();
+                (
+                    tile_world(x, def.area[1] as f32 - 0.5),
+                    0.3,
+                    format!("{} ({grown}/{total} trees grown){reserved}", def.name),
+                )
             }
         };
         if text.0 != content {
@@ -428,6 +457,7 @@ fn tile_square(gizmos: &mut Gizmos, p: TilePos, half: f32, y: f32, color: Color)
 fn draw_overlays(sim: Res<Sim>, mut gizmos: Gizmos) {
     let w = &sim.world;
     let lift = Vec3::Y * 0.06;
+    draw_site_outlines(w, &mut gizmos);
     let mut draw_path = |mover: &spirit_sim::entities::Mover, color: Color| {
         let (x, y) = mover.visual_pos();
         let mut prev = tile_world(x, y) + lift;
@@ -461,5 +491,31 @@ fn draw_overlays(sim: Res<Sim>, mut gizmos: Gizmos) {
             Color::srgb(1.0, 0.9, 0.2)
         };
         tile_square(&mut gizmos, p.site, 0.55, 0.05, color);
+    }
+}
+
+/// Faint outline of each gathering site (blue when reserved for the player).
+fn draw_site_outlines(w: &spirit_sim::World, gizmos: &mut Gizmos) {
+    for (i, site) in w.defs.sites.iter().enumerate() {
+        let [x0, y0, x1, y1] = site.area;
+        let (a, b) = (
+            tile_world(x0 as f32 - 0.5, y0 as f32 - 0.5),
+            tile_world(x1 as f32 + 0.5, y1 as f32 + 0.5),
+        );
+        let color = if w.settlement.site_open[i] {
+            Color::srgba(0.9, 0.95, 0.6, 0.35)
+        } else {
+            Color::srgba(0.6, 0.8, 1.0, 0.5)
+        };
+        let y = 0.03;
+        let corners = [
+            Vec3::new(a.x, y, a.z),
+            Vec3::new(b.x, y, a.z),
+            Vec3::new(b.x, y, b.z),
+            Vec3::new(a.x, y, b.z),
+        ];
+        for k in 0..4 {
+            gizmos.line(corners[k], corners[(k + 1) % 4], color);
+        }
     }
 }

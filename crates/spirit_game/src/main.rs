@@ -22,13 +22,28 @@ use spirit_sim::ScenarioKind;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
+    let value = |flag: &str| {
+        args.iter()
+            .position(|a| a == flag)
+            .and_then(|i| args.get(i + 1).cloned())
+    };
     let scenario = if args.iter().any(|a| a == "--demo") {
         ScenarioKind::Demo
+    } else if let Some(key) = value("--scenario") {
+        ScenarioKind::from_key(&key).unwrap_or_else(|| {
+            let keys: Vec<_> = ScenarioKind::ALL.iter().map(|k| k.key()).collect();
+            panic!("unknown scenario {key:?}; expected one of {keys:?}")
+        })
     } else {
         ScenarioKind::NewGame
     };
 
     let mut sim = sim_runner::Sim::new(scenario);
+    // Development aid: perform a Soul Separation of this many XP at start.
+    if let Some(xp) = value("--separate").and_then(|v| v.parse().ok()) {
+        let skill = sim.world.defs.skill_id("woodcutting").unwrap();
+        sim.separate_soul(skill, xp);
+    }
     if let Some(speed) = args
         .iter()
         .position(|a| a == "--speed")
@@ -54,6 +69,9 @@ fn main() {
             }),
     )
     .insert_resource(sim)
+    .insert_resource(ui::StartOnGatheringTab(
+        args.iter().any(|a| a == "--gathering"),
+    ))
     .insert_resource(visuals::Visuals::builtin())
     .add_plugins((
         sim_runner::SimRunnerPlugin,
