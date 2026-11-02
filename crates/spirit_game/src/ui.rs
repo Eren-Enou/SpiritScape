@@ -49,8 +49,15 @@ enum Section {
     Settlement,
     Spirits,
     Planner,
-    Log,
 }
+
+/// Clipping box that holds the event log lines.
+#[derive(Component)]
+struct LogBox;
+
+/// One event log entry, newest first.
+#[derive(Component)]
+struct LogLine(usize);
 
 pub struct UiPlugin;
 
@@ -58,7 +65,16 @@ impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(UiVisible(true))
             .add_systems(Startup, build_ui)
-            .add_systems(Update, (update_texts, update_buttons, toggle_panels));
+            .add_systems(
+                Update,
+                (
+                    update_texts,
+                    update_log,
+                    fit_log,
+                    update_buttons,
+                    toggle_panels,
+                ),
+            );
     }
 }
 
@@ -207,7 +223,26 @@ fn build_ui(mut commands: Commands) {
         ))
         .with_children(|p| {
             heading(p, "Event Log - why things happen");
-            section(p, Section::Log);
+            p.spawn((
+                LogBox,
+                Node {
+                    flex_direction: FlexDirection::Column,
+                    flex_grow: 1.0,
+                    min_height: Val::Px(0.0),
+                    overflow: Overflow::clip(),
+                    ..default()
+                },
+            ))
+            .with_children(|log| {
+                for i in 0..LOG_LINES {
+                    log.spawn((
+                        LogLine(i),
+                        Text::new(""),
+                        TextFont::from_font_size(13.0),
+                        TextColor(BODY),
+                    ));
+                }
+            });
         });
 }
 
@@ -313,7 +348,6 @@ fn update_texts(sim: Res<Sim>, mut texts: Query<(&Section, &mut Text)>) {
             Section::Settlement => settlement_text(w),
             Section::Spirits => spirits_text(w),
             Section::Planner => planner_text(w),
-            Section::Log => log_text(w),
         };
         if text.0 != content {
             text.0 = content;
@@ -485,23 +519,45 @@ fn planner_text(w: &World) -> String {
     s
 }
 
-fn log_text(w: &World) -> String {
-    let tps = w.defs.ticks_per_second as u64;
-    let lines: Vec<String> = w
-        .events
-        .iter()
-        .rev()
-        .take(LOG_LINES)
-        .map(|e| {
-            let secs = e.tick / tps;
-            let tag = match e.kind {
-                EventKind::Player => "PLAYER",
-                EventKind::Spirit => "SPIRIT",
-                EventKind::Planner => "PLANNER",
-                EventKind::Construction => "BUILD",
-            };
-            format!("[{:02}:{:02}] {tag:<7} {}", secs / 60, secs % 60, e.text)
-        })
-        .collect();
-    lines.join("\n")
+fn log_line(w: &World, newest_first: usize) -> String {
+    let Some(e) = w.events.iter().rev().nth(newest_first) else {
+        return String::new();
+    };
+    let secs = e.tick / w.defs.ticks_per_second as u64;
+    let tag = match e.kind {
+        EventKind::Player => "PLAYER",
+        EventKind::Spirit => "SPIRIT",
+        EventKind::Planner => "PLANNER",
+        EventKind::Construction => "BUILD",
+    };
+    format!("[{:02}:{:02}] {tag:<7} {}", secs / 60, secs % 60, e.text)
+}
+
+fn update_log(sim: Res<Sim>, mut lines: Query<(&LogLine, &mut Text)>) {
+    for (line, mut text) in &mut lines {
+        let content = log_line(&sim.world, line.0);
+        if text.0 != content {
+            text.0 = content;
+        }
+    }
+}
+
+/// Hides log entries that don't fully fit, so long (wrapped) entries never
+/// leave a half-cut line at the bottom. Uses the previous frame's layout.
+fn fit_log(
+    log_box: Query<(&ComputedNode, &UiGlobalTransform), With<LogBox>>,
+    mut lines: Query<(&ComputedNode, &UiGlobalTransform, &mut Visibility), With<LogLine>>,
+) {
+    let Ok((box_node, box_t)) = log_box.single() else {
+        return;
+    };
+    let box_bottom = box_t.translation.y + box_node.size().y / 2.0;
+    for (node, t, mut vis) in &mut lines {
+        let fits = t.translation.y + node.size().y / 2.0 <= box_bottom + 0.5;
+        vis.set_if_neq(if fits {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        });
+    }
 }

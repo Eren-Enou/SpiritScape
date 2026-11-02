@@ -277,6 +277,9 @@ impl World {
             ),
         );
         self.set_status(format!("Started project #{pid}: {name} at {site}"));
+        // Reserve materials and assign a builder only after the decision is
+        // logged, so the event log reads in cause-and-effect order.
+        self.update_projects();
     }
 
     fn next_autonomous_kind(&self) -> Option<BuildingKindId> {
@@ -410,7 +413,6 @@ impl World {
             created_tick: self.tick,
             completed_tick: None,
         });
-        self.update_projects();
         pid
     }
 

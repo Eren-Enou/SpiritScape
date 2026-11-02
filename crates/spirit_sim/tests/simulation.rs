@@ -349,6 +349,20 @@ fn autonomous_field_storage_lifecycle() {
         w.events
             .contains(EventKind::Planner, "Decision: build a Field Storage")
     );
+    // The log reads as cause and effect: problem, decision, then upkeep.
+    let position = |needle: &str| {
+        w.events
+            .iter()
+            .position(|e| e.text.contains(needle))
+            .unwrap_or_else(|| panic!("no event containing {needle:?}"))
+    };
+    let order = [
+        position("Inefficiency detected"),
+        position("Decision: build"),
+        position("Reserved 15 Logs"),
+        position("to build the Field Storage"),
+    ];
+    assert!(order.is_sorted(), "planner events out of order: {order:?}");
     let p = &w.projects[0];
     assert!(p.reason.contains("walking takes"));
     let site = p.site;
