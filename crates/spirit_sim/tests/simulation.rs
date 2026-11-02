@@ -571,3 +571,42 @@ fn player_steps_tile_by_tile_with_keyboard_commands() {
     blocked.player.actor.mover.pos = spirit_sim::grid::TilePos::new(tree.x - 1, tree.y);
     assert!(blocked.apply(Command::PlayerStep { dx: 1, dy: 0 }).is_err());
 }
+
+#[test]
+fn repeated_clicks_do_not_restart_the_current_step() {
+    use spirit_sim::grid::TilePos;
+    let mut w = World::from_scenario(ScenarioKind::NewGame);
+    let start = w.player.actor.pos();
+    let dest = (1..10)
+        .map(|d| TilePos::new(start.x, start.y - d))
+        .take_while(|&p| w.grid.is_walkable(p))
+        .last()
+        .expect("open tiles north of the player");
+    let tiles = (start.y - dest.y) as u64;
+    let per_tile = w.defs.player.move_ticks as u64;
+    // Spam-click the destination every tick: the walk must still finish on time.
+    let mut ticks = 0;
+    while w.player.actor.pos() != dest && ticks < 500 {
+        w.apply(Command::PlayerInteract(dest)).unwrap();
+        w.step();
+        ticks += 1;
+    }
+    assert_eq!(w.player.actor.pos(), dest);
+    assert!(
+        ticks <= tiles * per_tile + 1,
+        "walked {tiles} tiles in {ticks} ticks"
+    );
+
+    // Clicking a different tile mid-step finishes that step instead of snapping back.
+    let mut w = World::from_scenario(ScenarioKind::NewGame);
+    w.apply(Command::PlayerInteract(dest)).unwrap();
+    w.step();
+    w.step();
+    assert!(w.player.actor.mover.progress > 0);
+    let (_, before) = w.player.actor.mover.visual_pos();
+    w.apply(Command::PlayerInteract(TilePos::new(start.x, start.y - 1)))
+        .unwrap();
+    w.step();
+    let (_, after) = w.player.actor.mover.visual_pos();
+    assert!(after < before, "player moved back from {before} to {after}");
+}

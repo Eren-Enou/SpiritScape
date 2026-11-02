@@ -136,6 +136,25 @@ impl Actor {
         self.mover.progress = 0;
         self.action_ticks = 0;
     }
+
+    /// Replaces the task queue with a new order without snapping back: a step
+    /// already under way is finished first. Returns false (and changes nothing)
+    /// when the queue is already the rest of this same order.
+    pub fn redirect(&mut self, tasks: Vec<Task>) -> bool {
+        let remaining = self.queue.len();
+        if remaining > 0
+            && remaining <= tasks.len()
+            && self.queue.iter().eq(&tasks[tasks.len() - remaining..])
+        {
+            return false;
+        }
+        self.queue.clear();
+        self.action_ticks = 0;
+        let keep = if self.mover.progress > 0 { 1 } else { 0 };
+        self.mover.path.truncate(keep);
+        self.queue.extend(tasks);
+        true
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

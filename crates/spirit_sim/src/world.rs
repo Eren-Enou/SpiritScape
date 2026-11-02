@@ -333,10 +333,10 @@ impl World {
         } else {
             return Err("You can't walk there".into());
         };
-        let actor = &mut self.player.actor;
-        actor.clear_tasks();
-        actor.queue.extend(tasks);
-        self.player.activity = activity.clone();
+        // Repeated clicks on the same target keep the current order going.
+        if self.player.actor.redirect(tasks) {
+            self.player.activity = activity.clone();
+        }
         Ok(activity)
     }
 

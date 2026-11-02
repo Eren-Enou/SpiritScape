@@ -77,7 +77,7 @@ that adds XP to a spirit.
 - **No save or load.** Restarting reproduces a scenario exactly; there are no mid-game saves.
 - **Camera and layout.** The camera follows the player or shows a fixed overview; it can zoom but not rotate or pan freely. The UI panels are tuned for the default 1600x920 window (press `H` to hide them).
 - **3D presentation limits.** Characters walk through each other and through the bridge rails, and labels can overlap when characters stand together. The ground is one model per tile (about 1,350 tiles), which is fine at this map size but would need batching for much larger maps.
-- **Keyboard and mouse input haven't been checked by hand in the 3D version.** The 3D view was verified with automated screenshots (follow view, overview, construction and completion). Keyboard stepping is covered by a simulation test, but WASD, `E`, zoom and clicking haven't been tried in the running game.
+- **Input was playtested by hand in the 3D version.** WASD, `E`, clicking, zoom and the camera distance felt right. Spam-clicking used to snap the player back to the start of its current step; clicks now finish the step under way and ignore a repeat of the current order.
 - **Field Storage capacity.** If the hauler falls behind and the Field Storage fills up (40 logs), gatherers fall back to Main Storage. This isn't tuned.
 - **Planner thresholds are tuned for this map.** They are configurable in `[planner]`.
 

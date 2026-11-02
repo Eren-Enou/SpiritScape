@@ -82,7 +82,7 @@ cargo run -p spirit_sim --example headless_demo -- 600
 cargo test -p spirit_sim
 ```
 
-26 tests: 21 end-to-end simulation tests in `crates/spirit_sim/tests/simulation.rs` plus unit tests for pathfinding and storage. They cover:
+27 tests: 22 end-to-end simulation tests in `crates/spirit_sim/tests/simulation.rs` plus unit tests for pathfinding and storage. They cover:
 
 - **XP and Soul Separation:** the XP curve, XP gained from chopping, exact XP conservation and level recalculation on separation, rejection of invalid requests, and that spirits never gain XP.
 - **Resources:** a conservation ledger (seeded + harvested = present + consumed) checked every tick across a full build cycle, inventory capacity, and deposits.
@@ -92,7 +92,7 @@ cargo test -p spirit_sim
 - **Absence of a problem:** short routes or no woodcutter means nothing is built.
 - **Determinism:** two runs with the same commands give identical state hashes and event logs.
 - **Normal-game loop:** the player trains, separates a spirit and sets a goal, and the settlement builds on its own.
-- **Keyboard movement:** a held direction walks tile by tile without stalling; walking into a tree is refused.
+- **Keyboard and mouse movement:** a held direction walks tile by tile without stalling; walking into a tree is refused; spam-clicking a destination never restarts the step in progress.
 
 ## Assets
 
