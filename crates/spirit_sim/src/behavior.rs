@@ -1,18 +1,49 @@
 //! Spirit decision making: evaluate prioritized job rules against the world
 //! and expand the chosen job into a task queue.
 
-use crate::defs::{Condition, DeliverPolicy, JobKind};
-use crate::entities::{Activity, BuildingId, ProjectState, SpiritId, TreeId};
+use crate::defs::{Condition, DeliverPolicy, JobKind, SiteId, TreeKindId};
+use crate::entities::{Activity, BuildingId, ProjectState, Spirit, SpiritId, TreeId};
 use crate::events::EventKind;
+use crate::metrics::WaitKind;
 use crate::tasks::{Goal, Task};
 use crate::world::World;
 
 /// A planned job, ready to be installed on a spirit.
+#[derive(Default)]
 struct JobPlan {
     description: String,
     tasks: Vec<Task>,
     claim_tree: Option<TreeId>,
     deliver_target: Option<BuildingId>,
+    /// Site and tree type of a gathering job.
+    gather: Option<(SiteId, TreeKindId)>,
+}
+
+/// Why a job can't be planned right now.
+struct Blocked {
+    kind: WaitKind,
+    reason: String,
+}
+
+impl Blocked {
+    fn new(kind: WaitKind, reason: impl Into<String>) -> Self {
+        Self {
+            kind,
+            reason: reason.into(),
+        }
+    }
+}
+
+impl From<&str> for Blocked {
+    fn from(reason: &str) -> Self {
+        Blocked::new(WaitKind::Other, reason)
+    }
+}
+
+impl From<String> for Blocked {
+    fn from(reason: String) -> Self {
+        Blocked::new(WaitKind::Other, reason)
+    }
 }
 
 impl World {
@@ -85,7 +116,7 @@ impl World {
         }
         let role = self.defs.role(self.spirits[sid].role).clone();
         let previous = self.spirits[sid].activity.clone();
-        let mut blocked: Option<String> = None;
+        let mut blocked: Option<Blocked> = None;
 
         for rule in &role.jobs {
             if !self.condition_holds(sid, rule.when) {
@@ -106,8 +137,9 @@ impl World {
         let s = &mut self.spirits[sid];
         s.job = None;
         s.next_think = self.tick + self.defs.idle_rethink_ticks;
+        s.wait = blocked.as_ref().map(|b| b.kind);
         let activity = match blocked {
-            Some(reason) => Activity::Blocked(reason),
+            Some(b) => Activity::Blocked(b.reason),
             None => Activity::Idle(self.idle_reason(sid)),
         };
         let changed = match (&previous, &activity) {
@@ -179,7 +211,26 @@ impl World {
             );
             self.events.push(self.tick, EventKind::Spirit, msg);
         }
+        if let Some((site, kind)) = plan.gather {
+            let s = &self.spirits[sid];
+            if let Some(old) = s.home_site
+                && old != site
+            {
+                let msg = format!(
+                    "{} relocates from {} to {}: {}",
+                    s.name,
+                    self.defs.site(old).name,
+                    self.defs.site(site).name,
+                    self.site_unavailable_reason(sid, old)
+                );
+                self.log_spirit(sid, format!("relocate:{}", site.0), msg);
+            }
+            let s = &mut self.spirits[sid];
+            s.home_site = Some(site);
+            s.last_tree_kind = Some(kind);
+        }
         let s = &mut self.spirits[sid];
+        s.wait = None;
         if plan.deliver_target.is_some() {
             s.last_deliver_target = plan.deliver_target;
         }
@@ -195,8 +246,15 @@ impl World {
         if last.is_some_and(|t| self.tick < t + repeat_after) {
             return;
         }
+        // Waiting for regrowth is shown on the map and repeats often.
+        let waiting = self.spirits[sid].wait == Some(WaitKind::Recovery);
+        let detail = key == "idle" || key.starts_with("job:") || waiting;
         self.spirits[sid].log_times.insert(key, self.tick);
-        self.events.push(self.tick, EventKind::Spirit, msg);
+        if detail {
+            self.events.push_detail(self.tick, EventKind::Spirit, msg);
+        } else {
+            self.events.push(self.tick, EventKind::Spirit, msg);
+        }
     }
 
     fn path_distance_to(&self, sid: SpiritId, building: BuildingId) -> Option<u32> {
@@ -205,7 +263,32 @@ impl World {
             .approach_distance(&field, self.buildings[building].pos)
     }
 
-    fn plan_job(&self, sid: SpiritId, job: JobKind) -> Result<JobPlan, String> {
+    /// Why a spirit left (or can't use) a site, for the event log.
+    fn site_unavailable_reason(&self, sid: SpiritId, site: SiteId) -> String {
+        if !self.settlement.site_open[site.index()] {
+            return format!("{} is closed to spirits", self.defs.site(site).name);
+        }
+        let s = &self.spirits[sid];
+        let free = self
+            .trees
+            .iter()
+            .filter(|t| t.site == Some(site) && t.is_grown() && self.spirit_can_cut(s, t.kind))
+            .filter(|t| t.claimed_by.is_none_or(|c| c == sid))
+            .count();
+        if free == 0 {
+            "no free grown trees left there".into()
+        } else {
+            "a closer tree was available".into()
+        }
+    }
+
+    /// Spirits obey the same level requirements as the player.
+    pub(crate) fn spirit_can_cut(&self, s: &Spirit, kind: TreeKindId) -> bool {
+        let def = self.defs.tree(kind);
+        def.skill == s.skill() && s.level() >= def.level_required
+    }
+
+    fn plan_job(&self, sid: SpiritId, job: JobKind) -> Result<JobPlan, Blocked> {
         match job {
             JobKind::Gather => self.plan_gather(sid),
             JobKind::Deliver => self.plan_deliver(sid),
@@ -227,7 +310,7 @@ impl World {
             .collect()
     }
 
-    fn plan_gather(&self, sid: SpiritId) -> Result<JobPlan, String> {
+    fn plan_gather(&self, sid: SpiritId) -> Result<JobPlan, Blocked> {
         let s = &self.spirits[sid];
         let role = self.defs.role(s.role);
         let from = self.grid.distance_field(&[s.actor.pos()]);
@@ -237,13 +320,43 @@ impl World {
             .map(|b| self.grid.approach_field(self.buildings[b].pos))
             .collect();
         if storage_fields.is_empty() {
-            return Err("No storage has room for more logs".into());
+            return Err(Blocked::new(
+                WaitKind::Storage,
+                "No storage has room for more logs",
+            ));
         }
 
+        let mut any_cuttable = false;
+        let mut any_permitted = false;
         let mut any_grown = false;
+        // A spirit stays at its current site while that site has a free tree
+        // it can cut. It only moves to another site that has at least a full
+        // load of free logs; otherwise it waits for local regrowth. This
+        // avoids crossing the map for a single regrown tree.
+        let mut free_logs = vec![0u32; self.defs.sites.len()];
+        for t in &self.trees {
+            if let Some(site) = t.site
+                && self.spirit_can_cut(s, t.kind)
+                && t.claimed_by.is_none_or(|c| c == sid)
+            {
+                free_logs[site.index()] += t.logs_left();
+            }
+        }
+        let load = s.actor.inventory.capacity;
+        let mut best_home: Option<(u32, TreeId)> = None;
         let mut best: Option<(u32, TreeId)> = None;
         for t in &self.trees {
-            if self.defs.tree(t.kind).skill != s.skill() || !t.is_grown() {
+            if !self.spirit_can_cut(s, t.kind) {
+                continue;
+            }
+            any_cuttable = true;
+            if t.site
+                .is_some_and(|site| !self.settlement.site_open[site.index()])
+            {
+                continue;
+            }
+            any_permitted = true;
+            if !t.is_grown() {
                 continue;
             }
             any_grown = true;
@@ -262,21 +375,41 @@ impl World {
             };
             // Prefer trees that are close to us and close to a drop-off point.
             let score = walk + haul;
-            if best.is_none_or(|(b, _)| score < b) {
+            if s.home_site.is_some()
+                && t.site == s.home_site
+                && best_home.is_none_or(|(b, _)| score < b)
+            {
+                best_home = Some((score, t.id));
+            }
+            let worth_moving = s.home_site.is_none()
+                || t.site == s.home_site
+                || t.site.is_none_or(|site| free_logs[site.index()] >= load);
+            if worth_moving && best.is_none_or(|(b, _)| score < b) {
                 best = Some((score, t.id));
             }
         }
-        let Some((_, tree)) = best else {
-            return Err(if any_grown {
-                "All reachable trees are taken by other spirits".into()
+        let Some((_, tree)) = best_home.or(best) else {
+            return Err(if !any_cuttable {
+                "No trees within this spirit's skill level".into()
+            } else if !any_permitted {
+                "Every site with suitable trees is closed to spirits".into()
+            } else if any_grown {
+                Blocked::new(
+                    WaitKind::Recovery,
+                    "All grown trees are taken - waiting for regrowth",
+                )
             } else {
-                "No grown trees - waiting for regrowth".into()
+                Blocked::new(WaitKind::Recovery, "No grown trees - waiting for regrowth")
             });
         };
         let t = &self.trees[tree];
         let name = self.defs.tree(t.kind).name.clone();
+        let place = t
+            .site
+            .map(|site| format!(" in {}", self.defs.site(site).name))
+            .unwrap_or_default();
         Ok(JobPlan {
-            description: format!("Gathering at {name} {}", t.pos),
+            description: format!("Gathering at {name} {}{place}", t.pos),
             tasks: vec![
                 Task::Move {
                     goal: Goal::Adjacent(t.pos),
@@ -285,11 +418,12 @@ impl World {
                 Task::Chop { tree },
             ],
             claim_tree: Some(tree),
-            deliver_target: None,
+            gather: t.site.map(|site| (site, t.kind)),
+            ..Default::default()
         })
     }
 
-    fn plan_deliver(&self, sid: SpiritId) -> Result<JobPlan, String> {
+    fn plan_deliver(&self, sid: SpiritId) -> Result<JobPlan, Blocked> {
         let s = &self.spirits[sid];
         if s.actor.inventory.total() == 0 {
             return Err("Nothing to deliver".into());
@@ -306,7 +440,10 @@ impl World {
             })
             .min();
         let Some((_, b)) = target else {
-            return Err("No reachable storage has free space".into());
+            return Err(Blocked::new(
+                WaitKind::Storage,
+                "No reachable storage has free space",
+            ));
         };
         let building = &self.buildings[b];
         Ok(JobPlan {
@@ -324,10 +461,11 @@ impl World {
             ],
             claim_tree: None,
             deliver_target: Some(b),
+            ..Default::default()
         })
     }
 
-    fn plan_haul(&self, sid: SpiritId) -> Result<JobPlan, String> {
+    fn plan_haul(&self, sid: SpiritId) -> Result<JobPlan, Blocked> {
         let s = &self.spirits[sid];
         let min = self.defs.role(s.role).haul_min;
         let source = self
@@ -337,7 +475,7 @@ impl World {
             .ok_or_else(|| "No outpost stock to haul".to_string())?;
         let main = self.main();
         if main.storage.free() == 0 {
-            return Err("Main Storage is full".into());
+            return Err(Blocked::new(WaitKind::Storage, "Main Storage is full"));
         }
         let (&resource, &amount) = source
             .storage
@@ -372,12 +510,11 @@ impl World {
                 },
                 Task::Deposit { building: main.id },
             ],
-            claim_tree: None,
-            deliver_target: None,
+            ..Default::default()
         })
     }
 
-    fn plan_construct(&self, sid: SpiritId) -> Result<JobPlan, String> {
+    fn plan_construct(&self, sid: SpiritId) -> Result<JobPlan, Blocked> {
         let pid = self
             .project_for(sid)
             .ok_or_else(|| "No construction project assigned".to_string())?;
@@ -407,23 +544,22 @@ impl World {
             return Ok(JobPlan {
                 description: format!("Carrying materials to the {site_label}"),
                 tasks: vec![to_site, Task::DeliverToSite { project: pid }],
-                claim_tree: None,
-                deliver_target: None,
+                ..Default::default()
             });
         }
         if missing.is_empty() {
             return Ok(JobPlan {
                 description: format!("Building {} at {site}", def.name),
                 tasks: vec![to_site, Task::Build { project: pid }],
-                claim_tree: None,
-                deliver_target: None,
+                ..Default::default()
             });
         }
         if !p.reserved || p.state == ProjectState::AwaitingMaterials {
             return Err(p
                 .blocked
                 .clone()
-                .unwrap_or_else(|| "Waiting for materials".into()));
+                .unwrap_or_else(|| "Waiting for materials".into())
+                .into());
         }
         let (resource, need) = missing[0];
         let amount = need.min(s.actor.inventory.free());
@@ -449,8 +585,7 @@ impl World {
                 to_site,
                 Task::DeliverToSite { project: pid },
             ],
-            claim_tree: None,
-            deliver_target: None,
+            ..Default::default()
         })
     }
 }

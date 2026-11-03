@@ -196,6 +196,13 @@ fn step_chop(
     if !actor.pos().is_adjacent(tree.pos) {
         return StepResult::Failed(format!("Not next to the {}", def.name));
     }
+    if level < def.level_required {
+        let skill = &ctx.defs.skill(def.skill).name;
+        return StepResult::Failed(format!(
+            "Requires {skill} level {} to cut {}",
+            def.level_required, def.name
+        ));
+    }
     let TreeState::Grown { logs } = tree.state else {
         return StepResult::Failed(format!("The {} is depleted", def.name));
     };
@@ -228,7 +235,7 @@ fn step_chop(
     });
     if logs <= 1 {
         tree.state = TreeState::Depleted {
-            regrow_at: ctx.tick + def.regrow_ticks,
+            regrow_at: ctx.tick + tree.regrow_ticks,
         };
         tree.claimed_by = None;
         return StepResult::Done;

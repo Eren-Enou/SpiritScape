@@ -10,6 +10,7 @@ pub mod entities;
 pub mod events;
 pub mod grid;
 pub mod inventory;
+pub mod metrics;
 pub mod planner;
 pub mod scenario;
 pub mod skills;

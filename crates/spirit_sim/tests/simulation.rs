@@ -39,6 +39,37 @@ fn run_until(w: &mut World, max_ticks: u64, mut cond: impl FnMut(&World) -> bool
     cond(w)
 }
 
+/// The nearest grown tree the player is allowed to cut.
+fn nearest_cuttable(w: &World) -> Option<spirit_sim::grid::TilePos> {
+    let p = w.player.actor.pos();
+    w.trees
+        .iter()
+        .filter(|t| t.is_grown() && w.player_can_cut(t.kind))
+        .min_by_key(|t| t.pos.manhattan(p))
+        .map(|t| t.pos)
+}
+
+/// Chops (and deposits when full) until the player has at least `xp`.
+fn train_until(w: &mut World, xp: u64) {
+    let skill = woodcutting(w);
+    for _ in 0..200 {
+        if w.player.xp(skill) >= xp {
+            return;
+        }
+        if w.player.actor.inventory.is_full() {
+            let main = w.main().pos;
+            w.apply(Command::PlayerInteract(main)).unwrap();
+        } else if let Some(tree) = nearest_cuttable(w) {
+            w.apply(Command::PlayerInteract(tree)).unwrap();
+        } else {
+            w.run_ticks(50);
+            continue;
+        }
+        run_until(w, 3000, |w| w.player.actor.queue.is_empty());
+    }
+    panic!("could not train to {xp} XP");
+}
+
 fn spirit_by_role(w: &World, role: &str) -> usize {
     let role = w.defs.role_id(role).unwrap();
     w.spirits.iter().find(|s| s.role == role).unwrap().id
@@ -65,12 +96,7 @@ fn xp_table_maps_xp_to_levels() {
 fn player_chops_tree_gains_xp_and_tree_depletes_then_regrows() {
     let mut w = World::from_scenario(ScenarioKind::NewGame);
     let skill = woodcutting(&w);
-    let tree = w
-        .trees
-        .iter()
-        .min_by_key(|t| t.pos.manhattan(w.player.actor.pos()))
-        .unwrap()
-        .clone();
+    let tree = w.tree_at(nearest_cuttable(&w).unwrap()).unwrap().clone();
     let per_tree = w.defs.tree(tree.kind).logs;
     w.apply(Command::PlayerInteract(tree.pos)).unwrap();
 
@@ -83,7 +109,10 @@ fn player_chops_tree_gains_xp_and_tree_depletes_then_regrows() {
         w.player.xp(skill),
         per_tree as u64 * w.defs.tree(tree.kind).xp_per_log
     );
-    assert!(w.player.level(skill, &w.defs.xp_table) >= 2);
+    assert_eq!(
+        w.player.level(skill, &w.defs.xp_table),
+        w.defs.xp_table.level_for_xp(w.player.xp(skill))
+    );
 
     let TreeState::Depleted { regrow_at } = w.trees[tree.id].state else {
         panic!()
@@ -196,21 +225,8 @@ fn created_spirit_gathers_without_player_control() {
     let mut w = World::from_scenario(ScenarioKind::NewGame);
     let skill = woodcutting(&w);
     w.player.actor.queue.clear();
-    // Earn XP the normal way: chop two grove trees.
-    for _ in 0..2 {
-        let p = w.player.actor.pos();
-        let Some(tree) = w
-            .trees
-            .iter()
-            .filter(|t| t.is_grown())
-            .min_by_key(|t| t.pos.manhattan(p))
-            .map(|t| t.pos)
-        else {
-            break;
-        };
-        w.apply(Command::PlayerInteract(tree)).unwrap();
-        run_until(&mut w, 3000, |w| w.player.actor.queue.is_empty());
-    }
+    // Earn XP the normal way: chop grove trees.
+    train_until(&mut w, 200);
     let xp = w.player.xp(skill);
     assert!(xp >= 200, "player earned {xp} XP");
     let id = w.soul_separate(skill, xp).unwrap();
@@ -525,20 +541,13 @@ fn normal_game_loop_from_player_xp_to_autonomous_building() {
     // No demo seeding: the player trains, creates the woodcutter, and sets a goal.
     let mut w = World::from_scenario(ScenarioKind::NewGame);
     let skill = woodcutting(&w);
-    for _ in 0..4 {
-        let p = w.player.actor.pos();
-        let Some(tree) = w
-            .trees
-            .iter()
-            .filter(|t| t.is_grown())
-            .min_by_key(|t| t.pos.manhattan(p))
-            .map(|t| t.pos)
-        else {
-            break;
-        };
-        w.apply(Command::PlayerInteract(tree)).unwrap();
-        run_until(&mut w, 3000, |w| w.player.actor.queue.is_empty());
-    }
+    // Train past the Oak requirement so the spirit can work the forest oaks.
+    let oak = w.defs.tree_tiers(skill)[1];
+    let oak_xp = w
+        .defs
+        .xp_table
+        .xp_for_level(w.defs.tree(oak).level_required);
+    train_until(&mut w, oak_xp);
     let main = w.main().pos;
     w.apply(Command::PlayerInteract(main)).unwrap();
     run_until(&mut w, 3000, |w| w.player.actor.queue.is_empty());
@@ -546,6 +555,13 @@ fn normal_game_loop_from_player_xp_to_autonomous_building() {
     let xp = w.player.xp(skill);
     w.apply(Command::SoulSeparate { skill, xp }).unwrap();
     w.apply(Command::SetObjectiveTarget(100)).unwrap();
+    // Keep the grove for the player's own retraining.
+    let grove = w.defs.site_id("starting_grove").unwrap();
+    w.apply(Command::SetSiteOpen {
+        site: grove,
+        open: false,
+    })
+    .unwrap();
 
     assert!(
         run_until(&mut w, 20_000, |w| w

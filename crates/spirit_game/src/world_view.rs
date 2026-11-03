@@ -2,11 +2,20 @@
 //! plus floating labels and gizmo overlays. Everything here only reads the
 //! simulation.
 
+use crate::camera::HoveredTile;
+use crate::cards::{BAD, GOOD, INFO, MUTED, WARN};
+use crate::script::Cursor;
 use crate::sim_runner::Sim;
+use crate::status::spirit_status;
 use crate::visuals::{Visuals, model, tile_hash};
+use bevy::picking::Pickable;
 use bevy::prelude::*;
-use spirit_sim::entities::{BuildingState, ProjectState};
+use bevy::world_serialization::WorldInstanceReady;
+use spirit_sim::defs::SiteId;
+use spirit_sim::entities::{BuildingState, ProjectState, TreeState};
 use spirit_sim::grid::{Terrain, TilePos};
+use spirit_sim::metrics::WaitKind;
+use std::collections::HashMap;
 
 /// Despawned and rebuilt whenever the simulation restarts.
 #[derive(Component)]
@@ -31,12 +40,35 @@ struct BuildingSite(usize);
 #[derive(Component)]
 struct Stockpile(usize);
 
+/// Leaf colour to apply to a tree model once its scene has spawned.
+#[derive(Component)]
+struct CrownTint(Color);
+#[derive(Component)]
+struct TintReady;
+
+/// Parts of a site banner (see `spawn_site_banner`).
+#[derive(Component)]
+struct SiteTitle(usize);
+#[derive(Component)]
+struct SiteFill(usize);
+#[derive(Component)]
+struct SiteNote(usize);
+
+/// Description of whatever is under the mouse cursor.
+#[derive(Component)]
+struct HoverTip;
+
+/// Locked trees within this many tiles of the player get a red ring.
+const LOCK_RING_RANGE: i32 = 7;
+
 /// A screen-space label that follows a point in the world.
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
 pub enum WorldLabel {
     Player,
     Spirit(usize),
     Building(usize),
+    /// Name and availability of a gathering site.
+    Site(usize),
 }
 
 /// Tile centre in world space.
@@ -48,15 +80,25 @@ pub struct WorldViewPlugin;
 
 impl Plugin for WorldViewPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<Spawned>().add_systems(
-            Update,
-            (
-                rebuild_on_restart,
-                spawn_new_buildings,
-                (sync_trees, sync_buildings, update_labels, draw_overlays),
-            )
-                .chain(),
-        );
+        app.init_resource::<Spawned>()
+            .add_systems(Startup, spawn_hover_tip)
+            .add_systems(
+                Update,
+                (
+                    rebuild_on_restart,
+                    spawn_new_buildings,
+                    (
+                        sync_trees,
+                        tint_crowns,
+                        sync_buildings,
+                        update_site_banners,
+                        update_labels,
+                        update_hover_tip,
+                        draw_overlays,
+                    ),
+                )
+                    .chain(),
+            );
     }
 }
 
@@ -67,15 +109,92 @@ pub fn spawn_label(commands: &mut Commands, label: WorldLabel, size: f32) {
         Text::new(""),
         TextFont::from_font_size(size),
         TextColor(Color::WHITE),
-        TextShadow {
-            offset: Vec2::splat(1.5),
-            color: Color::srgba(0.0, 0.0, 0.0, 0.85),
-        },
         Node {
             position_type: PositionType::Absolute,
+            padding: UiRect::axes(Val::Px(5.0), Val::Px(1.0)),
+            border_radius: BorderRadius::all(Val::Px(4.0)),
             ..default()
         },
-        bevy::picking::Pickable::IGNORE,
+        BackgroundColor(Color::srgba(0.04, 0.05, 0.07, 0.72)),
+        Pickable::IGNORE,
+    ));
+}
+
+/// A site's name, a bar of how many of its trees are standing, and a note
+/// (reserved, or spirits waiting for regrowth).
+fn spawn_site_banner(commands: &mut Commands, i: usize) {
+    commands
+        .spawn((
+            WorldEntity,
+            WorldLabel::Site(i),
+            Node {
+                position_type: PositionType::Absolute,
+                flex_direction: FlexDirection::Column,
+                align_items: AlignItems::Center,
+                padding: UiRect::axes(Val::Px(8.0), Val::Px(4.0)),
+                row_gap: Val::Px(3.0),
+                border_radius: BorderRadius::all(Val::Px(5.0)),
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.05, 0.06, 0.08, 0.72)),
+            Pickable::IGNORE,
+        ))
+        .with_children(|b| {
+            b.spawn((
+                SiteTitle(i),
+                Text::new(""),
+                TextFont::from_font_size(14.0),
+                TextColor(Color::WHITE),
+                Pickable::IGNORE,
+            ));
+            b.spawn((
+                Node {
+                    width: Val::Px(120.0),
+                    height: Val::Px(6.0),
+                    border_radius: BorderRadius::all(Val::Px(3.0)),
+                    overflow: Overflow::clip(),
+                    ..default()
+                },
+                BackgroundColor(Color::srgb(0.2, 0.22, 0.26)),
+                Pickable::IGNORE,
+            ))
+            .with_children(|t| {
+                t.spawn((
+                    SiteFill(i),
+                    Node {
+                        height: Val::Percent(100.0),
+                        ..default()
+                    },
+                    BackgroundColor(GOOD),
+                    Pickable::IGNORE,
+                ));
+            });
+            b.spawn((
+                SiteNote(i),
+                Text::new(""),
+                TextFont::from_font_size(11.0),
+                TextColor(MUTED),
+                Pickable::IGNORE,
+            ));
+        });
+}
+
+fn spawn_hover_tip(mut commands: Commands) {
+    commands.spawn((
+        HoverTip,
+        Text::new(""),
+        TextFont::from_font_size(13.0),
+        TextColor(Color::WHITE),
+        Node {
+            position_type: PositionType::Absolute,
+            padding: UiRect::axes(Val::Px(8.0), Val::Px(5.0)),
+            border_radius: BorderRadius::all(Val::Px(5.0)),
+            ..default()
+        },
+        BackgroundColor(Color::srgba(0.05, 0.06, 0.08, 0.88)),
+        GlobalZIndex(10),
+        Visibility::Hidden,
+        Pickable::IGNORE,
     ));
 }
 
@@ -167,6 +286,10 @@ fn rebuild_on_restart(
         }
     }
 
+    for i in 0..w.defs.sites.len() {
+        spawn_site_banner(&mut commands, i);
+    }
+
     for tree in &w.trees {
         let kind = &w.defs.tree(tree.kind).id;
         let Some(tv) = visuals.trees.get(kind) else {
@@ -175,7 +298,7 @@ fn rebuild_on_restart(
         let h = tile_hash(tree.pos.x, tree.pos.y);
         let at = tile_world(tree.pos.x as f32, tree.pos.y as f32);
         let rot = Quat::from_rotation_y((h % 360) as f32);
-        commands.spawn((
+        let mut entity = commands.spawn((
             WorldEntity,
             TreeModel(tree.id),
             model(&assets, &tv.models[h as usize % tv.models.len()]),
@@ -183,6 +306,13 @@ fn rebuild_on_restart(
                 .with_rotation(rot)
                 .with_scale(Vec3::splat(tv.scale)),
         ));
+        if let Some([r, g, b]) = tv.crown_tint {
+            entity.insert(CrownTint(Color::srgb(r, g, b))).observe(
+                |ev: On<WorldInstanceReady>, mut commands: Commands| {
+                    commands.entity(ev.entity).insert(TintReady);
+                },
+            );
+        }
         commands.spawn((
             WorldEntity,
             TreeStump(tree.id),
@@ -278,6 +408,46 @@ fn sync_trees(
     }
 }
 
+/// Recolours the leaves (the greenish materials) of tinted tree models.
+/// Trees of one kind share their tinted materials.
+fn tint_crowns(
+    mut commands: Commands,
+    trees: Query<(Entity, &CrownTint), With<TintReady>>,
+    children: Query<&Children>,
+    mesh_materials: Query<&MeshMaterial3d<StandardMaterial>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut tinted: Local<HashMap<AssetId<StandardMaterial>, Handle<StandardMaterial>>>,
+) {
+    for (tree, tint) in &trees {
+        commands.entity(tree).remove::<(CrownTint, TintReady)>();
+        for e in children.iter_descendants(tree) {
+            let Ok(handle) = mesh_materials.get(e) else {
+                continue;
+            };
+            let new = match tinted.get(&handle.0.id()) {
+                Some(h) => h.clone(),
+                None => {
+                    let Some(m) = materials.get(&handle.0).cloned() else {
+                        continue;
+                    };
+                    let c = m.base_color.to_srgba();
+                    let leafy = c.green > c.red && c.green > c.blue;
+                    let h = if leafy {
+                        let mut m = m;
+                        m.base_color = m.base_color.mix(&tint.0, 0.75);
+                        materials.add(m)
+                    } else {
+                        handle.0.clone()
+                    };
+                    tinted.insert(handle.0.id(), h.clone());
+                    h
+                }
+            };
+            commands.entity(e).insert(MeshMaterial3d(new));
+        }
+    }
+}
+
 #[allow(clippy::type_complexity)]
 fn sync_buildings(
     sim: Res<Sim>,
@@ -339,13 +509,79 @@ fn sync_buildings(
     }
 }
 
-/// Positions name/status labels over characters and buildings.
+/// Spirits waiting for regrowth at a site.
+fn waiting_at(w: &spirit_sim::World, site: SiteId) -> usize {
+    w.spirits
+        .iter()
+        .filter(|s| s.home_site == Some(site) && s.wait == Some(WaitKind::Recovery))
+        .count()
+}
+
+fn update_site_banners(
+    sim: Res<Sim>,
+    mut titles: Query<(&SiteTitle, &mut Text), Without<SiteNote>>,
+    mut notes: Query<(&SiteNote, &mut Text, &mut TextColor), Without<SiteTitle>>,
+    mut fills: Query<(&SiteFill, &mut Node, &mut BackgroundColor)>,
+) {
+    let w = &sim.world;
+    let counts: Vec<(u32, u32)> = (0..w.defs.sites.len())
+        .map(|i| {
+            let site = SiteId(i as u16);
+            w.trees
+                .iter()
+                .filter(|t| t.site == Some(site))
+                .fold((0, 0), |(g, n), t| (g + t.is_grown() as u32, n + 1))
+        })
+        .collect();
+    for (t, mut text) in &mut titles {
+        let (grown, total) = counts[t.0];
+        let content = format!("{}  {grown}/{total} trees", w.defs.sites[t.0].name);
+        if text.0 != content {
+            text.0 = content;
+        }
+    }
+    for (f, mut node, mut bg) in &mut fills {
+        let (grown, total) = counts[f.0];
+        let frac = grown as f32 / total.max(1) as f32;
+        node.width = Val::Percent(frac * 100.0);
+        bg.0 = if frac >= 0.6 {
+            GOOD
+        } else if frac >= 0.25 {
+            WARN
+        } else {
+            BAD
+        };
+    }
+    for (n, mut text, mut color) in &mut notes {
+        let waiting = waiting_at(w, SiteId(n.0 as u16));
+        let (content, c) = if !w.settlement.site_open[n.0] {
+            ("Reserved for you - no spirits".to_string(), INFO)
+        } else if waiting > 0 {
+            (
+                format!("{waiting} spirit(s) waiting for trees to regrow"),
+                WARN,
+            )
+        } else {
+            ("Spirits allowed".to_string(), MUTED)
+        };
+        if text.0 != content {
+            text.0 = content;
+        }
+        color.0 = c;
+    }
+}
+
+/// Positions name/status labels over characters, buildings and sites, then
+/// nudges character labels upwards so none overlap.
+#[allow(clippy::type_complexity)]
 fn update_labels(
     sim: Res<Sim>,
     camera: Query<(&Camera, &GlobalTransform), With<Camera3d>>,
     mut labels: Query<(
+        Entity,
         &WorldLabel,
-        &mut Text,
+        Option<&mut Text>,
+        Option<&mut TextColor>,
         &mut Node,
         &ComputedNode,
         &mut Visibility,
@@ -356,27 +592,30 @@ fn update_labels(
     };
     let w = &sim.world;
     let logs = w.defs.objective.resource;
-    for (label, mut text, mut node, computed, mut vis) in &mut labels {
-        let (pos, height, content) = match *label {
+    // (priority, entity, top-left, size); lower priority is placed first and never moves.
+    let mut placed: Vec<(u8, Entity, Vec2, Vec2)> = Vec::new();
+    for (entity, label, text, color, _, computed, mut vis) in &mut labels {
+        let (priority, pos, height, content) = match *label {
             WorldLabel::Player => {
                 let (x, y) = w.player.actor.mover.visual_pos();
-                (tile_world(x, y), 1.05, "You".to_string())
+                (
+                    2,
+                    tile_world(x, y),
+                    1.05,
+                    Some(("You".to_string(), Color::WHITE)),
+                )
             }
             WorldLabel::Spirit(id) => {
                 let s = &w.spirits[id];
                 let (x, y) = s.actor.mover.visual_pos();
-                let carried = s.actor.inventory.total();
-                let content = if carried > 0 {
-                    format!("{} L{} [{carried}]", s.name, s.level())
-                } else {
-                    format!("{} L{}", s.name, s.level())
-                };
-                (tile_world(x, y), 1.05, content)
+                let (status, word) = spirit_status(s);
+                let content = format!("{} Lv{} - {word}", s.name, s.level());
+                (3, tile_world(x, y), 1.05, Some((content, status.color())))
             }
             WorldLabel::Building(id) => {
                 let b = &w.buildings[id];
                 let content = match b.state {
-                    BuildingState::Complete => format!("{}: {}", b.name, b.storage.get(logs)),
+                    BuildingState::Complete => format!("{}: {} logs", b.name, b.storage.get(logs)),
                     BuildingState::UnderConstruction { project } => {
                         let p = &w.projects[project];
                         let cost: u32 = w.defs.building(p.kind).cost.iter().map(|c| c.1).sum();
@@ -387,26 +626,136 @@ fn update_labels(
                                 b.name,
                                 p.build_progress * 100 / p.build_required.max(1)
                             ),
-                            _ => format!("{} (site {delivered}/{cost})", b.name),
+                            _ => format!("{} (materials {delivered}/{cost})", b.name),
                         }
                     }
                 };
-                (tile_world(b.pos.x as f32, b.pos.y as f32), 1.9, content)
+                (
+                    0,
+                    tile_world(b.pos.x as f32, b.pos.y as f32),
+                    1.9,
+                    Some((content, Color::srgb(1.0, 0.92, 0.7))),
+                )
+            }
+            WorldLabel::Site(i) => {
+                let def = &w.defs.sites[i];
+                let (x, _) = def.center();
+                (1, tile_world(x, def.area[1] as f32 - 0.5), 0.3, None)
             }
         };
-        if text.0 != content {
-            text.0 = content;
+        if let (Some((content, c)), Some(mut text), Some(mut color)) = (content, text, color) {
+            if text.0 != content {
+                text.0 = content;
+            }
+            if color.0 != c {
+                color.0 = c;
+            }
         }
         match camera.world_to_viewport(cam_t, pos + Vec3::Y * height) {
             Ok(screen) => {
                 let size = computed.size() * computed.inverse_scale_factor();
-                node.left = Val::Px(screen.x - size.x / 2.0);
-                node.top = Val::Px(screen.y - size.y);
+                let top_left = Vec2::new(screen.x - size.x / 2.0, screen.y - size.y);
+                placed.push((priority, entity, top_left, size));
                 vis.set_if_neq(Visibility::Inherited);
             }
             Err(_) => {
                 vis.set_if_neq(Visibility::Hidden);
             }
+        }
+    }
+
+    placed.sort_by_key(|(priority, entity, ..)| (*priority, *entity));
+    let mut done: Vec<Rect> = Vec::new();
+    for (priority, entity, mut top_left, size) in placed {
+        // Building labels stay put; banners and characters move out of the way.
+        if priority >= 1 {
+            for _ in 0..8 {
+                let r = Rect::from_corners(top_left, top_left + size);
+                let Some(other) = done.iter().find(|o| !o.intersect(r).is_empty()) else {
+                    break;
+                };
+                top_left.y = other.min.y - size.y - 1.0;
+            }
+        }
+        done.push(Rect::from_corners(top_left, top_left + size));
+        if let Ok((.., mut node, _, _)) = labels.get_mut(entity) {
+            node.left = Val::Px(top_left.x);
+            node.top = Val::Px(top_left.y);
+        }
+    }
+}
+
+/// Explains the tile under the cursor: tree tier and whether you can cut it,
+/// regrowth time, or storage contents.
+fn update_hover_tip(
+    sim: Res<Sim>,
+    hovered: Res<HoveredTile>,
+    cursor: Res<Cursor>,
+    mut tip: Query<(&mut Text, &mut TextColor, &mut Node, &mut Visibility), With<HoverTip>>,
+) {
+    let Ok((mut text, mut color, mut node, mut vis)) = tip.single_mut() else {
+        return;
+    };
+    let w = &sim.world;
+    let tps = w.defs.ticks_per_second as u64;
+    let described = hovered.0.and_then(|p| {
+        if let Some(t) = w.tree_at(p) {
+            let def = w.defs.tree(t.kind);
+            let site = t
+                .site
+                .map(|s| format!("\n{}", w.defs.site(s).name))
+                .unwrap_or_default();
+            return Some(match t.state {
+                TreeState::Depleted { regrow_at } => (
+                    format!(
+                        "{} stump\nRegrows in {}s{site}",
+                        def.name,
+                        regrow_at.saturating_sub(w.tick).div_ceil(tps)
+                    ),
+                    MUTED,
+                ),
+                _ => {
+                    let skill = &w.defs.skill(def.skill).name;
+                    let mut s = format!(
+                        "{} - needs {skill} Lv {}\n{}/{} logs, {} XP each",
+                        def.name,
+                        def.level_required,
+                        t.logs_left(),
+                        def.logs,
+                        def.xp_per_log
+                    );
+                    if let Some(sid) = t.claimed_by {
+                        s += &format!("\nBeing cut by {}", w.spirits[sid].name);
+                    }
+                    let level = w.player.level(def.skill, &w.defs.xp_table);
+                    let (line, c) = if w.player_can_cut(t.kind) {
+                        ("You can cut this".to_string(), GOOD)
+                    } else {
+                        (format!("Locked: you are Lv {level}"), BAD)
+                    };
+                    (format!("{s}\n{line}{site}"), c)
+                }
+            });
+        }
+        let b = w.building_at(p)?;
+        let logs = w.defs.objective.resource;
+        Some((
+            format!("{}\n{} logs stored", b.name, b.storage.get(logs)),
+            Color::WHITE,
+        ))
+    });
+    match (described, cursor.0) {
+        (Some((content, c)), Some(cursor)) => {
+            if text.0 != content {
+                text.0 = content;
+            }
+            color.0 = c;
+            node.left = Val::Px(cursor.x + 18.0);
+            node.top = Val::Px(cursor.y + 12.0);
+            vis.set_if_neq(Visibility::Inherited);
+        }
+        _ => {
+            vis.set_if_neq(Visibility::Hidden);
         }
     }
 }
@@ -428,6 +777,7 @@ fn tile_square(gizmos: &mut Gizmos, p: TilePos, half: f32, y: f32, color: Color)
 fn draw_overlays(sim: Res<Sim>, mut gizmos: Gizmos) {
     let w = &sim.world;
     let lift = Vec3::Y * 0.06;
+    draw_site_outlines(w, &mut gizmos);
     let mut draw_path = |mover: &spirit_sim::entities::Mover, color: Color| {
         let (x, y) = mover.visual_pos();
         let mut prev = tile_world(x, y) + lift;
@@ -441,6 +791,24 @@ fn draw_overlays(sim: Res<Sim>, mut gizmos: Gizmos) {
     for s in &w.spirits {
         let c = w.defs.role(s.role).color;
         draw_path(&s.actor.mover, Color::srgba(c[0], c[1], c[2], 0.8));
+    }
+    // Status ring under each spirit, matching its label colour.
+    let flat = Quat::from_rotation_x(std::f32::consts::FRAC_PI_2);
+    for s in &w.spirits {
+        let (x, y) = s.actor.mover.visual_pos();
+        let color = spirit_status(s).0.color();
+        let at = tile_world(x, y) + Vec3::Y * 0.05;
+        gizmos.circle(Isometry3d::new(at, flat), 0.32, color);
+        gizmos.circle(Isometry3d::new(at, flat), 0.28, color);
+    }
+    // Red rings on nearby trees the player is not high enough level to cut.
+    let me = w.player.actor.pos();
+    for t in &w.trees {
+        let near = (t.pos.x - me.x).abs().max((t.pos.y - me.y).abs()) <= LOCK_RING_RANGE;
+        if near && t.is_grown() && !w.player_can_cut(t.kind) {
+            let at = tile_world(t.pos.x as f32, t.pos.y as f32) + Vec3::Y * 0.05;
+            gizmos.circle(Isometry3d::new(at, flat), 0.42, BAD.with_alpha(0.8));
+        }
     }
     for t in &w.trees {
         if let Some(sid) = t.claimed_by {
@@ -461,5 +829,31 @@ fn draw_overlays(sim: Res<Sim>, mut gizmos: Gizmos) {
             Color::srgb(1.0, 0.9, 0.2)
         };
         tile_square(&mut gizmos, p.site, 0.55, 0.05, color);
+    }
+}
+
+/// Faint outline of each gathering site (blue when reserved for the player).
+fn draw_site_outlines(w: &spirit_sim::World, gizmos: &mut Gizmos) {
+    for (i, site) in w.defs.sites.iter().enumerate() {
+        let [x0, y0, x1, y1] = site.area;
+        let (a, b) = (
+            tile_world(x0 as f32 - 0.5, y0 as f32 - 0.5),
+            tile_world(x1 as f32 + 0.5, y1 as f32 + 0.5),
+        );
+        let color = if w.settlement.site_open[i] {
+            Color::srgba(0.9, 0.95, 0.6, 0.35)
+        } else {
+            Color::srgba(0.6, 0.8, 1.0, 0.5)
+        };
+        let y = 0.03;
+        let corners = [
+            Vec3::new(a.x, y, a.z),
+            Vec3::new(b.x, y, a.z),
+            Vec3::new(b.x, y, b.z),
+            Vec3::new(a.x, y, b.z),
+        ];
+        for k in 0..4 {
+            gizmos.line(corners[k], corners[(k + 1) % 4], color);
+        }
     }
 }

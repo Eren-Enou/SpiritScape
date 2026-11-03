@@ -6,6 +6,7 @@ use crate::entities::{Actor, Building, BuildingState, Player, Tree, TreeState};
 use crate::events::{EventKind, EventLog};
 use crate::grid::{BUILTIN_MAP, Grid, MapLayout};
 use crate::inventory::Storage;
+use crate::metrics::SiteStats;
 use crate::planner::PlannerState;
 use crate::world::{Ledger, Objective, Settlement, World};
 use serde::Deserialize;
@@ -17,14 +18,35 @@ pub const BUILTIN_SCENARIOS: &str = include_str!("../../../data/scenarios.toml")
 pub enum ScenarioKind {
     NewGame,
     Demo,
+    /// Train to the Oak unlock, sacrifice it into a spirit, then retrain.
+    Regrind,
+    /// One spirit at the Starting Grove: extraction stays below regrowth.
+    GroveSustainable,
+    /// Four spirits at the Starting Grove: extraction outpaces regrowth.
+    GroveOversubscribed,
 }
 
 impl ScenarioKind {
+    pub const ALL: [ScenarioKind; 5] = [
+        ScenarioKind::NewGame,
+        ScenarioKind::Demo,
+        ScenarioKind::Regrind,
+        ScenarioKind::GroveSustainable,
+        ScenarioKind::GroveOversubscribed,
+    ];
+
     pub fn key(self) -> &'static str {
         match self {
             ScenarioKind::NewGame => "new_game",
             ScenarioKind::Demo => "demo",
+            ScenarioKind::Regrind => "regrind",
+            ScenarioKind::GroveSustainable => "grove_sustainable",
+            ScenarioKind::GroveOversubscribed => "grove_oversubscribed",
         }
+    }
+
+    pub fn from_key(key: &str) -> Option<ScenarioKind> {
+        Self::ALL.into_iter().find(|k| k.key() == key)
     }
 }
 
@@ -46,6 +68,9 @@ pub struct ScenarioDef {
     pub main_storage: BTreeMap<String, u32>,
     #[serde(default)]
     pub spirits: Vec<SpiritSeed>,
+    /// Sites where spirits may not gather (reserved for the player).
+    #[serde(default)]
+    pub closed_sites: Vec<String>,
 }
 
 pub fn load_scenarios(text: &str) -> Result<BTreeMap<String, ScenarioDef>, String> {
@@ -72,12 +97,16 @@ impl World {
         for (&c, positions) in &map.markers {
             for &pos in positions {
                 if let Some(kind) = defs.tree_kind_for_char(c) {
-                    let logs = defs.tree(kind).logs;
+                    let def = defs.tree(kind);
+                    let site = defs.site_at(pos.x, pos.y);
+                    let pct = site.map_or(100, |s| defs.site(s).regrow_pct) as u64;
                     trees.push(Tree {
                         id: 0,
                         kind,
                         pos,
-                        state: TreeState::Grown { logs },
+                        state: TreeState::Grown { logs: def.logs },
+                        site,
+                        regrow_ticks: (def.regrow_ticks * pct / 100).max(1),
                         claimed_by: None,
                     });
                     grid.set_occupied(pos, true);
@@ -122,6 +151,14 @@ impl World {
             target: scenario.objective_target,
         };
         let event_cap = defs.event_log_capacity;
+        let mut site_open = vec![true; defs.sites.len()];
+        for key in &scenario.closed_sites {
+            let id = defs
+                .site_id(key)
+                .ok_or_else(|| format!("unknown site {key:?}"))?;
+            site_open[id.index()] = false;
+        }
+        let site_stats = vec![SiteStats::default(); defs.sites.len()];
         let mut world = World {
             defs,
             tick: 0,
@@ -135,7 +172,9 @@ impl World {
                 objective,
                 allow_autonomous_construction: true,
                 planner: PlannerState::default(),
+                site_open,
             },
+            site_stats,
             events: EventLog::new(event_cap),
             ledger: Ledger::default(),
             main_storage,
@@ -146,7 +185,7 @@ impl World {
                 .defs
                 .skill_id(skill)
                 .ok_or_else(|| format!("unknown skill {skill:?}"))?;
-            world.player.add_xp(id, xp);
+            world.player.add_xp(id, xp, &world.defs.xp_table);
         }
         for (res, &n) in &scenario.main_storage {
             let id: ResourceId = world
@@ -176,6 +215,11 @@ impl World {
             world.defs.resource(o.resource).name
         );
         world.events.push(0, EventKind::Planner, msg);
+        if !scenario.description.is_empty() {
+            world
+                .events
+                .push(0, EventKind::Player, scenario.description.clone());
+        }
         Ok(world)
     }
 }

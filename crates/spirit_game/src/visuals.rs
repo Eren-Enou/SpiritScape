@@ -35,6 +35,9 @@ pub struct TreeVisuals {
     pub models: Vec<String>,
     pub stump: String,
     pub scale: f32,
+    /// Recolours the leaves so tiers are told apart at a glance.
+    #[serde(default)]
+    pub crown_tint: Option<[f32; 3]>,
 }
 
 #[derive(Deserialize, Clone)]
