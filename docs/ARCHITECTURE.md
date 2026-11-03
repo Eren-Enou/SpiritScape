@@ -16,6 +16,7 @@
  | planner   settlement planner and construction project upkeep           |
  | world     World::step() fixed tick, commands, conservation ledger       |
  | metrics   time use, site output, bottleneck report                      |
+ | production  plank order, upstream demand, workshop status and report      |
  | scenario  new game and demo setup from scenarios.toml                   |
  +-------------------------------------------------------------------------+
                   ^ Command                       | read-only state
@@ -71,11 +72,16 @@
 - **Overlays** are gizmos drawn just above the ground: walking paths, claimed trees, construction sites (yellow, red when blocked) and the tile under the mouse. Names and storage counts are screen-space labels that follow their objects.
 - **UI.** Bevy 0.20 removed the `Interaction` component, so buttons are `bevy_ui_widgets::Button` entities with `On<Activate>` observers.
 
+- **Stations are buildings, and recipes are data.** A recipe names its station, so `is_station` is derived from `[[recipes]]`. One `Craft` task serves the player and spirits; the only difference is where the output goes (the player's bag, or the station for collection).
+- **Demand runs one step upstream and is bounded.** `production.rs` turns a plank shortfall into a log request for haulers and a capped raise of the gatherers' goal. It doesn't move anything itself. See `docs/V0.4_WORKSHOP.md`.
+- **Trips reserve stock.** A `JobPlan` may carry a `reserve`, taken when the job starts, using the same `Storage` reservations as construction. If a trip fails its unused reservation is released. A project's reservation belongs to the project and survives a failed trip.
+- **Stock counted toward a goal excludes what's committed.** `projected_stock` leaves out logs at a station or on their way to one, and construction materials, but counts finished planks at the station.
+
 ## Resource and XP conservation
 
 `Ledger` records logs placed by the scenario (`seeded`), logs cut (`harvested`)
 and logs used by construction (`consumed`). `World::check_conservation` checks
-`seeded + harvested == storages + inventories + construction sites + consumed`.
+`seeded + harvested + crafted == storages + inventories + construction sites + consumed + processed`, and recipe batches must match those totals.
 The headless demo and a test both check it every tick. Soul Separation moves an
 exact amount of XP from the player to the new spirit, and there is no code path
 that adds XP to a spirit.
@@ -84,6 +90,7 @@ that adds XP to a spirit.
 
 - **One gathering skill and two tiers.** Higher levels mostly unlock Oak; chop speed improves only slightly per level. Retraining after a sacrifice currently takes under two minutes (see `docs/V0.3_GATHERING.md`).
 - **Waiting spirits stand still** where they ran out of work. They don't fall back to lower tiers or help with other jobs.
+- **One production order and one station.** See the technical debt list in `docs/V0.4_WORKSHOP.md`.
 - **Hauling and Construction aren't trainable skills.** Those spirits are founding spirits seeded by the scenario, in both the normal game and the demo.
 - **Only one autonomous building type (Field Storage) and one resource (Logs).** The definitions support more, but the planner's "detect" step only measures gatherer delivery distance.
 - **Simplified movement.** Spirits move tile to tile on a 4-connected grid with BFS pathfinding and pass through each other. The return leg is assumed to equal the delivery leg when measuring travel share.
@@ -91,7 +98,7 @@ that adds XP to a spirit.
 - **Camera and layout.** The camera follows the player or shows a fixed overview; it can zoom but not rotate or pan freely. The UI panels are tuned for the default 1600x920 window (press `H` to hide them).
 - **3D presentation limits.** Characters walk through each other and through the bridge rails, and labels can overlap when characters stand together. The ground is one model per tile (about 1,350 tiles), which is fine at this map size but would need batching for much larger maps.
 - **Input was playtested by hand in the 3D version.** WASD, `E`, clicking, zoom and the camera distance felt right. Spam-clicking used to snap the player back to the start of its current step; clicks now finish the step under way and ignore a repeat of the current order.
-- **UI input is tested with scripted, not physical, input.** `--script` sends the same input messages the window backend sends, so picking, buttons, the wheel and keys run through the real code paths. It skips the OS and winit layer, and its coordinates assume the default 1600x920 layout.
+- **UI input is tested with scripted, not physical, input.** `--script` sends the same input messages the window backend sends, so picking, buttons, the wheel and keys run through the real code paths. It skips the OS and winit layer. `press`, `tile` and `expect` don't depend on the layout; raw `move` and `click` coordinates assume the default 1600x920 window.
 - **Field Storage capacity.** If the hauler falls behind and the Field Storage fills up (40 logs), gatherers fall back to Main Storage. This isn't tuned.
 - **Planner thresholds are tuned for this map.** They are configurable in `[planner]`.
 

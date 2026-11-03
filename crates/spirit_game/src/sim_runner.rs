@@ -16,7 +16,8 @@ pub struct Sim {
     pub paused: bool,
     pub speed: u32,
     accumulator: f32,
-    /// XP amount selected in the Soul Separation panel.
+    /// Skill and XP amount selected in the Soul Separation panel.
+    pub soul_skill: SkillId,
     pub soul_amount: u64,
     /// Feedback from the last player command.
     pub message: String,
@@ -30,6 +31,10 @@ impl Sim {
     pub fn new(scenario: ScenarioKind) -> Self {
         let world = World::from_scenario(scenario);
         Self {
+            soul_skill: world
+                .defs
+                .skill_id("woodcutting")
+                .expect("woodcutting skill"),
             soul_amount: world.defs.soul_min_xp,
             world,
             scenario,
@@ -37,7 +42,9 @@ impl Sim {
             speed: match scenario {
                 ScenarioKind::Demo
                 | ScenarioKind::GroveSustainable
-                | ScenarioKind::GroveOversubscribed => 4,
+                | ScenarioKind::GroveOversubscribed
+                | ScenarioKind::WorkshopAutomated
+                | ScenarioKind::WorkshopConstruction => 4,
                 _ => 1,
             },
             accumulator: 0.0,
@@ -88,6 +95,21 @@ impl Sim {
             text += &format!(
                 "
 You can no longer cut {} - retrain to regain it",
+                lost.join(", ")
+            );
+        }
+        if !preview.lost_recipes.is_empty() {
+            let lost: Vec<String> = preview
+                .lost_recipes
+                .iter()
+                .map(|r| {
+                    let d = w.defs.recipe(*r);
+                    format!("{} (level {})", d.name, d.level_required)
+                })
+                .collect();
+            text += &format!(
+                "
+You can no longer make {} - retrain to regain it",
                 lost.join(", ")
             );
         }

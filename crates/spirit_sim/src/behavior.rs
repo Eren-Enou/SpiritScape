@@ -169,7 +169,11 @@ impl World {
                 activity.text()
             );
             let key = match &activity {
-                Activity::Blocked(r) => format!("blocked:{r}"),
+                // Counts in the text change without the reason changing.
+                Activity::Blocked(r) => {
+                    let reason: String = r.chars().filter(|c| !c.is_ascii_digit()).collect();
+                    format!("blocked:{reason}")
+                }
                 _ => "idle".into(),
             };
             self.log_spirit(sid, key, msg);

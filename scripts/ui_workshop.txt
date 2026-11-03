@@ -1,0 +1,50 @@
+# UI test: train Woodworking by hand, sacrifice it, then run the production line.
+# Exits with an error if a button is missing or expected text isn't on screen:
+#   cargo run -p spirit_game -- --scenario workshop_manual --script scripts/ui_workshop.txt --capture target/ui_workshop
+1.5 shot 01_start
+1.6 expect Woodworking
+1.7 expect Precise Planks - Lv 5
+2.0 tile 3 16             # the bench with empty hands
+2.4 expect You need 2 Logs
+2.6 tile 5 14             # empty-handed at Main Storage: take logs
+4.5 expect 28 Logs
+4.6 shot 02_took_logs
+4.8 press 8x
+5.0 tile 3 16             # saw everything
+5.4 shot 03_sawing
+8.5 expect You can now make Precise Planks
+8.6 expect Planks
+8.7 shot 04_sawed
+9.0 tile 5 14             # store the planks
+10.0 press 1x
+10.5 press Woodworking
+10.8 press All
+11.2 expect You lose
+11.3 expect until you retrain
+11.4 shot 05_preview
+11.6 press Separate Soul
+12.2 expect awakens
+12.3 expect Best ever Lv
+12.4 shot 06_separated
+12.6 press Production (P)
+13.0 expect planks/min
+13.1 expect Ashwhisper: on planks
+13.2 shot 07_production
+13.4 press Ashwhisper: on planks
+13.8 expect Ashwhisper: unassigned
+13.9 expect Workshop unstaffed
+14.0 press Ashwhisper: unassigned
+14.4 press Production: ON
+14.8 expect Production: OFF
+14.9 expect Production disabled
+15.0 press Production: OFF
+15.4 press Planks +10
+15.8 expect (target 40)
+16.0 press Reserve +5
+16.4 expect (keep 15 in reserve)
+16.5 scroll 1380 600 -5
+16.7 press Order Storehouse
+17.0 expect Ordered a Storehouse
+17.2 press 8x
+24.0 shot 08_running
+24.2 exit

@@ -23,7 +23,7 @@ use bevy::prelude::*;
 use bevy::window::WindowResolution;
 use spirit_sim::ScenarioKind;
 
-fn main() {
+fn main() -> AppExit {
     let args: Vec<String> = std::env::args().collect();
     let value = |flag: &str| {
         args.iter()
@@ -72,9 +72,10 @@ fn main() {
             }),
     )
     .insert_resource(sim)
-    .insert_resource(ui::StartOnGatheringTab(
-        args.iter().any(|a| a == "--gathering"),
-    ))
+    .insert_resource(ui::StartTab {
+        gathering: args.iter().any(|a| a == "--gathering"),
+        production: args.iter().any(|a| a == "--production"),
+    })
     .insert_resource(visuals::Visuals::builtin())
     .add_plugins((
         sim_runner::SimRunnerPlugin,
@@ -91,7 +92,7 @@ fn main() {
     } else if let Some(plan) = capture::CapturePlan::from_args(&args) {
         app.insert_resource(plan);
     }
-    app.run();
+    app.run()
 }
 
 /// `assets/` next to the working directory (or the executable), falling back

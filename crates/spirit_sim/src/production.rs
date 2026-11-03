@@ -315,7 +315,7 @@ impl World {
         let hauling = self.sum_time(JobKind::Supply);
         let processing = self.sum_time(JobKind::Craft);
         let bottleneck = self.production_bottleneck(status, &gathering);
-        let summary = self.production_summary(bottleneck, &processing);
+        let summary = self.production_summary(bottleneck);
         ProductionReport {
             input_in_main: main.get(input),
             output_in_main: main.get(order.output),
@@ -368,7 +368,7 @@ impl World {
         ProductionBottleneck::LogSupply
     }
 
-    fn production_summary(&self, b: ProductionBottleneck, processing: &TimeUse) -> String {
+    fn production_summary(&self, b: ProductionBottleneck) -> String {
         let order = &self.settlement.order;
         let output = &self.defs.resource(order.output).name;
         let input = self.defs.objective.resource;
@@ -399,10 +399,10 @@ impl World {
             ProductionBottleneck::Storage => {
                 "Main Storage is full: build a Storehouse or use up stock.".to_string()
             }
-            ProductionBottleneck::ProcessingSpeed => format!(
-                "Workers spend {}% of their time at the bench; a higher-level or second Woodworking Spirit would raise output.",
-                processing.pct_of_working(processing.crafting)
-            ),
+            ProductionBottleneck::ProcessingSpeed => {
+                "The bench is busy: a higher-level or second Woodworking Spirit would raise output."
+                    .to_string()
+            }
         }
     }
 }

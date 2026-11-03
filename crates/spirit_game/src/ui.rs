@@ -1,7 +1,7 @@
 //! Side panel and event log. The panel is a stack of cards (you, Soul
-//! Separation, then a Settlement or Gathering tab); each card body is built
-//! from bars, chips and short lines by `cards`, so state can be scanned
-//! rather than read.
+//! Separation, then a Settlement, Gathering or Production tab); each card
+//! body is built from bars, chips and short lines by `cards`, so state can
+//! be scanned rather than read.
 
 use crate::cards::{
     self, BAD, GOLD, GOOD, INFO, Item, Line, MUTED, Rendered, TEXT, WARN, bar, big, chip, colored,
@@ -14,10 +14,11 @@ use bevy::input::mouse::{AccumulatedMouseScroll, MouseScrollUnit};
 use bevy::picking::Pickable;
 use bevy::prelude::*;
 use bevy::ui_widgets::{Activate, Button};
-use spirit_sim::defs::{JobKind, SiteId, TreeKindId};
+use spirit_sim::defs::{BuildingKindId, JobKind, SiteId, SkillId};
 use spirit_sim::entities::ProjectState;
 use spirit_sim::events::EventKind;
-use spirit_sim::metrics::Bottleneck;
+use spirit_sim::metrics::{Bottleneck, TimeUse};
+use spirit_sim::production::{ProductionBottleneck, WorkshopStatus};
 use spirit_sim::{Command, ScenarioKind, World};
 
 const PANEL_BG: Color = Color::srgba(0.06, 0.07, 0.09, 0.96);
@@ -31,6 +32,8 @@ const LOG_LINES: usize = 11;
 const BAR: f32 = 220.0;
 /// Gatherer time needed before the panel names a bottleneck.
 const MIN_MEASURE_SECS: u64 = 20;
+/// Worker assignment buttons in the Production tab.
+const WORKER_BUTTONS: usize = 3;
 
 /// Screen space covered by the UI: right-hand panel and bottom event log.
 pub const PANEL_WIDTH: f32 = 430.0;
@@ -68,6 +71,13 @@ enum UiAction {
     ShowTab(Tab),
     ToggleSite(usize),
     ToggleAllEvents,
+    SoulSkill(SkillId),
+    PlankAdjust(i32),
+    ReserveAdjust(i32),
+    ToggleProduction,
+    /// The nth spirit that can work at a station.
+    ToggleWorker(usize),
+    OrderBuilding,
 }
 
 /// Which half of the lower right panel is shown.
@@ -75,15 +85,19 @@ enum UiAction {
 enum Tab {
     Settlement,
     Gathering,
+    Production,
 }
 
 /// Show routine spirit events in the log too.
 #[derive(Resource)]
 struct AllEvents(bool);
 
-/// Development flag: open the Gathering tab at start (`--gathering`).
+/// Development flags: open a tab at start (`--gathering`, `--production`).
 #[derive(Resource)]
-pub struct StartOnGatheringTab(pub bool);
+pub struct StartTab {
+    pub gathering: bool,
+    pub production: bool,
+}
 
 /// Root node of a tab's content.
 #[derive(Component)]
@@ -105,6 +119,9 @@ enum Card {
     Site(usize),
     Bottleneck,
     TimeUse,
+    Production,
+    ProductionLimit,
+    ChainTime,
 }
 
 /// Clipping box that holds the event log lines.
@@ -214,16 +231,23 @@ fn button_row(p: &mut ChildSpawnerCommands, buttons: &[(&str, UiAction)]) {
     });
 }
 
-fn build_ui(
-    mut commands: Commands,
-    sim: Res<Sim>,
-    start: Res<StartOnGatheringTab>,
-    mut tab: ResMut<Tab>,
-) {
-    if start.0 {
+fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab: ResMut<Tab>) {
+    if start.gathering {
         *tab = Tab::Gathering;
     }
+    if start.production {
+        *tab = Tab::Production;
+    }
     let site_count = sim.world.defs.sites.len();
+    let soul_skills: Vec<(String, UiAction)> = soul_skills(&sim.world)
+        .into_iter()
+        .map(|s| {
+            let name = sim.world.defs.skill(s).name.clone();
+            (name, UiAction::SoulSkill(s))
+        })
+        .collect();
+    let soul_buttons: Vec<(&str, UiAction)> =
+        soul_skills.iter().map(|(n, a)| (n.as_str(), *a)).collect();
     commands
         .spawn((
             Node {
@@ -270,10 +294,25 @@ fn build_ui(
                     ),
                 ],
             );
+            button_row(
+                p,
+                &[
+                    ("Workshop A", UiAction::Load(ScenarioKind::WorkshopManual)),
+                    (
+                        "Workshop B",
+                        UiAction::Load(ScenarioKind::WorkshopAutomated),
+                    ),
+                    (
+                        "Workshop C",
+                        UiAction::Load(ScenarioKind::WorkshopConstruction),
+                    ),
+                ],
+            );
 
             card(p, "YOU", |c| body(c, Card::Player));
 
             card(p, "SOUL SEPARATION", |c| {
+                button_row(c, &soul_buttons);
                 body(c, Card::Soul);
                 button_row(
                     c,
@@ -292,6 +331,7 @@ fn build_ui(
                 &[
                     ("Settlement", UiAction::ShowTab(Tab::Settlement)),
                     ("Gathering (G)", UiAction::ShowTab(Tab::Gathering)),
+                    ("Production (P)", UiAction::ShowTab(Tab::Production)),
                 ],
             );
 
@@ -321,6 +361,31 @@ fn build_ui(
                 }
                 card(p, "WHERE GATHERERS' TIME GOES (LAST 2 MIN)", |c| {
                     body(c, Card::TimeUse)
+                });
+            });
+
+            tab_panel(p, Tab::Production, |p| {
+                card(p, "WHAT LIMITS PLANKS", |c| body(c, Card::ProductionLimit));
+                card(p, "PRODUCTION LINE", |c| {
+                    body(c, Card::Production);
+                    button_row(
+                        c,
+                        &[
+                            ("Planks -10", UiAction::PlankAdjust(-10)),
+                            ("Planks +10", UiAction::PlankAdjust(10)),
+                            ("Reserve -5", UiAction::ReserveAdjust(-5)),
+                            ("Reserve +5", UiAction::ReserveAdjust(5)),
+                        ],
+                    );
+                    button_row(c, &[("", UiAction::ToggleProduction)]);
+                    let workers: Vec<_> = (0..WORKER_BUTTONS)
+                        .map(|i| ("", UiAction::ToggleWorker(i)))
+                        .collect();
+                    button_row(c, &workers);
+                    button_row(c, &[("", UiAction::OrderBuilding)]);
+                });
+                card(p, "WHERE THE CHAIN'S TIME GOES (LAST 2 MIN)", |c| {
+                    body(c, Card::ChainTime)
                 });
             });
         });
@@ -435,8 +500,14 @@ fn show_tab(
 ) {
     if keys.just_pressed(KeyCode::KeyG) {
         *tab = match *tab {
-            Tab::Settlement => Tab::Gathering,
             Tab::Gathering => Tab::Settlement,
+            _ => Tab::Gathering,
+        };
+    }
+    if keys.just_pressed(KeyCode::KeyP) {
+        *tab = match *tab {
+            Tab::Production => Tab::Settlement,
+            _ => Tab::Production,
         };
     }
     for (panel, mut node) in &mut panels {
@@ -528,11 +599,7 @@ fn on_button(
     let Ok(&action) = actions.get(ev.entity) else {
         return;
     };
-    let skill = sim
-        .world
-        .defs
-        .skill_id("woodcutting")
-        .expect("woodcutting skill");
+    let skill = sim.soul_skill;
     let available = sim.world.player.xp(skill);
     let min = sim.world.defs.soul_min_xp;
     match action {
@@ -572,17 +639,72 @@ fn on_button(
             });
         }
         UiAction::ToggleAllEvents => all_events.0 = !all_events.0,
+        UiAction::SoulSkill(s) => {
+            sim.soul_skill = s;
+            sim.soul_amount = min;
+        }
+        UiAction::PlankAdjust(d) => {
+            let target = (sim.world.settlement.order.target as i32 + d).max(0) as u32;
+            sim.command(Command::SetProductionTarget(target));
+        }
+        UiAction::ReserveAdjust(d) => {
+            let reserve = (sim.world.settlement.order.input_reserve as i32 + d).max(0) as u32;
+            sim.command(Command::SetInputReserve(reserve));
+        }
+        UiAction::ToggleProduction => {
+            let enabled = !sim.world.settlement.order.enabled;
+            sim.command(Command::SetProductionEnabled(enabled));
+        }
+        UiAction::ToggleWorker(n) => {
+            let worker = sim.world.crafters().nth(n).map(|s| (s.id, s.assigned));
+            if let Some((spirit, assigned)) = worker {
+                sim.command(Command::SetSpiritAssigned {
+                    spirit,
+                    assigned: !assigned,
+                });
+            }
+        }
+        UiAction::OrderBuilding => {
+            if let Some(kind) = orderable(&sim.world) {
+                sim.command(Command::RequestBuilding(kind));
+            }
+        }
     }
+}
+
+/// Skills the player can turn into a spirit.
+fn soul_skills(w: &World) -> Vec<SkillId> {
+    (0..w.defs.skills.len())
+        .map(|i| SkillId(i as u16))
+        .filter(|s| w.defs.soul_role_for(*s).is_some())
+        .collect()
+}
+
+/// The building the player can order from the panel.
+fn orderable(w: &World) -> Option<BuildingKindId> {
+    let i = w.defs.buildings.iter().position(|b| b.manual)?;
+    Some(BuildingKindId(i as u16))
 }
 
 fn update_buttons(
     sim: Res<Sim>,
     tab: Res<Tab>,
     all_events: Res<AllEvents>,
-    mut buttons: Query<(&UiAction, &mut BackgroundColor), With<Button>>,
+    mut buttons: Query<(&UiAction, &mut BackgroundColor, &mut Node), With<Button>>,
     mut labels: Query<(&UiAction, &mut Text)>,
 ) {
-    for (action, mut bg) in &mut buttons {
+    let w = &sim.world;
+    for (action, mut bg, mut node) in &mut buttons {
+        if let UiAction::ToggleWorker(n) = action {
+            let display = if w.crafters().nth(*n).is_some() {
+                Display::Flex
+            } else {
+                Display::None
+            };
+            if node.display != display {
+                node.display = display;
+            }
+        }
         let active = match action {
             UiAction::Speed(s) => *s == sim.speed && !sim.paused,
             UiAction::TogglePause => sim.paused,
@@ -591,6 +713,10 @@ fn update_buttons(
             UiAction::Load(s) => *s == sim.scenario,
             UiAction::ToggleSite(i) => sim.world.settlement.site_open[*i],
             UiAction::ToggleAllEvents => all_events.0,
+            UiAction::SoulSkill(s) => *s == sim.soul_skill,
+            UiAction::ToggleProduction => w.settlement.order.enabled,
+            UiAction::ToggleWorker(n) => w.crafters().nth(*n).is_some_and(|s| s.assigned),
+            UiAction::OrderBuilding => w.active_project().is_some(),
             _ => false,
         };
         let color = if active { BUTTON_ACTIVE } else { BUTTON_BG };
@@ -625,6 +751,19 @@ fn update_buttons(
                     "Showing important events".into()
                 }
             }
+            UiAction::ToggleProduction => {
+                let on = w.settlement.order.enabled;
+                format!("Production: {}", if on { "ON" } else { "OFF" })
+            }
+            UiAction::ToggleWorker(n) => match w.crafters().nth(*n) {
+                Some(s) if s.assigned => format!("{}: on planks", s.name),
+                Some(s) => format!("{}: unassigned", s.name),
+                None => continue,
+            },
+            UiAction::OrderBuilding => match orderable(w) {
+                Some(kind) => format!("Order {}", w.defs.building(kind).name),
+                None => continue,
+            },
             _ => continue,
         };
         if text.0 != content {
@@ -649,6 +788,9 @@ fn update_cards(
             Card::Site(i) => site_lines(&sim.world, *i),
             Card::Bottleneck => bottleneck_lines(&sim.world),
             Card::TimeUse => time_use_lines(&sim.world),
+            Card::Production => production_lines(&sim.world),
+            Card::ProductionLimit => production_limit_lines(&sim.world),
+            Card::ChainTime => chain_time_lines(&sim.world),
         };
         if rendered.changed(&lines) {
             cards::rebuild(&mut commands, entity, &lines);
@@ -665,6 +807,9 @@ fn header_lines(sim: &Sim) -> Vec<Line> {
         ScenarioKind::Regrind => "Regrind",
         ScenarioKind::GroveSustainable => "Grove: sustainable",
         ScenarioKind::GroveOversubscribed => "Grove: oversubscribed",
+        ScenarioKind::WorkshopManual => "Workshop: manual",
+        ScenarioKind::WorkshopAutomated => "Workshop: automated",
+        ScenarioKind::WorkshopConstruction => "Workshop: construction",
     };
     let speed = if sim.paused {
         colored("PAUSED", WARN)
@@ -679,14 +824,8 @@ fn header_lines(sim: &Sim) -> Vec<Line> {
             text(format!("{:02}:{:02}", secs / 60, secs % 60)),
             speed,
         ],
-        vec![muted(
-            "WASD/click move  E use  C map  H hide  G tab  Space pause",
-        )],
+        vec![muted("WASD/click move  E use  C map  H hide  G/P tabs")],
     ]
-}
-
-fn woodcutting(w: &World) -> spirit_sim::defs::SkillId {
-    w.defs.skill_id("woodcutting").unwrap()
 }
 
 /// Progress through the current level, 0..=1.
@@ -699,37 +838,38 @@ fn level_progress(w: &World, xp: u64) -> (f32, Option<u64>) {
     }
 }
 
-/// One chip per tree tier: green if `can(kind)`, otherwise grey with its level.
-fn tier_chips(w: &World, can: impl Fn(TreeKindId) -> bool) -> Vec<Item> {
-    w.defs
-        .tree_tiers(woodcutting(w))
-        .into_iter()
-        .map(|k| {
-            let d = w.defs.tree(k);
-            if can(k) {
-                chip(&d.name, GOOD)
+/// What a skill unlocks, as chips: green when the player has it, grey with
+/// its level otherwise.
+fn unlock_chips(w: &World, skill: SkillId, level: u32) -> Vec<Item> {
+    let tiers = w.defs.tree_tiers(skill).into_iter().map(|k| {
+        let d = w.defs.tree(k);
+        (d.name.clone(), d.level_required)
+    });
+    let recipes = w.defs.recipe_tiers(skill).into_iter().map(|r| {
+        let d = w.defs.recipe(r);
+        (d.name.clone(), d.level_required)
+    });
+    tiers
+        .chain(recipes)
+        .map(|(name, required)| {
+            if level >= required {
+                chip(name, GOOD)
             } else {
-                chip(format!("{} - needs Lv {}", d.name, d.level_required), MUTED)
+                chip(format!("{name} - Lv {required}"), MUTED)
             }
         })
         .collect()
 }
 
-fn player_lines(sim: &Sim) -> Vec<Line> {
-    let w = &sim.world;
-    let skill = woodcutting(w);
+/// Name, level, XP bar and unlocks of one skill.
+fn skill_lines(w: &World, skill: SkillId) -> Vec<Line> {
     let xp = w.player.xp(skill);
     let level = w.player.level(skill, &w.defs.xp_table);
     let (progress, next) = level_progress(w, xp);
     let h = w.player.history(skill);
-    let inv = &w.player.actor.inventory;
-    let logs = inv.get(w.defs.objective.resource);
-
-    let mut trees = vec![muted("Can cut")];
-    trees.extend(tier_chips(w, |k| w.player_can_cut(k)));
     let mut lines = vec![
         vec![
-            big("Woodcutting", TEXT),
+            big(w.defs.skill(skill).name.clone(), TEXT),
             Item::Spacer,
             big(format!("Lv {level}"), GOLD),
         ],
@@ -740,14 +880,7 @@ fn player_lines(sim: &Sim) -> Vec<Line> {
                 None => format!("{xp} XP (max)"),
             }),
         ],
-        trees,
-        vec![
-            muted("Bag"),
-            bar(logs as f32 / inv.capacity.max(1) as f32, GOLD, 90.0),
-            muted(format!("{logs}/{} logs", inv.capacity)),
-            Item::Spacer,
-            text(w.player.activity.clone()),
-        ],
+        unlock_chips(w, skill, level),
     ];
     if h.spirits_created > 0 {
         lines.push(vec![muted(format!(
@@ -755,6 +888,27 @@ fn player_lines(sim: &Sim) -> Vec<Line> {
             h.highest_level, h.xp_sacrificed, h.spirits_created
         ))]);
     }
+    lines
+}
+
+fn player_lines(sim: &Sim) -> Vec<Line> {
+    let w = &sim.world;
+    let mut lines = Vec::new();
+    for skill in soul_skills(w) {
+        lines.extend(skill_lines(w, skill));
+    }
+    let inv = &w.player.actor.inventory;
+    lines.push(vec![
+        muted("Bag"),
+        bar(inv.total() as f32 / inv.capacity.max(1) as f32, GOLD, 70.0),
+        muted(if inv.total() == 0 {
+            "empty".to_string()
+        } else {
+            w.defs.describe_amounts(inv.items())
+        }),
+        Item::Spacer,
+        text(w.player.activity.clone()),
+    ]);
     let message = if sim.message.is_empty() {
         " ".to_string()
     } else {
@@ -766,8 +920,7 @@ fn player_lines(sim: &Sim) -> Vec<Line> {
 
 fn soul_lines(sim: &Sim) -> Vec<Line> {
     let w = &sim.world;
-    let skill = woodcutting(w);
-    let p = w.soul_preview(skill, sim.soul_amount);
+    let p = w.soul_preview(sim.soul_skill, sim.soul_amount);
     let mut lines = vec![vec![
         muted("Give"),
         big(format!("{} XP", p.transfer), XP),
@@ -780,7 +933,21 @@ fn soul_lines(sim: &Sim) -> Vec<Line> {
         lines.push(vec![colored(format!("Can't separate: {e}"), BAD)]);
         return lines;
     }
-    let you_color = if p.lost.is_empty() { TEXT } else { BAD };
+    let tree = |k: &spirit_sim::defs::TreeKindId| w.defs.tree(*k).name.clone();
+    let recipe = |r: &spirit_sim::defs::RecipeId| w.defs.recipe(*r).name.clone();
+    let lost: Vec<String> = p
+        .lost
+        .iter()
+        .map(tree)
+        .chain(p.lost_recipes.iter().map(recipe))
+        .collect();
+    let gained: Vec<String> = p
+        .spirit_can_cut
+        .iter()
+        .map(tree)
+        .chain(p.spirit_recipes.iter().map(recipe))
+        .collect();
+    let you_color = if lost.is_empty() { TEXT } else { BAD };
     lines.push(vec![
         muted("You"),
         colored(
@@ -791,24 +958,20 @@ fn soul_lines(sim: &Sim) -> Vec<Line> {
         muted("New spirit"),
         colored(format!("Lv {} forever", p.spirit_level), GOLD),
     ]);
-    let mut spirit = vec![muted("Spirit can cut")];
-    if p.spirit_can_cut.is_empty() {
+    let mut spirit = vec![muted("Spirit can do")];
+    if gained.is_empty() {
         spirit.push(colored("nothing", BAD));
     } else {
-        spirit.extend(
-            p.spirit_can_cut
-                .iter()
-                .map(|k| chip(&w.defs.tree(*k).name, GOOD)),
-        );
+        spirit.extend(gained.into_iter().map(|n| chip(n, GOOD)));
     }
     lines.push(spirit);
-    if p.lost.is_empty() {
-        lines.push(vec![muted("You keep every tree you can cut now.")]);
+    if lost.is_empty() {
+        lines.push(vec![muted("You keep everything you can do now.")]);
     } else {
-        let mut lost = vec![colored("You lose", BAD)];
-        lost.extend(p.lost.iter().map(|k| chip(&w.defs.tree(*k).name, BAD)));
-        lost.push(muted("until you retrain"));
-        lines.push(lost);
+        let mut line = vec![colored("You lose", BAD)];
+        line.extend(lost.into_iter().map(|n| chip(n, BAD)));
+        line.push(muted("until you retrain"));
+        lines.push(line);
     }
     lines
 }
@@ -840,11 +1003,11 @@ fn objective_lines(w: &World) -> Vec<Line> {
             main.reserved(o.resource)
         ))]);
     }
-    for b in w
-        .buildings
-        .iter()
-        .filter(|b| b.id != w.main_storage && b.is_complete())
-    {
+    for b in w.buildings.iter().filter(|b| {
+        b.id != w.main_storage
+            && b.is_complete()
+            && w.defs.building(b.kind).accepts_gatherer_deposits
+    }) {
         lines.push(vec![
             text(b.name.clone()),
             muted(format!(
@@ -1078,6 +1241,143 @@ fn time_use_lines(w: &World) -> Vec<Line> {
         ]);
     }
     lines
+}
+
+fn production_lines(w: &World) -> Vec<Line> {
+    let r = w.production_report();
+    let order = &w.settlement.order;
+    let met = r.output_in_main >= r.goal;
+    let status_color = match r.status {
+        WorkshopStatus::Working => GOOD,
+        WorkshopStatus::TargetMet => INFO,
+        WorkshopStatus::Disabled | WorkshopStatus::NoWorker | WorkshopStatus::NoStation => MUTED,
+        _ => WARN,
+    };
+    let mut lines = vec![
+        vec![colored(r.status.label(), status_color)],
+        vec![
+            text("Planks"),
+            bar(
+                r.output_in_main as f32 / r.goal.max(1) as f32,
+                if met { GOOD } else { WARN },
+                150.0,
+            ),
+            text(format!("{} / {}", r.output_in_main, r.goal)),
+            muted(format!("(target {})", order.target)),
+        ],
+        vec![
+            text("Logs  "),
+            bar(
+                r.input_in_main as f32 / w.main().storage.capacity.max(1) as f32,
+                INFO,
+                150.0,
+            ),
+            text(format!("{}", r.input_in_main)),
+            muted(format!("(keep {} in reserve)", order.input_reserve)),
+        ],
+    ];
+    if let Some(b) = w.station() {
+        let def = w.defs.building(b.kind);
+        lines.push(vec![
+            text("Bench "),
+            bar(
+                r.input_at_station as f32 / def.input_buffer.max(1) as f32,
+                GOLD,
+                150.0,
+            ),
+            text(format!("{} logs", r.input_at_station)),
+            muted(format!("{} planks finished", r.output_at_station)),
+        ]);
+    }
+    let mut output = vec![
+        text("Output"),
+        colored(format!("{:.0} planks/min", r.output_per_min), INFO),
+        muted(format!("{} worker(s)", r.workers)),
+    ];
+    if let Some(recipe) = w.production_recipe() {
+        output.push(Item::Spacer);
+        output.push(chip(&w.defs.recipe(recipe).name, GOOD));
+    }
+    lines.push(output);
+    for p in w.projects.iter().filter(|p| p.is_active()) {
+        let name = &w.defs.building(p.kind).name;
+        let note = p.blocked.as_deref().unwrap_or("materials reserved");
+        lines.push(vec![muted(format!("{name}: {note}"))]);
+    }
+    if let Some(kind) = orderable(w)
+        && w.active_project().is_none()
+    {
+        let def = w.defs.building(kind);
+        let cost = def.cost.iter().copied().collect();
+        lines.push(vec![muted(format!(
+            "{}: {}, +{} storage",
+            def.name,
+            w.defs.describe_amounts(&cost),
+            def.capacity_bonus
+        ))]);
+    }
+    lines
+}
+
+fn production_limit_lines(w: &World) -> Vec<Line> {
+    let r = w.production_report();
+    let color = match r.bottleneck {
+        ProductionBottleneck::None => GOOD,
+        ProductionBottleneck::ProcessingSpeed => INFO,
+        ProductionBottleneck::Disabled | ProductionBottleneck::NoWorker => MUTED,
+        _ => WARN,
+    };
+    vec![
+        vec![big(r.bottleneck.label(), color)],
+        vec![text(r.summary)],
+    ]
+}
+
+fn chain_stack(t: &TimeUse) -> Item {
+    let total = t.total().max(1) as f32;
+    let f = |n: u64| ((n as f32 / total) * 50.0).round() / 50.0;
+    Item::Stack {
+        parts: vec![
+            (f(t.gathering), Status::Chopping.color()),
+            (f(t.crafting), Status::Crafting.color()),
+            (f(t.traveling), Status::Walking.color()),
+            (f(t.handling + t.building), Status::Carrying.color()),
+            (
+                f(t.waiting_recovery + t.waiting_input),
+                Status::Waiting.color(),
+            ),
+            (f(t.blocked_storage + t.blocked_other), BAD),
+            (f(t.idle), Status::Idle.color()),
+        ],
+        width: 260.0,
+    }
+}
+
+fn chain_time_lines(w: &World) -> Vec<Line> {
+    let r = w.production_report();
+    vec![
+        vec![
+            Item::Dot(Status::Chopping.color()),
+            muted("chop"),
+            Item::Dot(Status::Crafting.color()),
+            muted("saw"),
+            Item::Dot(Status::Walking.color()),
+            muted("walk"),
+            Item::Dot(Status::Carrying.color()),
+            muted("load"),
+            Item::Dot(Status::Waiting.color()),
+            muted("wait"),
+            Item::Dot(Status::Idle.color()),
+            muted("idle"),
+        ],
+        vec![text("Gatherers"), Item::Spacer, chain_stack(&r.gathering)],
+        vec![text("Haulers"), Item::Spacer, chain_stack(&r.hauling)],
+        vec![
+            text("Woodworkers"),
+            Item::Spacer,
+            chain_stack(&r.processing),
+        ],
+    ]
 }
 
 fn kind_color(kind: EventKind) -> (&'static str, Color) {

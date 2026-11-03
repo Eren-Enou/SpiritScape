@@ -641,6 +641,15 @@ fn a_storehouse_consumes_planks_and_expands_main_storage() {
     );
     assert_eq!(w.main().storage.reserved(p), 0);
 
+    let waits = w
+        .events
+        .iter()
+        .filter(|e| e.text.contains("Waiting for materials"));
+    assert!(
+        waits.count() <= 3,
+        "a slow trickle of planks mustn't flood the log"
+    );
+
     // Production then settles on the plain target.
     run_until(&mut w, 6000, |w| w.main().storage.get(p) >= 5);
     assert_eq!(w.production_goal(), 5);

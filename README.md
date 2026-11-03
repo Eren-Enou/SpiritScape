@@ -11,6 +11,12 @@ settlement planner notices this and decides to build a **Field Storage** near
 the forest. A Construction Spirit builds it from real logs, and the workers
 change their routes to use it.
 
+You can also train **Woodworking**: saw logs into planks at the Workshop, then
+sacrifice that skill into a Woodworking Spirit. Give the settlement a plank
+target and the whole chain runs itself, from gatherers through haulers to the
+bench, and planks pay for a Storehouse that expands Main Storage. See
+[`docs/V0.4_WORKSHOP.md`](docs/V0.4_WORKSHOP.md).
+
 The question this prototype answers: *can a player create a spirit, give it a
 goal, and watch the world physically change because the spirit's work causes a
 problem that autonomous planning can solve?* See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
@@ -41,10 +47,11 @@ The scenario buttons in the panel switch between these too.
 
 Options:
 - `--speed N` sets the starting simulation speed.
-- `--gathering` opens the Gathering tab at start.
+- `--gathering` opens the Gathering tab at start; `--production` opens the Production tab.
+- `--scenario` also takes `workshop_manual`, `workshop_automated` and `workshop_construction` (the **Workshop A / B / C** buttons in game).
 - `--separate XP` performs a Soul Separation at start.
 - `--capture DIR --at 20,160` saves screenshots at those simulation seconds, then exits.
-- `--script FILE` plays scripted mouse moves, clicks, wheel scrolls and key presses (timed in real seconds) and saves screenshots into the `--capture` folder. Your real mouse isn't moved. `scripts/ui_smoke.txt` walks through hover, tabs, zoom, the log filter, Soul Separation and clicking a tree; the file's header explains the format:
+- `--script FILE` plays scripted input (timed in real seconds): mouse moves, clicks, wheel scrolls, key presses, button presses by label and tile clicks, plus `expect` checks on on-screen text. It saves screenshots into the `--capture` folder, doesn't move your real mouse, and exits with an error if a check fails. `crates/spirit_game/src/script.rs` explains the format. `scripts/ui_smoke.txt` covers hover, tabs, zoom, the log filter and Soul Separation; `scripts/ui_workshop.txt` covers training Woodworking through to ordering a Storehouse:
 
   ```bash
   cargo run -p spirit_game -- --scenario regrind --script scripts/ui_smoke.txt --capture target/ui_smoke
@@ -64,6 +71,9 @@ The last three are development aids.
 | Mouse wheel / `C` | Zoom / toggle the whole-map overview (the demo starts in overview) |
 | `H` | Hide or show the UI panels |
 | `G` | Switch between the Settlement and Gathering tabs |
+| `P` | Switch to and from the Production tab |
+| Click Main Storage with empty hands | Take logs |
+| Click the Workshop | Saw planks until you run out of logs |
 | Mouse wheel over the panel | Scroll the panel |
 | Hover a tree or building | Describe it: tier, level needed, logs left, regrowth time |
 | `Space` / `1`-`4` / `F5` | Pause / speed / restart |
@@ -111,15 +121,16 @@ cargo run -p spirit_sim --example regrind_playtest -- 400
 cargo test -p spirit_sim
 ```
 
-40 tests:
+71 tests:
 - 22 end-to-end simulation tests in `crates/spirit_sim/tests/simulation.rs`;
 - 13 gathering and progression tests in `crates/spirit_sim/tests/gathering.rs`;
+- 31 workshop and production tests in `crates/spirit_sim/tests/workshop.rs`;
 - 5 unit tests for pathfinding and storage.
 
 They cover:
 
 - **XP and Soul Separation:** the XP curve, XP gained from chopping, exact XP conservation and level recalculation on separation, rejection of invalid requests, and that spirits never gain XP.
-- **Resources:** a conservation ledger (seeded + harvested = present + consumed) checked every tick across a full build cycle, inventory capacity, and deposits.
+- **Resources:** a conservation ledger (seeded + harvested + crafted = present + consumed + processed) checked every tick across a full build cycle, inventory capacity, and deposits.
 - **Job transitions:** gather to deliver to idle when the objective is met, and back to gathering when the target rises; blocked when no trees are grown.
 - **Construction requirements:** no builder, no hauler, permission off, materials short (with a readable reason), savings too small (rejected once, then a cooldown).
 - **Project lifecycle:** detect, decide, reserve, supply, build, consume, redirect workers, haul; no duplicate projects over 20,000+ ticks.

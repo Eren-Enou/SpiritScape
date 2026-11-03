@@ -65,6 +65,11 @@ pub struct BuildingVisuals {
     /// Offset of the log pile from the tile centre, as [x, z].
     #[serde(default)]
     pub stockpile_offset: [f32; 2],
+    /// Shown while the building holds finished goods.
+    #[serde(default)]
+    pub goods_pile: Option<String>,
+    #[serde(default)]
+    pub goods_pile_offset: [f32; 2],
 }
 
 #[derive(Deserialize)]

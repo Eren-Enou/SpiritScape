@@ -9,6 +9,7 @@ use spirit_sim::tasks::Task;
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Status {
     Chopping,
+    Crafting,
     Walking,
     Carrying,
     Handling,
@@ -22,6 +23,7 @@ impl Status {
     pub fn color(self) -> Color {
         match self {
             Status::Chopping => Color::srgb(0.45, 0.85, 0.45),
+            Status::Crafting => Color::srgb(0.95, 0.55, 0.75),
             Status::Walking => Color::srgb(0.55, 0.75, 1.0),
             Status::Carrying | Status::Handling => Color::srgb(0.45, 0.85, 0.85),
             Status::Building => Color::srgb(1.0, 0.85, 0.35),
@@ -37,15 +39,17 @@ pub fn spirit_status(s: &Spirit) -> (Status, String) {
     let carried = s.actor.inventory.total();
     match s.actor.queue.front() {
         Some(Task::Chop { .. }) => (Status::Chopping, "chopping".into()),
-        Some(Task::Move { .. }) if carried > 0 => {
-            (Status::Carrying, format!("carrying {carried} logs"))
-        }
+        Some(Task::Craft { .. }) => (Status::Crafting, "sawing".into()),
+        Some(Task::Move { .. }) if carried > 0 => (Status::Carrying, format!("carrying {carried}")),
         Some(Task::Move { .. }) => (Status::Walking, "walking".into()),
         Some(Task::Build { .. }) => (Status::Building, "building".into()),
         Some(_) => (Status::Handling, "loading".into()),
         None => match (&s.activity, s.wait) {
             (Activity::Blocked(_), Some(WaitKind::Recovery)) => {
                 (Status::Waiting, "waiting for trees".into())
+            }
+            (Activity::Blocked(_), Some(WaitKind::Inputs)) => {
+                (Status::Waiting, "waiting for logs".into())
             }
             (Activity::Blocked(_), Some(WaitKind::Storage)) => {
                 (Status::Blocked, "storage full".into())
