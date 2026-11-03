@@ -26,7 +26,8 @@ id_type!(
     RoleId,
     BuildingKindId,
     TreeKindId,
-    SiteId
+    SiteId,
+    RecipeId
 );
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
@@ -36,6 +37,12 @@ pub enum JobKind {
     Deliver,
     Haul,
     Construct,
+    /// Process materials at a station.
+    Craft,
+    /// Carry raw materials from Main Storage to a station.
+    Supply,
+    /// Carry finished goods from a station to Main Storage.
+    Collect,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
@@ -47,6 +54,12 @@ pub enum Condition {
     ObjectiveUnmet,
     OutpostStockAvailable,
     ProjectAssigned,
+    /// This spirit is assigned and the production order is short of its goal.
+    ProductionWanted,
+    WorkshopNeedsInput,
+    WorkshopOutputReady,
+    /// Finished goods are ready and no hauler exists to take them.
+    OutputUnattended,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
@@ -104,6 +117,42 @@ impl TreeTypeDef {
             .max(self.min_chop_ticks)
             .max(1)
     }
+}
+
+/// Timed processing at a station: consumes `inputs`, creates `output`.
+#[derive(Clone, Debug)]
+pub struct RecipeDef {
+    pub id: String,
+    pub name: String,
+    pub skill: SkillId,
+    pub station: BuildingKindId,
+    /// Minimum skill level. Applies to the player and spirits.
+    pub level_required: u32,
+    pub inputs: Vec<(ResourceId, u32)>,
+    pub output: (ResourceId, u32),
+    pub craft_ticks: u32,
+    pub craft_ticks_per_level_x10: u32,
+    pub min_craft_ticks: u32,
+    pub xp: u64,
+}
+
+impl RecipeDef {
+    /// Ticks needed for one batch at the given skill level.
+    pub fn craft_ticks_at(&self, level: u32) -> u32 {
+        let reduction = level.saturating_sub(1) * self.craft_ticks_per_level_x10 / 10;
+        self.craft_ticks
+            .saturating_sub(reduction)
+            .max(self.min_craft_ticks)
+            .max(1)
+    }
+}
+
+/// Settlement production settings that aren't player-adjustable.
+#[derive(Clone, Debug)]
+pub struct ProductionRules {
+    pub output: ResourceId,
+    /// Most extra input a production shortfall may request at once.
+    pub upstream_cap: u32,
 }
 
 /// A named, permanent gathering location: every tree inside `area` belongs to it.
@@ -183,6 +232,14 @@ pub struct BuildingDef {
     pub build_ticks_per_level_x10: u32,
     pub min_build_ticks: u32,
     pub color: [f32; 3],
+    /// Recipes can be made here.
+    pub is_station: bool,
+    /// A station's limit on stored raw materials.
+    pub input_buffer: u32,
+    /// Added to Main Storage's capacity when this building is completed.
+    pub capacity_bonus: u32,
+    /// Built on the player's request.
+    pub manual: bool,
 }
 
 impl BuildingDef {
@@ -222,6 +279,8 @@ pub struct GameDefs {
     pub resources: Vec<ResourceDef>,
     pub skills: Vec<SkillDef>,
     pub trees: Vec<TreeTypeDef>,
+    pub recipes: Vec<RecipeDef>,
+    pub production: ProductionRules,
     pub sites: Vec<SiteDef>,
     pub gathering: GatheringRules,
     pub player: PlayerRules,
@@ -243,6 +302,9 @@ struct RawDefs {
     resources: Vec<ResourceDef>,
     skills: Vec<SkillDef>,
     tree_types: Vec<RawTreeType>,
+    #[serde(default)]
+    recipes: Vec<RawRecipe>,
+    production: RawProduction,
     #[serde(default)]
     sites: Vec<RawSite>,
     gathering: RawGathering,
@@ -281,6 +343,29 @@ struct RawTreeType {
     chop_seconds: f32,
     chop_seconds_per_level: f32,
     min_chop_seconds: f32,
+}
+
+#[derive(Deserialize)]
+struct RawRecipe {
+    id: String,
+    name: String,
+    skill: String,
+    station: String,
+    #[serde(default = "one")]
+    level_required: u32,
+    inputs: Vec<RawCost>,
+    output: RawCost,
+    craft_seconds: f32,
+    #[serde(default)]
+    craft_seconds_per_level: f32,
+    min_craft_seconds: f32,
+    xp: u64,
+}
+
+#[derive(Deserialize)]
+struct RawProduction {
+    output: String,
+    upstream_cap: u32,
 }
 
 #[derive(Deserialize)]
@@ -365,6 +450,12 @@ struct RawBuilding {
     min_build_seconds: f32,
     #[serde(default = "default_color")]
     color: [f32; 3],
+    #[serde(default)]
+    input_buffer: u32,
+    #[serde(default)]
+    capacity_bonus: u32,
+    #[serde(default)]
+    manual: bool,
 }
 
 #[derive(Deserialize)]
@@ -508,6 +599,10 @@ impl GameDefs {
                 build_ticks_per_level_x10: tenth_ticks(b.build_seconds_per_level),
                 min_build_ticks: ticks(b.min_build_seconds) as u32,
                 color: b.color,
+                is_station: false,
+                input_buffer: b.input_buffer,
+                capacity_bonus: b.capacity_bonus,
+                manual: b.manual,
                 id: b.id,
                 name: b.name,
             });
@@ -515,6 +610,39 @@ impl GameDefs {
         if buildings.iter().filter(|b| b.is_main).count() != 1 {
             return Err("exactly one building must have is_main = true".into());
         }
+
+        let mut recipes = Vec::new();
+        for r in raw.recipes {
+            let station = buildings
+                .iter()
+                .position(|b| b.id == r.station)
+                .ok_or_else(|| format!("recipe {:?}: unknown station {:?}", r.id, r.station))?;
+            buildings[station].is_station = true;
+            if r.inputs.is_empty() {
+                return Err(format!("recipe {:?} has no inputs", r.id));
+            }
+            let mut inputs = Vec::new();
+            for c in &r.inputs {
+                inputs.push((resource_id(&c.resource)?, c.amount.max(1)));
+            }
+            recipes.push(RecipeDef {
+                skill: skill_id(&r.skill)?,
+                station: BuildingKindId(station as u16),
+                level_required: r.level_required.max(1),
+                inputs,
+                output: (resource_id(&r.output.resource)?, r.output.amount.max(1)),
+                craft_ticks: ticks(r.craft_seconds) as u32,
+                craft_ticks_per_level_x10: tenth_ticks(r.craft_seconds_per_level),
+                min_craft_ticks: ticks(r.min_craft_seconds) as u32,
+                xp: r.xp,
+                id: r.id,
+                name: r.name,
+            });
+        }
+        let production = ProductionRules {
+            output: resource_id(&raw.production.output)?,
+            upstream_cap: raw.production.upstream_cap,
+        };
 
         let objective = ObjectiveDef {
             resource: resource_id(&raw.objective.resource)?,
@@ -545,6 +673,8 @@ impl GameDefs {
             resources,
             skills,
             trees,
+            recipes,
+            production,
             sites,
             gathering,
             roles,
@@ -600,6 +730,44 @@ impl GameDefs {
 
     pub fn tree(&self, id: TreeKindId) -> &TreeTypeDef {
         &self.trees[id.index()]
+    }
+
+    pub fn recipe(&self, id: RecipeId) -> &RecipeDef {
+        &self.recipes[id.index()]
+    }
+
+    /// Recipes of `skill`, ordered by level requirement.
+    pub fn recipe_tiers(&self, skill: SkillId) -> Vec<RecipeId> {
+        let mut ids: Vec<RecipeId> = (0..self.recipes.len())
+            .map(|i| RecipeId(i as u16))
+            .filter(|&r| self.recipe(r).skill == skill)
+            .collect();
+        ids.sort_by_key(|&r| self.recipe(r).level_required);
+        ids
+    }
+
+    /// Recipes made at a station type, ordered by level requirement.
+    pub fn station_recipes(&self, station: BuildingKindId) -> Vec<RecipeId> {
+        let mut ids: Vec<RecipeId> = (0..self.recipes.len())
+            .map(|i| RecipeId(i as u16))
+            .filter(|&r| self.recipe(r).station == station)
+            .collect();
+        ids.sort_by_key(|&r| self.recipe(r).level_required);
+        ids
+    }
+
+    /// The highest-level recipe at `station` that `level` allows and the
+    /// materials reported by `have` can pay for.
+    pub fn best_recipe(
+        &self,
+        station: BuildingKindId,
+        level: u32,
+        have: impl Fn(ResourceId) -> u32,
+    ) -> Option<RecipeId> {
+        self.station_recipes(station).into_iter().rev().find(|&r| {
+            let def = self.recipe(r);
+            level >= def.level_required && def.inputs.iter().all(|&(res, n)| have(res) >= n)
+        })
     }
 
     pub fn main_building_kind(&self) -> BuildingKindId {

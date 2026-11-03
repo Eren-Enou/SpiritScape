@@ -16,6 +16,8 @@ pub enum WaitKind {
     Recovery,
     /// Nowhere to put what it gathers or hauls.
     Storage,
+    /// A station or its supplier is short of raw materials.
+    Inputs,
     Other,
 }
 
@@ -27,7 +29,9 @@ pub struct TimeUse {
     /// Depositing, collecting and supplying sites.
     pub handling: u64,
     pub building: u64,
+    pub crafting: u64,
     pub waiting_recovery: u64,
+    pub waiting_input: u64,
     pub blocked_storage: u64,
     pub blocked_other: u64,
     pub idle: u64,
@@ -44,7 +48,9 @@ impl TimeUse {
             + self.traveling
             + self.handling
             + self.building
+            + self.crafting
             + self.waiting_recovery
+            + self.waiting_input
             + self.blocked_storage
             + self.blocked_other
     }
@@ -55,7 +61,9 @@ impl TimeUse {
             traveling: self.traveling - earlier.traveling,
             handling: self.handling - earlier.handling,
             building: self.building - earlier.building,
+            crafting: self.crafting - earlier.crafting,
             waiting_recovery: self.waiting_recovery - earlier.waiting_recovery,
+            waiting_input: self.waiting_input - earlier.waiting_input,
             blocked_storage: self.blocked_storage - earlier.blocked_storage,
             blocked_other: self.blocked_other - earlier.blocked_other,
             idle: self.idle - earlier.idle,
@@ -67,7 +75,9 @@ impl TimeUse {
         self.traveling += other.traveling;
         self.handling += other.handling;
         self.building += other.building;
+        self.crafting += other.crafting;
         self.waiting_recovery += other.waiting_recovery;
+        self.waiting_input += other.waiting_input;
         self.blocked_storage += other.blocked_storage;
         self.blocked_other += other.blocked_other;
         self.idle += other.idle;
@@ -281,12 +291,8 @@ impl World {
 
     /// A completed outpost storage is at least 80% full.
     fn outpost_nearly_full(&self) -> bool {
-        self.buildings.iter().any(|b| {
-            b.id != self.main_storage
-                && b.is_complete()
-                && b.storage.capacity > 0
-                && b.storage.total() * 5 >= b.storage.capacity * 4
-        })
+        self.outposts()
+            .any(|b| b.storage.capacity > 0 && b.storage.total() * 5 >= b.storage.capacity * 4)
     }
 
     fn summarize(&self, sites: &[SiteReport], t: &TimeUse, b: Bottleneck) -> String {
@@ -337,10 +343,12 @@ impl Spirit {
             Some(Task::Chop { .. }) => t.gathering += 1,
             Some(Task::Move { .. }) => t.traveling += 1,
             Some(Task::Build { .. }) => t.building += 1,
+            Some(Task::Craft { .. }) => t.crafting += 1,
             Some(_) => t.handling += 1,
             None => match (&self.activity, self.wait) {
                 (Activity::Blocked(_), Some(WaitKind::Recovery)) => t.waiting_recovery += 1,
                 (Activity::Blocked(_), Some(WaitKind::Storage)) => t.blocked_storage += 1,
+                (Activity::Blocked(_), Some(WaitKind::Inputs)) => t.waiting_input += 1,
                 (Activity::Blocked(_), _) => t.blocked_other += 1,
                 _ => t.idle += 1,
             },

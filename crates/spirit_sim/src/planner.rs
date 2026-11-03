@@ -290,12 +290,6 @@ impl World {
         })
     }
 
-    fn has_role_with(&self, job: JobKind) -> bool {
-        self.spirits
-            .iter()
-            .any(|s| self.defs.role(s.role).has_job(job))
-    }
-
     /// Finds the buildable tile that minimizes the average walk from the
     /// given gathering spots, without cutting off any reachable tree or storage.
     fn find_site(&self, samples: &[DeliverySample]) -> Option<(TilePos, u32)> {
@@ -381,6 +375,67 @@ impl World {
             let was = t == p || self.grid.approach_distance(&before, t).is_some();
             !was || reachable_after(t)
         })
+    }
+
+    /// The player approves a building the planner won't start on its own.
+    /// It goes up near Main Storage and is built like any other project.
+    pub(crate) fn request_building(&mut self, kind: BuildingKindId) -> Result<String, String> {
+        let def = self.defs.building(kind);
+        let name = def.name.clone();
+        if !def.manual {
+            return Err(format!("A {name} can't be ordered"));
+        }
+        let count = self.buildings.iter().filter(|b| b.kind == kind).count() as u32;
+        if def.max_count.is_some_and(|m| count >= m) {
+            return Err(format!("The settlement can't have more {name}s"));
+        }
+        if self.active_project().is_some() {
+            return Err("Finish the current construction project first".into());
+        }
+        let site = self
+            .site_near_main()
+            .ok_or_else(|| "No room near Main Storage".to_string())?;
+        let cost: BTreeMap<_, _> = def.cost.iter().copied().collect();
+        let msg = format!(
+            "Ordered a {name} at {site} (cost {})",
+            self.defs.describe_amounts(&cost)
+        );
+        self.create_project(kind, site, "ordered by the player".into());
+        self.events.push(self.tick, EventKind::Player, msg.clone());
+        self.update_projects();
+        Ok(msg)
+    }
+
+    /// The closest free tile that isn't right next to Main Storage (workers
+    /// need to reach it) and doesn't cut anything off.
+    fn site_near_main(&self) -> Option<TilePos> {
+        let main = self.main().pos;
+        let r = self.defs.planner.site_search_radius;
+        let mut blocked: Vec<TilePos> = vec![self.player.actor.pos()];
+        blocked.extend(self.player.actor.mover.path.iter().copied());
+        for s in &self.spirits {
+            blocked.push(s.actor.pos());
+            blocked.extend(s.actor.mover.path.iter().copied());
+        }
+        let mut candidates = Vec::new();
+        for y in main.y - r..=main.y + r {
+            for x in main.x - r..=main.x + r {
+                let p = TilePos::new(x, y);
+                let distance = (x - main.x).abs() + (y - main.y).abs();
+                if distance >= 2
+                    && self.grid.is_buildable(p)
+                    && !blocked.contains(&p)
+                    && self.grid.walkable_neighbors(p).count() >= 3
+                {
+                    candidates.push((distance, p.y, p.x, p));
+                }
+            }
+        }
+        candidates.sort_by_key(|&(d, y, x, _)| (d, y, x));
+        candidates
+            .into_iter()
+            .map(|c| c.3)
+            .find(|p| self.keeps_connectivity(*p))
     }
 
     fn create_project(&mut self, kind: BuildingKindId, site: TilePos, reason: String) -> ProjectId {
@@ -491,7 +546,8 @@ impl World {
 
             let p = &mut self.projects[pid];
             if p.blocked != blocked {
-                if let Some(reason) = &blocked {
+                // Logged once: the text changes as materials trickle in.
+                if let (Some(reason), None) = (&blocked, &p.blocked) {
                     let msg = format!("{} project blocked: {reason}", def.name);
                     self.events.push(self.tick, EventKind::Construction, msg);
                 }
@@ -503,13 +559,26 @@ impl World {
     pub(crate) fn on_project_completed(&mut self, pid: ProjectId) {
         let p = &self.projects[pid];
         let def = self.defs.building(p.kind);
-        let msg = format!(
-            "{} completed at {} using {}. Gatherers can now deliver here; haulers carry its stock to Main Storage.",
+        let bonus = def.capacity_bonus;
+        let mut msg = format!(
+            "{} completed at {} using {}.",
             def.name,
             p.site,
             self.defs.describe_amounts(&p.consumed)
         );
+        let storage = &mut self.buildings[self.main_storage].storage;
+        storage.capacity += bonus;
+        if bonus > 0 {
+            msg += &format!(" Main Storage now holds {} (+{bonus}).", storage.capacity);
+        }
+        let gatherers_use_it = def.accepts_gatherer_deposits;
+        if gatherers_use_it {
+            msg += " Gatherers can now deliver here; haulers carry its stock to Main Storage.";
+        }
         self.events.push(self.tick, EventKind::Construction, msg);
+        if !gatherers_use_it {
+            return;
+        }
         // Logistics changed: start measuring afresh.
         let planner = &mut self.settlement.planner;
         planner.samples.clear();

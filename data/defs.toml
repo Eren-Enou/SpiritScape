@@ -22,9 +22,18 @@ xp_table = [
 id = "logs"
 name = "Logs"
 
+[[resources]]
+id = "planks"
+name = "Planks"
+
 [[skills]]
 id = "woodcutting"
 name = "Woodcutting"
+trainable = true
+
+[[skills]]
+id = "woodworking"
+name = "Woodworking"
 trainable = true
 
 # Not trainable by the player yet; only used for seeded demonstration spirits.
@@ -70,6 +79,46 @@ chop_seconds_per_level = 0.1
 min_chop_seconds = 0.8
 
 # ---------------------------------------------------------------------------
+# Recipes: timed processing at a station building. The player and spirits use
+# the same rules: `level_required` gates a recipe, and a worker always uses
+# the best recipe its level and the available materials allow. The numbers
+# are provisional, tuned for quick playtesting.
+# ---------------------------------------------------------------------------
+
+[[recipes]]
+id = "rough_planks"
+name = "Rough Planks"
+skill = "woodworking"
+station = "workshop"
+level_required = 1
+inputs = [{ resource = "logs", amount = 2 }]
+output = { resource = "planks", amount = 1 }
+craft_seconds = 3.0
+craft_seconds_per_level = 0.1
+min_craft_seconds = 1.2
+xp = 25
+
+# Better yield: 1.5 logs per plank instead of 2.
+[[recipes]]
+id = "precise_planks"
+name = "Precise Planks"
+skill = "woodworking"
+station = "workshop"
+level_required = 5
+inputs = [{ resource = "logs", amount = 3 }]
+output = { resource = "planks", amount = 2 }
+craft_seconds = 4.0
+craft_seconds_per_level = 0.1
+min_craft_seconds = 1.8
+xp = 45
+
+[production]
+# What the settlement's production order makes.
+output = "planks"
+# Most extra logs a production shortfall may ask gatherers for at once.
+upstream_cap = 40
+
+# ---------------------------------------------------------------------------
 # Gathering sites: permanent, named places. Every tree inside `area`
 # ([x0, y0, x1, y1], inclusive) belongs to the site. Trees deplete and regrow;
 # a site's sustainable output is limited by how fast its trees recover.
@@ -107,8 +156,9 @@ min_xp = 100
 # holds and which can actually be planned in the current world state.
 #
 # Conditions: always, inventory_full, carrying_any, objective_unmet,
-#             outpost_stock_available, project_assigned
-# Jobs:       gather, deliver, haul, construct
+#             outpost_stock_available, project_assigned, production_wanted,
+#             workshop_needs_input, workshop_output_ready, output_unattended
+# Jobs:       gather, deliver, haul, construct, craft, supply, collect
 # ---------------------------------------------------------------------------
 
 [[roles]]
@@ -138,6 +188,8 @@ haul_min = 5
 color = [0.95, 0.75, 0.30]
 jobs = [
     { job = "deliver", priority = 100, when = "carrying_any" },
+    { job = "collect", priority = 70, when = "workshop_output_ready" },
+    { job = "supply", priority = 60, when = "workshop_needs_input" },
     { job = "haul", priority = 50, when = "outpost_stock_available" },
 ]
 
@@ -152,6 +204,23 @@ color = [0.55, 0.65, 1.0]
 jobs = [
     { job = "construct", priority = 80, when = "project_assigned" },
     { job = "deliver", priority = 10, when = "carrying_any" },
+]
+
+[[roles]]
+id = "woodworker"
+name = "Woodworking Spirit"
+skill = "woodworking"
+from_soul_separation = true
+move_seconds_per_tile = 0.3
+carry_capacity = 10
+deliver_to = "main"
+color = [0.95, 0.55, 0.75]
+# With a Hauling Spirit around it stays at the bench. Without one it fetches
+# its own logs and carries its own planks.
+jobs = [
+    { job = "deliver", priority = 100, when = "carrying_any" },
+    { job = "collect", priority = 60, when = "output_unattended" },
+    { job = "craft", priority = 50, when = "production_wanted" },
 ]
 
 # ---------------------------------------------------------------------------
@@ -180,6 +249,33 @@ build_seconds = 15.0
 build_seconds_per_level = 0.5
 min_build_seconds = 5.0
 color = [0.85, 0.65, 0.40]
+
+# A station: recipes name it. Its storage holds up to `input_buffer` raw
+# materials; the rest of `capacity` is room for finished goods.
+[[buildings]]
+id = "workshop"
+name = "Workshop"
+map_char = "K"
+capacity = 40
+input_buffer = 20
+accepts_gatherer_deposits = false
+color = [0.80, 0.60, 0.45]
+
+# Requested by the player (`manual`), not by the planner. Adds its
+# `capacity_bonus` to Main Storage when complete.
+[[buildings]]
+id = "storehouse"
+name = "Storehouse"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 3
+capacity_bonus = 150
+cost = [{ resource = "planks", amount = 20 }, { resource = "logs", amount = 10 }]
+build_seconds = 20.0
+build_seconds_per_level = 0.5
+min_build_seconds = 8.0
+color = [0.70, 0.55, 0.40]
 
 [objective]
 # "Maintain <target> <resource> in the main settlement storage."

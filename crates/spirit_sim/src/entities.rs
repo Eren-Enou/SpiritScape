@@ -108,7 +108,7 @@ pub struct Actor {
     pub mover: Mover,
     pub inventory: Inventory,
     pub queue: VecDeque<Task>,
-    /// Ticks spent on the current timed action (chopping).
+    /// Ticks spent on the current timed action (chopping, crafting).
     pub action_ticks: u32,
     /// Tiles walked since the last harvested unit (the delivery leg).
     pub leg_tiles: u32,
@@ -201,6 +201,9 @@ pub struct Spirit {
     pub last_deliver_target: Option<BuildingId>,
     pub units_gathered: u32,
     pub units_delivered: u32,
+    pub units_crafted: u32,
+    /// Assigned to the production order (only matters to spirits that craft).
+    pub assigned: bool,
     /// Why the spirit is currently not working, when blocked.
     pub wait: Option<WaitKind>,
     /// Site of the last tree this spirit chose; it prefers to stay there.
@@ -236,6 +239,8 @@ impl Spirit {
             last_deliver_target: None,
             units_gathered: 0,
             units_delivered: 0,
+            units_crafted: 0,
+            assigned: true,
             wait: None,
             home_site: None,
             last_tree_kind: None,

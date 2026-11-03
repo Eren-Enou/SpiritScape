@@ -1,7 +1,7 @@
 //! Spirit decision making: evaluate prioritized job rules against the world
 //! and expand the chosen job into a task queue.
 
-use crate::defs::{Condition, DeliverPolicy, JobKind, SiteId, TreeKindId};
+use crate::defs::{Condition, DeliverPolicy, JobKind, ResourceId, SiteId, TreeKindId};
 use crate::entities::{Activity, BuildingId, ProjectState, Spirit, SpiritId, TreeId};
 use crate::events::EventKind;
 use crate::metrics::WaitKind;
@@ -17,6 +17,8 @@ struct JobPlan {
     deliver_target: Option<BuildingId>,
     /// Site and tree type of a gathering job.
     gather: Option<(SiteId, TreeKindId)>,
+    /// Stock set aside for this trip when the job starts.
+    reserve: Option<(BuildingId, ResourceId, u32)>,
 }
 
 /// Why a job can't be planned right now.
@@ -59,6 +61,12 @@ impl World {
                 self.outposts().any(|b| b.storage.total() >= min)
             }
             Condition::ProjectAssigned => self.project_for(sid).is_some(),
+            Condition::ProductionWanted => s.assigned && self.production_deficit() > 0,
+            Condition::WorkshopNeedsInput => self.input_wanted().is_some(),
+            Condition::WorkshopOutputReady => self.output_ready(self.defs.role(s.role).haul_min),
+            Condition::OutputUnattended => {
+                !self.has_role_with(JobKind::Haul) && self.output_ready(s.actor.inventory.capacity)
+            }
         }
     }
 
@@ -92,13 +100,19 @@ impl World {
                 ),
                 None => "no project".into(),
             },
+            Condition::ProductionWanted | Condition::WorkshopNeedsInput => {
+                let order = &self.settlement.order;
+                format!(
+                    "production short ({}/{} {})",
+                    self.projected_stock(order.output),
+                    self.production_goal(),
+                    self.defs.resource(order.output).name
+                )
+            }
+            Condition::WorkshopOutputReady | Condition::OutputUnattended => {
+                format!("{} finished at the workshop", self.output_waiting())
+            }
         }
-    }
-
-    fn outposts(&self) -> impl Iterator<Item = &crate::entities::Building> {
-        self.buildings
-            .iter()
-            .filter(|b| b.id != self.main_storage && b.is_complete())
     }
 
     pub(crate) fn project_for(&self, sid: SpiritId) -> Option<usize> {
@@ -177,6 +191,24 @@ impl World {
         if role.has_job(JobKind::Haul) {
             return "no outpost stock to haul".into();
         }
+        if role.has_job(JobKind::Craft) {
+            let s = &self.spirits[sid];
+            let order = &self.settlement.order;
+            let name = &self.defs.resource(order.output).name;
+            return if !s.assigned {
+                format!("not assigned to {name}")
+            } else if !order.enabled {
+                "production is disabled".into()
+            } else if self.station().is_none() {
+                "no workshop available".into()
+            } else {
+                format!(
+                    "target met ({}/{} {name})",
+                    self.projected_stock(order.output),
+                    self.production_goal()
+                )
+            };
+        }
         if role.has_job(JobKind::Construct) {
             return "no construction project assigned".into();
         }
@@ -193,6 +225,10 @@ impl World {
     ) {
         if let Some(t) = plan.claim_tree {
             self.trees[t].claimed_by = Some(sid);
+        }
+        if let Some((b, r, n)) = plan.reserve {
+            let reserved = self.buildings[b].storage.try_reserve(r, n);
+            debug_assert!(reserved, "plans only reserve what is available");
         }
         let s = &self.spirits[sid];
         if !matches!(previous, Activity::Working(_)) {
@@ -294,7 +330,16 @@ impl World {
             JobKind::Deliver => self.plan_deliver(sid),
             JobKind::Haul => self.plan_haul(sid),
             JobKind::Construct => self.plan_construct(sid),
+            JobKind::Craft => self.plan_craft(sid),
+            JobKind::Supply => self.plan_supply(sid),
+            JobKind::Collect => self.plan_collect(sid),
         }
+    }
+
+    pub(crate) fn has_role_with(&self, job: JobKind) -> bool {
+        self.spirits
+            .iter()
+            .any(|s| self.defs.role(s.role).has_job(job))
     }
 
     /// Storages a spirit with `policy` may deliver to (complete, with room).
@@ -510,6 +555,181 @@ impl World {
                 },
                 Task::Deposit { building: main.id },
             ],
+            ..Default::default()
+        })
+    }
+
+    /// Work at the station. With no supplier in the settlement, the worker
+    /// first fetches its own materials from Main Storage.
+    fn plan_craft(&self, sid: SpiritId) -> Result<JobPlan, Blocked> {
+        let s = &self.spirits[sid];
+        let station = self
+            .station()
+            .ok_or_else(|| "No workshop available".to_string())?;
+        let def = self.defs.building(station.kind);
+        let output = self.settlement.order.output;
+        let limit = def.capacity.saturating_sub(def.input_buffer);
+        if station.storage.get(output) >= limit || station.storage.free() == 0 {
+            return Err(Blocked::new(
+                WaitKind::Storage,
+                format!("{} output is full", station.name),
+            ));
+        }
+        let to_station = Task::Move {
+            goal: Goal::Adjacent(station.pos),
+            label: station.name.clone(),
+        };
+        let craft = Task::Craft {
+            building: station.id,
+        };
+        let have = |r| s.actor.inventory.get(r) + station.storage.available(r);
+        if let Some(r) = self.defs.best_recipe(station.kind, s.level(), have) {
+            return Ok(JobPlan {
+                description: format!("Making {} at {}", self.defs.recipe(r).name, station.name),
+                tasks: vec![to_station, craft],
+                ..Default::default()
+            });
+        }
+        let short = || {
+            Blocked::new(
+                WaitKind::Inputs,
+                format!("{} waiting: insufficient logs", station.name),
+            )
+        };
+        if self.has_role_with(JobKind::Supply) {
+            return Err(short());
+        }
+        let (resource, want) = self.input_wanted().ok_or_else(short)?;
+        let amount = want
+            .min(self.input_spare(resource))
+            .min(s.actor.inventory.free());
+        let recipe = self.production_recipe().ok_or_else(short)?;
+        let lowest = self
+            .defs
+            .station_recipes(station.kind)
+            .into_iter()
+            .map(|r| self.defs.recipe(r))
+            .filter_map(|r| r.inputs.iter().find(|i| i.0 == resource).map(|i| i.1))
+            .min()
+            .unwrap_or(1);
+        if amount + have(resource) < lowest {
+            return Err(short());
+        }
+        let main = self.main();
+        Ok(JobPlan {
+            description: format!(
+                "Fetching {amount} {} for {}",
+                self.defs.resource(resource).name,
+                self.defs.recipe(recipe).name
+            ),
+            tasks: vec![
+                Task::Move {
+                    goal: Goal::Adjacent(main.pos),
+                    label: main.name.clone(),
+                },
+                Task::Withdraw {
+                    building: main.id,
+                    resource,
+                    amount,
+                    reserved: true,
+                },
+                to_station,
+                craft,
+            ],
+            reserve: Some((main.id, resource, amount)),
+            ..Default::default()
+        })
+    }
+
+    /// Carry raw materials from Main Storage to the station, leaving the reserve.
+    fn plan_supply(&self, sid: SpiritId) -> Result<JobPlan, Blocked> {
+        let s = &self.spirits[sid];
+        let station = self
+            .station()
+            .ok_or_else(|| "No workshop available".to_string())?;
+        let (resource, want) = self
+            .input_wanted()
+            .ok_or_else(|| "The workshop has enough materials".to_string())?;
+        let name = &self.defs.resource(resource).name;
+        let amount = want
+            .min(self.input_spare(resource))
+            .min(s.actor.inventory.free());
+        if amount == 0 {
+            return Err(Blocked::new(
+                WaitKind::Inputs,
+                format!("No spare {name} in Main Storage for the workshop"),
+            ));
+        }
+        let main = self.main();
+        Ok(JobPlan {
+            description: format!("Supplying {amount} {name} to {}", station.name),
+            tasks: vec![
+                Task::Move {
+                    goal: Goal::Adjacent(main.pos),
+                    label: main.name.clone(),
+                },
+                Task::Withdraw {
+                    building: main.id,
+                    resource,
+                    amount,
+                    reserved: true,
+                },
+                Task::Move {
+                    goal: Goal::Adjacent(station.pos),
+                    label: station.name.clone(),
+                },
+                Task::Deposit {
+                    building: station.id,
+                },
+            ],
+            reserve: Some((main.id, resource, amount)),
+            ..Default::default()
+        })
+    }
+
+    /// Carry finished goods from the station to Main Storage.
+    fn plan_collect(&self, sid: SpiritId) -> Result<JobPlan, Blocked> {
+        let s = &self.spirits[sid];
+        let station = self
+            .station()
+            .ok_or_else(|| "No workshop available".to_string())?;
+        let main = self.main();
+        if main.storage.free() == 0 {
+            return Err(Blocked::new(WaitKind::Storage, "Main Storage is full"));
+        }
+        let resource = self.settlement.order.output;
+        let amount = self
+            .output_waiting()
+            .min(s.actor.inventory.free())
+            .min(main.storage.free());
+        if amount == 0 {
+            return Err("Nothing finished to collect".into());
+        }
+        Ok(JobPlan {
+            description: format!(
+                "Carrying {amount} {} from {} to {}",
+                self.defs.resource(resource).name,
+                station.name,
+                main.name
+            ),
+            tasks: vec![
+                Task::Move {
+                    goal: Goal::Adjacent(station.pos),
+                    label: station.name.clone(),
+                },
+                Task::Withdraw {
+                    building: station.id,
+                    resource,
+                    amount,
+                    reserved: true,
+                },
+                Task::Move {
+                    goal: Goal::Adjacent(main.pos),
+                    label: main.name.clone(),
+                },
+                Task::Deposit { building: main.id },
+            ],
+            reserve: Some((station.id, resource, amount)),
             ..Default::default()
         })
     }

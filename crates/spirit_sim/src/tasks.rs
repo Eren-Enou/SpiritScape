@@ -4,7 +4,7 @@
 //! only code that moves resources between trees, inventories, storages and
 //! construction sites, which keeps conservation easy to audit.
 
-use crate::defs::{GameDefs, ResourceId};
+use crate::defs::{GameDefs, RecipeId, ResourceId};
 use crate::entities::{
     Actor, Building, BuildingId, BuildingState, Project, ProjectId, ProjectState, SpiritId, Tree,
     TreeId, TreeState,
@@ -51,6 +51,10 @@ pub enum Task {
     Build {
         project: ProjectId,
     },
+    /// Repeats the best available recipe until materials, room or demand run out.
+    Craft {
+        building: BuildingId,
+    },
 }
 
 impl Task {
@@ -64,6 +68,7 @@ impl Task {
             } => format!("Collect {amount} from building #{building}"),
             Task::DeliverToSite { project } => format!("Supply project #{project}"),
             Task::Build { project } => format!("Build project #{project}"),
+            Task::Craft { building } => format!("Craft at building #{building}"),
         }
     }
 }
@@ -99,6 +104,10 @@ pub enum SimEvent {
     ProjectCompleted {
         project: ProjectId,
     },
+    Crafted {
+        who: Who,
+        recipe: RecipeId,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -120,16 +129,23 @@ pub struct TaskCtx<'a> {
     pub events: &'a mut Vec<SimEvent>,
 }
 
+/// How many more units spirits should harvest and craft this tick, so they
+/// stop as soon as the settlement's goals are met.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Budgets {
+    pub gather: i64,
+    pub craft: i64,
+}
+
 /// Executes one tick of the actor's current task.
 ///
-/// `level` is the actor's competency for timed work. `gather_budget`, when
-/// present, limits how many more units the actor should harvest (used to
-/// stop spirits once the settlement objective is met).
+/// `level` is the actor's competency for timed work. `budgets`, when
+/// present, limits what the actor should still produce; the player has none.
 pub fn step(
     actor: &mut Actor,
     who: Who,
     level: u32,
-    gather_budget: Option<&mut i64>,
+    budgets: Option<&mut Budgets>,
     ctx: &mut TaskCtx,
 ) -> StepResult {
     let Some(task) = actor.queue.front().cloned() else {
@@ -137,7 +153,9 @@ pub fn step(
     };
     match task {
         Task::Move { goal, label } => step_move(actor, goal, &label, ctx),
-        Task::Chop { tree } => step_chop(actor, who, level, tree, gather_budget, ctx),
+        Task::Chop { tree } => {
+            step_chop(actor, who, level, tree, budgets.map(|b| &mut b.gather), ctx)
+        }
         Task::Deposit { building } => step_deposit(actor, who, building, ctx),
         Task::Withdraw {
             building,
@@ -147,6 +165,14 @@ pub fn step(
         } => step_withdraw(actor, building, resource, amount, reserved, ctx),
         Task::DeliverToSite { project } => step_supply(actor, who, project, ctx),
         Task::Build { project } => step_build(actor, level, project, ctx),
+        Task::Craft { building } => step_craft(
+            actor,
+            who,
+            level,
+            building,
+            budgets.map(|b| &mut b.craft),
+            ctx,
+        ),
     }
 }
 
@@ -244,6 +270,89 @@ fn step_chop(
     if actor.inventory.is_full() || budget.is_some_and(|b| *b <= 0) {
         return StepResult::Done;
     }
+    StepResult::Continue
+}
+
+/// One tick at a station. Inputs come from the actor's inventory first, then
+/// from the station's unreserved stock, and are taken only when a batch
+/// finishes, so an interrupted batch costs nothing. Spirits leave the result
+/// in the station for collection; the player keeps it in their bag.
+fn step_craft(
+    actor: &mut Actor,
+    who: Who,
+    level: u32,
+    building_id: BuildingId,
+    craft_budget: Option<&mut i64>,
+    ctx: &mut TaskCtx,
+) -> StepResult {
+    let station = &mut ctx.buildings[building_id];
+    if !station.is_complete() || !actor.pos().is_adjacent(station.pos) {
+        return StepResult::Failed(format!("Cannot reach {}", station.name));
+    }
+    let lowest = ctx.defs.station_recipes(station.kind);
+    let Some(first) = lowest.first().map(|r| ctx.defs.recipe(*r)) else {
+        return StepResult::Failed(format!("Nothing can be made at {}", station.name));
+    };
+    if level < first.level_required {
+        let skill = &ctx.defs.skill(first.skill).name;
+        return StepResult::Failed(format!(
+            "Requires {skill} level {} to make {}",
+            first.level_required, first.name
+        ));
+    }
+    let have = |r| actor.inventory.get(r) + station.storage.available(r);
+    let Some(recipe_id) = ctx.defs.best_recipe(station.kind, level, have) else {
+        actor.action_ticks = 0;
+        return StepResult::Done; // Out of materials.
+    };
+    if craft_budget.as_deref().is_some_and(|b| *b <= 0) {
+        actor.action_ticks = 0;
+        return StepResult::Done;
+    }
+    let recipe = ctx.defs.recipe(recipe_id);
+    let (out, out_n) = recipe.output;
+    let def = &ctx.defs.buildings[station.kind.index()];
+    let output_limit = def.capacity.saturating_sub(def.input_buffer);
+    let station_room = station.storage.free() >= out_n
+        && station.storage.get(out) + out_n <= output_limit.max(out_n);
+    let bag_room = actor.inventory.free()
+        + recipe
+            .inputs
+            .iter()
+            .map(|&(r, n)| actor.inventory.get(r).min(n))
+            .sum::<u32>()
+        >= out_n;
+    let to_bag = who == Who::Player && bag_room;
+    if !to_bag && !station_room {
+        actor.action_ticks = 0;
+        return StepResult::Done;
+    }
+    actor.action_ticks += 1;
+    if actor.action_ticks < recipe.craft_ticks_at(level) {
+        return StepResult::Continue;
+    }
+    actor.action_ticks = 0;
+    for &(r, n) in &recipe.inputs {
+        let from_bag = actor.inventory.remove(r, n);
+        let from_station = station.storage.withdraw_available(r, n - from_bag);
+        debug_assert_eq!(from_bag + from_station, n);
+        *ctx.ledger.processed.entry(r).or_default() += n as u64;
+    }
+    let stored = if to_bag {
+        actor.inventory.add(out, out_n)
+    } else {
+        station.storage.deposit(out, out_n)
+    };
+    debug_assert_eq!(stored, out_n);
+    *ctx.ledger.crafted.entry(out).or_default() += out_n as u64;
+    *ctx.ledger.batches.entry(recipe_id).or_default() += 1;
+    if let Some(b) = craft_budget {
+        *b -= out_n as i64;
+    }
+    ctx.events.push(SimEvent::Crafted {
+        who,
+        recipe: recipe_id,
+    });
     StepResult::Continue
 }
 

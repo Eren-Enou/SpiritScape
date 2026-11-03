@@ -8,6 +8,8 @@
 title = "New Game"
 description = "Start with no Woodcutting XP. Chop trees, then use Soul Separation to create a Woodcutting Spirit."
 objective_target = 50
+plank_target = 30
+log_reserve = 10
 player_xp = {}
 main_storage = {}
 # Hauling and Construction skills do not exist yet, so the settlement starts
@@ -67,3 +69,49 @@ spirits = [
     { role = "builder", xp = 388, spawn = "B" },
 ]
 closed_sites = ["distant_forest"]
+
+# --- v0.4: the first workshop ----------------------------------------------
+
+[workshop_manual]
+title = "Workshop: manual"
+description = "Train Woodworking by hand: click Main Storage to take logs, click the Workshop to saw planks (1 plank from 2 logs), then click Main Storage to store them. Precise Planks unlock at level 5. Then sacrifice Woodworking XP to create a Woodworking Spirit."
+objective_target = 20
+plank_target = 30
+log_reserve = 10
+player_xp = { woodworking = 300 }
+main_storage = { logs = 80 }
+spirits = [
+    { role = "hauler", xp = 388, spawn = "H" },
+    { role = "builder", xp = 388, spawn = "B" },
+]
+
+[workshop_automated]
+title = "Workshop: automated"
+description = "Two Woodcutting Spirits, a Hauling Spirit and a level 5 Woodworking Spirit keep 30 Planks in Main Storage while keeping 20 Logs in reserve. Change the target or the reserve in the Production tab and watch the chain respond."
+objective_target = 20
+plank_target = 30
+log_reserve = 20
+main_storage = { logs = 30 }
+spirits = [
+    { role = "woodcutter", xp = 388, spawn = "W" },
+    { role = "woodcutter", xp = 388, spawn = "W" },
+    { role = "hauler", xp = 388, spawn = "H" },
+    { role = "woodworker", xp = 388, spawn = "B" },
+    { role = "builder", xp = 388, spawn = "B" },
+]
+
+[workshop_construction]
+title = "Workshop: construction"
+description = "A Storehouse has been ordered. It costs 20 Planks and 10 Logs, and there are no Planks yet: the chain makes them, Main Storage reserves them, and the Construction Spirit builds it for +150 storage."
+objective_target = 20
+plank_target = 5
+log_reserve = 10
+main_storage = { logs = 40 }
+spirits = [
+    { role = "woodcutter", xp = 388, spawn = "W" },
+    { role = "woodcutter", xp = 388, spawn = "W" },
+    { role = "hauler", xp = 388, spawn = "H" },
+    { role = "woodworker", xp = 388, spawn = "B" },
+    { role = "builder", xp = 388, spawn = "B" },
+]
+requested_buildings = ["storehouse"]

@@ -12,6 +12,7 @@ pub mod grid;
 pub mod inventory;
 pub mod metrics;
 pub mod planner;
+pub mod production;
 pub mod scenario;
 pub mod skills;
 pub mod tasks;
