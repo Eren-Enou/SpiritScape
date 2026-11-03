@@ -1,6 +1,7 @@
 //! 2.5D view: a tilted perspective camera that follows the player over the
 //! tile grid, lighting, and player input (WASD steps, clicks, E to use).
 
+use crate::script::Cursor;
 use crate::sim_runner::Sim;
 use crate::ui::{LOG_HEIGHT, PANEL_WIDTH, UiVisible, cursor_over_panel};
 use crate::world_view::tile_world;
@@ -120,13 +121,16 @@ fn camera_controls(
     keys: Res<ButtonInput<KeyCode>>,
     scroll: Res<AccumulatedMouseScroll>,
     ui: Res<UiVisible>,
+    cursor: Res<Cursor>,
     windows: Query<&Window>,
     mut rig: ResMut<CameraRig>,
 ) {
     if keys.just_pressed(KeyCode::KeyC) {
         rig.overview = !rig.overview;
     }
-    let over_panel = windows.single().is_ok_and(|w| cursor_over_panel(w, ui.0));
+    let over_panel = windows
+        .single()
+        .is_ok_and(|w| cursor_over_panel(w, &cursor, ui.0));
     if scroll.delta.y != 0.0 && !over_panel {
         rig.distance =
             (rig.distance * (1.0 - scroll.delta.y * 0.1)).clamp(MIN_DISTANCE, MAX_DISTANCE);
@@ -170,11 +174,13 @@ fn follow_camera(
 
 fn cursor_tile(
     window: &Window,
+    cursor: &Cursor,
     camera: &Camera,
     cam_t: &GlobalTransform,
     ui_visible: bool,
+    world: &spirit_sim::World,
 ) -> Option<TilePos> {
-    let cursor = window.cursor_position()?;
+    let cursor = cursor.0?;
     if ui_visible
         && (cursor.x > window.width() - PANEL_WIDTH || cursor.y > window.height() - LOG_HEIGHT)
     {
@@ -184,19 +190,47 @@ fn cursor_tile(
     if ray.direction.y.abs() < 1e-4 {
         return None;
     }
-    // Intersect with the ground plane y = 0.
-    let t = -ray.origin.y / ray.direction.y;
-    if t < 0.0 {
-        return None;
+    // The tile where the ray crosses height `h`.
+    let tile_at = |h: f32| {
+        let t = (h - ray.origin.y) / ray.direction.y;
+        (t >= 0.0).then(|| {
+            let hit = ray.origin + *ray.direction * t;
+            TilePos::new(hit.x.round() as i32, hit.z.round() as i32)
+        })
+    };
+    // Walk down the ray so pointing at a tree crown or a roof picks that
+    // object's tile, not the ground tile behind it.
+    let mut h = OBJECT_HEIGHT_MAX;
+    while h > 0.0 {
+        if let Some(p) = tile_at(h)
+            && object_height(world, p) >= h
+        {
+            return Some(p);
+        }
+        h -= 0.1;
     }
-    let hit = ray.origin + *ray.direction * t;
-    Some(TilePos::new(hit.x.round() as i32, hit.z.round() as i32))
+    tile_at(0.0)
+}
+
+/// Tallest thing that can stand on a tile, in world units.
+const OBJECT_HEIGHT_MAX: f32 = 2.0;
+
+/// Rough height of what stands on a tile, for mouse picking.
+fn object_height(world: &spirit_sim::World, p: TilePos) -> f32 {
+    if let Some(t) = world.tree_at(p) {
+        return if t.is_grown() { 1.5 } else { 0.3 };
+    }
+    if world.building_at(p).is_some() {
+        return 1.8;
+    }
+    0.0
 }
 
 fn hover_tile(
     windows: Query<&Window>,
     camera: Query<(&Camera, &GlobalTransform), With<Camera3d>>,
     ui: Res<UiVisible>,
+    cursor: Res<Cursor>,
     sim: Res<Sim>,
     mut hovered: ResMut<HoveredTile>,
     mut gizmos: Gizmos,
@@ -204,7 +238,8 @@ fn hover_tile(
     let (Ok(window), Ok((camera, cam_t))) = (windows.single(), camera.single()) else {
         return;
     };
-    hovered.0 = cursor_tile(window, camera, cam_t, ui.0).filter(|p| sim.world.grid.in_bounds(*p));
+    hovered.0 = cursor_tile(window, &cursor, camera, cam_t, ui.0, &sim.world)
+        .filter(|p| sim.world.grid.in_bounds(*p));
     if let Some(p) = hovered.0 {
         let c = tile_world(p.x as f32, p.y as f32) + Vec3::Y * 0.03;
         let h = 0.48;

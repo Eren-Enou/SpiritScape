@@ -7,6 +7,7 @@ use crate::cards::{
     self, BAD, GOLD, GOOD, INFO, Item, Line, MUTED, Rendered, TEXT, WARN, bar, big, chip, colored,
     muted, text,
 };
+use crate::script::Cursor;
 use crate::sim_runner::{SPEEDS, Sim};
 use crate::status::{Status, spirit_status};
 use bevy::input::mouse::{AccumulatedMouseScroll, MouseScrollUnit};
@@ -28,6 +29,8 @@ const XP: Color = Color::srgb(0.70, 0.55, 1.0);
 const LOG_LINES: usize = 11;
 /// Width of the main bars in the panel.
 const BAR: f32 = 220.0;
+/// Gatherer time needed before the panel names a bottleneck.
+const MIN_MEASURE_SECS: u64 = 20;
 
 /// Screen space covered by the UI: right-hand panel and bottom event log.
 pub const PANEL_WIDTH: f32 = 430.0;
@@ -46,11 +49,8 @@ struct ScrollPanel;
 
 /// Whether the cursor is over the right-hand panel (so the wheel scrolls it
 /// instead of zooming the camera).
-pub fn cursor_over_panel(window: &Window, ui_visible: bool) -> bool {
-    ui_visible
-        && window
-            .cursor_position()
-            .is_some_and(|c| c.x > window.width() - PANEL_WIDTH)
+pub fn cursor_over_panel(window: &Window, cursor: &Cursor, ui_visible: bool) -> bool {
+    ui_visible && cursor.0.is_some_and(|c| c.x > window.width() - PANEL_WIDTH)
 }
 
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
@@ -239,6 +239,7 @@ fn build_ui(
                 ..default()
             },
             BackgroundColor(PANEL_BG),
+            GlobalZIndex(1),
             PanelRoot,
             ScrollPanel,
             ScrollPosition::default(),
@@ -350,6 +351,7 @@ fn build_ui(
                     ..default()
                 },
                 BackgroundColor(Color::srgba(0.10, 0.06, 0.16, 0.92)),
+                GlobalZIndex(5),
                 Pickable::IGNORE,
             ));
         });
@@ -369,6 +371,7 @@ fn build_ui(
                 ..default()
             },
             BackgroundColor(PANEL_BG),
+            GlobalZIndex(1),
             PanelRoot,
         ))
         .with_children(|p| {
@@ -477,13 +480,14 @@ fn update_banner(
 fn scroll_panel(
     scroll: Res<AccumulatedMouseScroll>,
     visible: Res<UiVisible>,
+    cursor: Res<Cursor>,
     windows: Query<&Window>,
     mut panel: Query<(&mut ScrollPosition, &ComputedNode), With<ScrollPanel>>,
 ) {
     let Ok(window) = windows.single() else {
         return;
     };
-    if scroll.delta.y == 0.0 || !cursor_over_panel(window, visible.0) {
+    if scroll.delta.y == 0.0 || !cursor_over_panel(window, &cursor, visible.0) {
         return;
     }
     let step = match scroll.unit {
@@ -751,9 +755,12 @@ fn player_lines(sim: &Sim) -> Vec<Line> {
             h.highest_level, h.xp_sacrificed, h.spirits_created
         ))]);
     }
-    if !sim.message.is_empty() {
-        lines.push(vec![colored(sim.message.clone(), INFO)]);
-    }
+    let message = if sim.message.is_empty() {
+        " ".to_string()
+    } else {
+        sim.message.clone()
+    };
+    lines.push(vec![colored(message, INFO)]);
     lines
 }
 
@@ -988,6 +995,23 @@ fn site_lines(w: &World, i: usize) -> Vec<Line> {
 
 fn bottleneck_lines(w: &World) -> Vec<Line> {
     let r = w.gathering_report();
+    if r.gatherer_count == 0 {
+        return vec![
+            vec![big(r.bottleneck.label(), MUTED)],
+            vec![text(r.summary.clone())],
+        ];
+    }
+    // Shares from the first few seconds (one walk, one chop) aren't meaningful.
+    let measured_secs =
+        r.gatherers.total() / (r.gatherer_count as u64 * w.defs.ticks_per_second as u64).max(1);
+    if measured_secs < MIN_MEASURE_SECS {
+        return vec![
+            vec![big("Still measuring", MUTED)],
+            vec![muted(format!(
+                "The limit is named after {MIN_MEASURE_SECS}s of work ({measured_secs}s so far)."
+            ))],
+        ];
+    }
     let color = match r.bottleneck {
         Bottleneck::DemandMet => GOOD,
         Bottleneck::GatheringSpeed => INFO,

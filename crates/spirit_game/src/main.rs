@@ -12,6 +12,7 @@ mod camera;
 mod capture;
 mod cards;
 mod characters;
+mod script;
 mod sim_runner;
 mod status;
 mod ui;
@@ -81,9 +82,13 @@ fn main() {
         characters::CharactersPlugin,
         camera::CameraPlugin,
         ui::UiPlugin,
+        script::ScriptPlugin,
     ))
     .add_systems(Update, capture::capture_system);
-    if let Some(plan) = capture::CapturePlan::from_args(&args) {
+    // A script takes its own screenshots, so `--capture` is just its folder then.
+    if let Some(script) = script::Script::from_args(&args) {
+        app.insert_resource(script);
+    } else if let Some(plan) = capture::CapturePlan::from_args(&args) {
         app.insert_resource(plan);
     }
     app.run();

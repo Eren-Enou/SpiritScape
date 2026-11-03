@@ -91,7 +91,7 @@ that adds XP to a spirit.
 - **Camera and layout.** The camera follows the player or shows a fixed overview; it can zoom but not rotate or pan freely. The UI panels are tuned for the default 1600x920 window (press `H` to hide them).
 - **3D presentation limits.** Characters walk through each other and through the bridge rails, and labels can overlap when characters stand together. The ground is one model per tile (about 1,350 tiles), which is fine at this map size but would need batching for much larger maps.
 - **Input was playtested by hand in the 3D version.** WASD, `E`, clicking, zoom and the camera distance felt right. Spam-clicking used to snap the player back to the start of its current step; clicks now finish the step under way and ignore a repeat of the current order.
-- **v0.3 panels weren't clicked by hand.** The Gathering tab, banner, site labels and tiers were checked in screenshots, but the new buttons haven't been clicked in the running game.
+- **UI input is tested with scripted, not physical, input.** `--script` sends the same input messages the window backend sends, so picking, buttons, the wheel and keys run through the real code paths. It skips the OS and winit layer, and its coordinates assume the default 1600x920 layout.
 - **Field Storage capacity.** If the hauler falls behind and the Field Storage fills up (40 logs), gatherers fall back to Main Storage. This isn't tuned.
 - **Planner thresholds are tuned for this map.** They are configurable in `[planner]`.
 

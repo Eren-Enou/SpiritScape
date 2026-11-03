@@ -62,6 +62,8 @@ impl Sim {
         if self.world.spirits.len() == spirits {
             return;
         }
+        // The chosen amount is spent; start the next one from the minimum.
+        self.soul_amount = self.world.defs.soul_min_xp;
         let w = &self.world;
         let s = &w.spirits[spirits];
         let skill_name = &w.defs.skill(skill).name;

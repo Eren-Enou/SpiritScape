@@ -4,6 +4,7 @@
 
 use crate::camera::HoveredTile;
 use crate::cards::{BAD, GOOD, INFO, MUTED, WARN};
+use crate::script::Cursor;
 use crate::sim_runner::Sim;
 use crate::status::spirit_status;
 use crate::visuals::{Visuals, model, tile_hash};
@@ -689,7 +690,7 @@ fn update_labels(
 fn update_hover_tip(
     sim: Res<Sim>,
     hovered: Res<HoveredTile>,
-    windows: Query<&Window>,
+    cursor: Res<Cursor>,
     mut tip: Query<(&mut Text, &mut TextColor, &mut Node, &mut Visibility), With<HoverTip>>,
 ) {
     let Ok((mut text, mut color, mut node, mut vis)) = tip.single_mut() else {
@@ -743,8 +744,7 @@ fn update_hover_tip(
             Color::WHITE,
         ))
     });
-    let cursor = windows.single().ok().and_then(|w| w.cursor_position());
-    match (described, cursor) {
+    match (described, cursor.0) {
         (Some((content, c)), Some(cursor)) => {
             if text.0 != content {
                 text.0 = content;

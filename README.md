@@ -44,6 +44,11 @@ Options:
 - `--gathering` opens the Gathering tab at start.
 - `--separate XP` performs a Soul Separation at start.
 - `--capture DIR --at 20,160` saves screenshots at those simulation seconds, then exits.
+- `--script FILE` plays scripted mouse moves, clicks, wheel scrolls and key presses (timed in real seconds) and saves screenshots into the `--capture` folder. Your real mouse isn't moved. `scripts/ui_smoke.txt` walks through hover, tabs, zoom, the log filter, Soul Separation and clicking a tree; the file's header explains the format:
+
+  ```bash
+  cargo run -p spirit_game -- --scenario regrind --script scripts/ui_smoke.txt --capture target/ui_smoke
+  ```
 
 The last three are development aids.
 
