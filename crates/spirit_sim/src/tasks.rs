@@ -12,7 +12,7 @@ use crate::entities::{
 use crate::grid::{Grid, TilePos};
 use crate::world::Ledger;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Goal {
     Exact(TilePos),
     Adjacent(TilePos),
@@ -27,7 +27,7 @@ impl Goal {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Task {
     Move {
         goal: Goal,
@@ -37,6 +37,10 @@ pub enum Task {
         tree: TreeId,
     },
     Deposit {
+        building: BuildingId,
+    },
+    /// Like `Deposit`, but sets what's left here aside for the player.
+    DepositForPlayer {
         building: BuildingId,
     },
     Withdraw {
@@ -63,6 +67,9 @@ impl Task {
             Task::Move { label, .. } => format!("Walk to {label}"),
             Task::Chop { tree } => format!("Chop tree #{tree}"),
             Task::Deposit { building } => format!("Deposit at building #{building}"),
+            Task::DepositForPlayer { building } => {
+                format!("Set materials aside at building #{building}")
+            }
             Task::Withdraw {
                 building, amount, ..
             } => format!("Collect {amount} from building #{building}"),
@@ -127,6 +134,8 @@ pub struct TaskCtx<'a> {
     pub ledger: &'a mut Ledger,
     pub tick: u64,
     pub events: &'a mut Vec<SimEvent>,
+    /// The player's finished goods stay at the station for a hauler.
+    pub player_output_at_station: bool,
 }
 
 /// How many more units spirits should harvest and craft this tick, so they
@@ -156,7 +165,8 @@ pub fn step(
         Task::Chop { tree } => {
             step_chop(actor, who, level, tree, budgets.map(|b| &mut b.gather), ctx)
         }
-        Task::Deposit { building } => step_deposit(actor, who, building, ctx),
+        Task::Deposit { building } => step_deposit(actor, who, building, false, ctx),
+        Task::DepositForPlayer { building } => step_deposit(actor, who, building, true, ctx),
         Task::Withdraw {
             building,
             resource,
@@ -274,9 +284,11 @@ fn step_chop(
 }
 
 /// One tick at a station. Inputs come from the actor's inventory first, then
-/// from the station's unreserved stock, and are taken only when a batch
-/// finishes, so an interrupted batch costs nothing. Spirits leave the result
-/// in the station for collection; the player keeps it in their bag.
+/// from the station's stock, and are taken only when a batch finishes, so an
+/// interrupted batch costs nothing. Materials reserved at a station are set
+/// aside for the player: spirits can't use them. Spirits leave the result in
+/// the station for collection; the player keeps it in their bag unless
+/// training support is collecting it.
 fn step_craft(
     actor: &mut Actor,
     who: Who,
@@ -300,7 +312,15 @@ fn step_craft(
             first.level_required, first.name
         ));
     }
-    let have = |r| actor.inventory.get(r) + station.storage.available(r);
+    let is_player = who == Who::Player;
+    let have = |r| {
+        let stock = if is_player {
+            station.storage.get(r)
+        } else {
+            station.storage.available(r)
+        };
+        actor.inventory.get(r) + stock
+    };
     let Some(recipe_id) = ctx.defs.best_recipe(station.kind, level, have) else {
         actor.action_ticks = 0;
         return StepResult::Done; // Out of materials.
@@ -322,7 +342,7 @@ fn step_craft(
             .map(|&(r, n)| actor.inventory.get(r).min(n))
             .sum::<u32>()
         >= out_n;
-    let to_bag = who == Who::Player && bag_room;
+    let to_bag = is_player && bag_room && !(ctx.player_output_at_station && station_room);
     if !to_bag && !station_room {
         actor.action_ticks = 0;
         return StepResult::Done;
@@ -334,8 +354,15 @@ fn step_craft(
     actor.action_ticks = 0;
     for &(r, n) in &recipe.inputs {
         let from_bag = actor.inventory.remove(r, n);
-        let from_station = station.storage.withdraw_available(r, n - from_bag);
-        debug_assert_eq!(from_bag + from_station, n);
+        let set_aside = if is_player {
+            station.storage.withdraw_reserved(r, n - from_bag)
+        } else {
+            0
+        };
+        let from_station = station
+            .storage
+            .withdraw_available(r, n - from_bag - set_aside);
+        debug_assert_eq!(from_bag + set_aside + from_station, n);
         *ctx.ledger.processed.entry(r).or_default() += n as u64;
     }
     let stored = if to_bag {
@@ -360,6 +387,7 @@ fn step_deposit(
     actor: &mut Actor,
     who: Who,
     building_id: BuildingId,
+    set_aside: bool,
     ctx: &mut TaskCtx,
 ) -> StepResult {
     let b = &mut ctx.buildings[building_id];
@@ -377,6 +405,10 @@ fn step_deposit(
         let stored = b.storage.deposit(r, n);
         actor.inventory.remove(r, stored);
         amount += stored;
+        if set_aside {
+            let reserved = b.storage.try_reserve(r, stored);
+            debug_assert!(reserved, "just stored");
+        }
     }
     if amount == 0 && actor.inventory.total() > 0 {
         return StepResult::Failed(format!("{} is full", b.name));

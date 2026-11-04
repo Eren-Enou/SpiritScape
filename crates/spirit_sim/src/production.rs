@@ -14,7 +14,7 @@ use crate::world::World;
 
 /// A standing instruction: keep `target` units of `output` in Main Storage
 /// without taking raw materials below `input_reserve`.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ProductionOrder {
     pub output: ResourceId,
     pub target: u32,
@@ -257,7 +257,8 @@ impl World {
         let waiting = self.output_waiting();
         let crafting = self
             .crafters()
-            .any(|s| matches!(s.actor.queue.front(), Some(Task::Craft { .. })));
+            .any(|s| matches!(s.actor.queue.front(), Some(Task::Craft { .. })))
+            || matches!(self.player.actor.queue.front(), Some(Task::Craft { .. }));
         waiting >= load.max(1) || (waiting > 0 && !crafting)
     }
 

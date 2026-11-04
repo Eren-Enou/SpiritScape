@@ -10,7 +10,7 @@ use crate::world::World;
 use std::collections::VecDeque;
 
 /// Why a worker is not working right now.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum WaitKind {
     /// No grown tree it may cut is free: waiting for trees to recover.
     Recovery,
@@ -22,7 +22,7 @@ pub enum WaitKind {
 }
 
 /// Ticks spent in each kind of activity.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct TimeUse {
     pub gathering: u64,
     pub traveling: u64,
@@ -94,7 +94,7 @@ pub(crate) const SNAPSHOT_TICKS: u64 = 100;
 
 /// A cumulative counter with periodic snapshots, so the last `window` ticks
 /// can be read without storing every tick.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct TimeLog {
     pub total: TimeUse,
     snapshots: VecDeque<(u64, TimeUse)>,
@@ -122,7 +122,7 @@ impl TimeLog {
 }
 
 /// Harvest record for one site.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct SiteStats {
     pub harvested_total: u64,
     /// Tick of each unit harvested within the measurement window.

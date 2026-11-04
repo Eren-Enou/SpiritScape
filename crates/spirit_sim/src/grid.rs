@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, VecDeque};
 
 pub const BUILTIN_MAP: &str = include_str!("../../../data/maps/forest.txt");
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
 pub struct TilePos {
     pub x: i32,
     pub y: i32,
@@ -40,7 +40,7 @@ impl std::fmt::Display for TilePos {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Terrain {
     Grass,
     Water,
@@ -137,7 +137,7 @@ impl DistanceField {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Grid {
     pub width: i32,
     pub height: i32,

@@ -13,10 +13,11 @@ log_reserve = 10
 player_xp = {}
 main_storage = {}
 # Hauling and Construction skills do not exist yet, so the settlement starts
-# with founding spirits for those roles.
+# with founding spirits for those roles. Given by level, because this scenario
+# is played under both progression profiles.
 spirits = [
-    { role = "hauler", xp = 388, spawn = "H" },
-    { role = "builder", xp = 388, spawn = "B" },
+    { role = "hauler", level = 5, spawn = "H" },
+    { role = "builder", level = 5, spawn = "B" },
 ]
 
 [demo]

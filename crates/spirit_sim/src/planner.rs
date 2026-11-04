@@ -20,7 +20,7 @@ use crate::inventory::Storage;
 use crate::world::World;
 use std::collections::{BTreeMap, VecDeque};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct DeliverySample {
     pub tick: u64,
     pub spirit: SpiritId,
@@ -32,14 +32,14 @@ pub struct DeliverySample {
     pub amount: u32,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ProblemReport {
     pub samples: usize,
     pub avg_leg_tiles: u32,
     pub travel_share_pct: u32,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct PlannerState {
     pub samples: VecDeque<DeliverySample>,
     pub problem: Option<ProblemReport>,
@@ -392,9 +392,19 @@ impl World {
         if self.active_project().is_some() {
             return Err("Finish the current construction project first".into());
         }
-        let site = self
-            .site_near_main()
-            .ok_or_else(|| "No room near Main Storage".to_string())?;
+        let site = if def.training_cache {
+            let area = self
+                .settlement
+                .training
+                .area
+                .ok_or_else(|| "Choose a training area first".to_string())?;
+            let (x, y) = self.defs.site(area).center();
+            self.site_near(TilePos::new(x as i32, y as i32), 0)
+                .ok_or_else(|| "No room in the training area".to_string())?
+        } else {
+            self.site_near(self.main().pos, 2)
+                .ok_or_else(|| "No room near Main Storage".to_string())?
+        };
         let cost: BTreeMap<_, _> = def.cost.iter().copied().collect();
         let msg = format!(
             "Ordered a {name} at {site} (cost {})",
@@ -406,10 +416,9 @@ impl World {
         Ok(msg)
     }
 
-    /// The closest free tile that isn't right next to Main Storage (workers
-    /// need to reach it) and doesn't cut anything off.
-    fn site_near_main(&self) -> Option<TilePos> {
-        let main = self.main().pos;
+    /// The closest free tile to `center`, at least `min_distance` from it
+    /// (workers need to reach what's there), that doesn't cut anything off.
+    fn site_near(&self, center: TilePos, min_distance: i32) -> Option<TilePos> {
         let r = self.defs.planner.site_search_radius;
         let mut blocked: Vec<TilePos> = vec![self.player.actor.pos()];
         blocked.extend(self.player.actor.mover.path.iter().copied());
@@ -418,11 +427,11 @@ impl World {
             blocked.extend(s.actor.mover.path.iter().copied());
         }
         let mut candidates = Vec::new();
-        for y in main.y - r..=main.y + r {
-            for x in main.x - r..=main.x + r {
+        for y in center.y - r..=center.y + r {
+            for x in center.x - r..=center.x + r {
                 let p = TilePos::new(x, y);
-                let distance = (x - main.x).abs() + (y - main.y).abs();
-                if distance >= 2
+                let distance = (x - center.x).abs() + (y - center.y).abs();
+                if distance >= min_distance
                     && self.grid.is_buildable(p)
                     && !blocked.contains(&p)
                     && self.grid.walkable_neighbors(p).count() >= 3
@@ -448,7 +457,7 @@ impl World {
             pos: site,
             name: def.name.clone(),
             state: BuildingState::UnderConstruction { project: pid },
-            storage: Storage::new(def.capacity),
+            storage: Storage::new(def.storage_capacity()),
         });
         self.grid.set_occupied(site, true);
         self.projects.push(Project {
@@ -571,11 +580,27 @@ impl World {
         if bonus > 0 {
             msg += &format!(" Main Storage now holds {} (+{bonus}).", storage.capacity);
         }
+        let notice = if bonus > 0 {
+            Some(format!(
+                "{} complete. Settlement storage capacity increased to {}.",
+                def.name, storage.capacity
+            ))
+        } else if def.training_cache {
+            Some(format!(
+                "{} complete. Drop your logs here and a Hauling Spirit will collect them.",
+                def.name
+            ))
+        } else {
+            None
+        };
         let gatherers_use_it = def.accepts_gatherer_deposits;
         if gatherers_use_it {
             msg += " Gatherers can now deliver here; haulers carry its stock to Main Storage.";
         }
         self.events.push(self.tick, EventKind::Construction, msg);
+        if let Some(text) = notice {
+            self.notices.push(self.tick, text);
+        }
         if !gatherers_use_it {
             return;
         }
