@@ -1,0 +1,12 @@
+# UI test of a damaged save: it must be reported, and a new game must still work.
+#   mkdir target/ui_saves3 && echo junk > target/ui_saves3/world.save
+#   cargo run --release -- --save-dir target/ui_saves3 --script scripts/ui_damaged_save.txt --capture target/ui_damaged
+1.5 expect A save exists but can't be read
+1.7 press Continue
+2.3 expect The save is damaged
+2.4 shot 01_damaged
+2.6 press New Game
+3.0 expect A new game replaces your saved game
+3.1 press Yes, start over
+3.8 expect Reach Woodcutting level 3
+3.9 exit

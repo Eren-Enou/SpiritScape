@@ -27,8 +27,7 @@ impl World {
                 .defs
                 .tree_tiers(skill)
                 .into_iter()
-                .filter(|k| self.defs.tree(*k).level_required <= level)
-                .next_back();
+                .rfind(|k| self.defs.tree(*k).level_required <= level);
             return match best {
                 Some(k) => {
                     let def = self.defs.tree(k);
@@ -46,8 +45,7 @@ impl World {
                 .defs
                 .recipe_tiers(skill)
                 .into_iter()
-                .filter(|r| self.defs.recipe(*r).level_required <= level)
-                .next_back();
+                .rfind(|r| self.defs.recipe(*r).level_required <= level);
             return match best {
                 Some(r) => {
                     let def = self.defs.recipe(r);

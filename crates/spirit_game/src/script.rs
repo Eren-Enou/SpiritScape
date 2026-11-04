@@ -12,6 +12,7 @@
 //!     2.5 key G             # press and release a key (letter, digit, Space, F5)
 //!     3.0 shot gathering    # save <capture dir>/<name>.png
 //!     4.0 press Separate Soul   # click the visible button with this label
+//!     4.2 press Confirm*        # ...or whose label starts like this
 //!     4.5 tile 5 14         # click a map tile
 //!     5.0 expect Lv 4 -> Lv 3   # fail the run unless this text is on screen
 //!     9.0 exit
@@ -138,11 +139,14 @@ fn key(name: &str) -> Option<(KeyCode, Key)> {
     let code = match name {
         "Space" => return Some((KeyCode::Space, Key::Space)),
         "F5" => return Some((KeyCode::F5, Key::F5)),
+        "F9" => return Some((KeyCode::F9, Key::F9)),
         "G" => KeyCode::KeyG,
         "H" => KeyCode::KeyH,
         "C" => KeyCode::KeyC,
         "E" => KeyCode::KeyE,
         "P" => KeyCode::KeyP,
+        "J" => KeyCode::KeyJ,
+        "T" => KeyCode::KeyT,
         "1" => KeyCode::Digit1,
         "2" => KeyCode::Digit2,
         "3" => KeyCode::Digit3,
@@ -242,7 +246,11 @@ fn run_script(
     let action = match action {
         Action::Press(label) => {
             let found = texts.iter().find_map(|(text, parent, visible)| {
-                if text.0 != label || !visible.get() {
+                let matches = match label.strip_suffix('*') {
+                    Some(prefix) => text.0.starts_with(prefix),
+                    None => text.0 == label,
+                };
+                if !matches || !visible.get() {
                     return None;
                 }
                 let (node, transform) = button_nodes.get(parent?.parent()).ok()?;

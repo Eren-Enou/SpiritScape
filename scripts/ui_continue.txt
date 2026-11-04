@@ -1,0 +1,15 @@
+# UI test of closing and coming back. Run after scripts/ui_journey.txt with the
+# same save folder: the spirit made there must still be here, and working.
+#   cargo run --release -- --save-dir target/ui_saves --script scripts/ui_continue.txt --capture target/ui_continue
+1.5 expect Saved game
+1.6 expect Continue
+1.7 shot 01_menu
+1.8 press Continue
+2.6 expect Game loaded
+2.7 expect Woodcutting Spirit Lv
+2.8 expect Train Woodworking
+2.9 shot 02_continued
+3.0 press 8x
+7.0 shot 03_running
+7.1 expect Best ever Lv
+7.2 exit

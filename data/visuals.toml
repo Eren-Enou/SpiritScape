@@ -91,6 +91,16 @@ parts = [
     { model = "models/town/roof-point.glb", y = 1.0 },
 ]
 
+# A fenced drop-off pen in the player's training area.
+[buildings.training_cache]
+stockpile = "models/nature/log_stack.glb"
+site = [{ model = "models/town/planks.glb" }]
+parts = [
+    { model = "models/town/fence.glb", rot = 0 },
+    { model = "models/town/fence.glb", rot = 90 },
+    { model = "models/town/fence.glb", rot = 180 },
+]
+
 [buildings.storehouse]
 stockpile = "models/nature/log_stack.glb"
 site = [{ model = "models/town/planks.glb" }]

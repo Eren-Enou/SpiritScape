@@ -393,7 +393,11 @@ impl SaveStore {
     /// The per-user data folder: `SPIRITSCAPE_SAVE_DIR` if set, otherwise the
     /// platform's application data location.
     pub fn default_dir() -> PathBuf {
-        let env = |k: &str| std::env::var_os(k).filter(|v| !v.is_empty()).map(PathBuf::from);
+        let env = |k: &str| {
+            std::env::var_os(k)
+                .filter(|v| !v.is_empty())
+                .map(PathBuf::from)
+        };
         if let Some(dir) = env("SPIRITSCAPE_SAVE_DIR") {
             return dir;
         }
@@ -404,7 +408,8 @@ impl SaveStore {
         } else {
             env("XDG_DATA_HOME").or_else(|| env("HOME").map(|h| h.join(".local/share")))
         };
-        base.unwrap_or_else(|| PathBuf::from(".")).join("SpiritScape")
+        base.unwrap_or_else(|| PathBuf::from("."))
+            .join("SpiritScape")
     }
 
     pub fn dir(&self) -> &Path {
@@ -462,9 +467,9 @@ impl SaveStore {
 
     /// Whether anything at all is stored, readable or not.
     pub fn any_files(&self) -> bool {
-        [Slot::Manual, Slot::Auto].into_iter().any(|s| {
-            self.path(s).exists() || self.backup(s).exists()
-        })
+        [Slot::Manual, Slot::Auto]
+            .into_iter()
+            .any(|s| self.path(s).exists() || self.backup(s).exists())
     }
 
     /// Loads a slot, falling back to its backup if the file is damaged.

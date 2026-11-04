@@ -22,7 +22,9 @@ pub enum WaitKind {
 }
 
 /// Ticks spent in each kind of activity.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub struct TimeUse {
     pub gathering: u64,
     pub traveling: u64,

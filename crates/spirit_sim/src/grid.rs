@@ -4,7 +4,19 @@ use std::collections::{BTreeMap, VecDeque};
 
 pub const BUILTIN_MAP: &str = include_str!("../../../data/maps/forest.txt");
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+)]
 pub struct TilePos {
     pub x: i32,
     pub y: i32,

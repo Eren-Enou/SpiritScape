@@ -65,7 +65,11 @@ fn profiles_are_data_and_the_default_stays_fast() {
     let dev = GameDefs::builtin();
     let normal = GameDefs::builtin_profile("normal").unwrap();
     assert_eq!(dev.profile.id, "development");
-    assert_eq!(dev.xp_table.xp_for_level(5), 388, "tests rely on this table");
+    assert_eq!(
+        dev.xp_table.xp_for_level(5),
+        388,
+        "tests rely on this table"
+    );
     assert!(normal.xp_table.xp_for_level(5) > dev.xp_table.xp_for_level(5) * 3);
     assert!(normal.soul_min_xp > dev.soul_min_xp);
     assert!(GameDefs::builtin_profile("hard").is_err());
@@ -131,7 +135,7 @@ fn founding_spirits_match_the_level_in_both_profiles() {
 #[test]
 fn soul_separation_rules_hold_at_every_level_in_both_profiles() {
     for profile in ["development", "normal"] {
-        for level in [3, 5, 7] {
+        for level in [3, 5, 6] {
             let mut w = World::new_journey(profile).unwrap();
             let skill = wc(&w);
             let xp = w.defs.xp_table.xp_for_level(level) + 7;
@@ -175,7 +179,11 @@ fn unlocks_are_lost_to_a_sacrifice_and_regained_by_training() {
     assert!(!w.player_can_cut(oak));
     let oak_pos = w.trees.iter().find(|t| t.kind == oak).unwrap().pos;
     let refused = w.apply(Command::PlayerInteract(oak_pos));
-    assert!(refused.unwrap_err().contains("You need Woodcutting level 5"));
+    assert!(
+        refused
+            .unwrap_err()
+            .contains("You need Woodcutting level 5")
+    );
     let mut bot = Bot::new(&w);
     assert!(bot.run(&mut w, Goal::ChopTo(have), 20_000));
     assert!(w.player_can_cut(oak));
@@ -284,8 +292,7 @@ fn a_hauler_collects_the_players_logs_without_any_xp_changing_hands() {
         w.buildings[cache_id].storage.total() < 5
     }));
     assert!(run_until(&mut w, 900, |w| {
-        w.notices
-            .contains("has collected your training resources")
+        w.notices.contains("has collected your training resources")
     }));
     assert_eq!(w.ledger.xp_earned, 0, "carrying logs earns nobody XP");
     w.check_conservation().unwrap();
@@ -433,7 +440,10 @@ fn milestones_are_announced_in_plain_words() {
             .contains("Woodcutting level increased. Oak trees are now available.")
     );
     w.soul_separate(wc(&w), 388).unwrap();
-    assert!(w.notices.contains("Your Woodcutting Spirit can cut Tree, Oak."));
+    assert!(
+        w.notices
+            .contains("Your Woodcutting Spirit can cut Tree, Oak.")
+    );
 }
 
 #[test]

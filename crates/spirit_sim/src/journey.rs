@@ -109,7 +109,8 @@ impl World {
             .map(|i| SkillId(i as u16))
             .any(|s| {
                 let h = self.player.history(s);
-                h.spirits_created > 0 && self.player.level(s, &self.defs.xp_table) >= h.highest_level
+                h.spirits_created > 0
+                    && self.player.level(s, &self.defs.xp_table) >= h.highest_level
             })
     }
 
@@ -119,8 +120,10 @@ impl World {
         let wc = self.skill_named("woodcutting");
         let ww = self.skill_named("woodworking");
         match phase {
-            Phase::Beginnings => self.level_of(wc) >= self.defs.journey.first_spirit_level
-                || self.spirits_from(wc) > 0,
+            Phase::Beginnings => {
+                self.level_of(wc) >= self.defs.journey.first_spirit_level
+                    || self.spirits_from(wc) > 0
+            }
             Phase::FirstSpirit => self.spirits_from(wc) > 0,
             Phase::FirstCraft => {
                 self.level_of(ww) >= self.defs.journey.woodworking_level
@@ -162,7 +165,8 @@ impl World {
                     .unwrap_or(u32::MAX)
             })
         };
-        let highest = |skill: Option<SkillId>| skill.map_or(1, |s| self.player.history(s).highest_level);
+        let highest =
+            |skill: Option<SkillId>| skill.map_or(1, |s| self.player.history(s).highest_level);
         match m {
             Milestone::FirstLevel => highest(wc) >= 2 || highest(ww) >= 2,
             Milestone::FirstUnlock => highest(wc) >= first_tier(wc),

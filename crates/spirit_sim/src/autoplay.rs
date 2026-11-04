@@ -105,11 +105,9 @@ impl Bot {
         let bench = w.bench_stock();
         if logs >= 2 || bench >= 2 {
             self.click(w, Command::PlayerInteract(station));
-        } else if bag.total() > 0 {
-            let main = w.main().pos;
-            self.storage_trips += 1;
-            self.click(w, Command::PlayerInteract(main));
-        } else if w.main().storage.available(self.logs) >= 2 && !w.settlement.training.supply {
+        } else if bag.total() > 0
+            || (w.main().storage.available(self.logs) >= 2 && !w.settlement.training.supply)
+        {
             let main = w.main().pos;
             self.storage_trips += 1;
             self.click(w, Command::PlayerInteract(main));

@@ -4,9 +4,15 @@
 //! This crate only paces it in real time, draws it as a 3D world (2.5D view),
 //! and turns input into commands.
 //!
-//!     cargo run              # new game
-//!     cargo run -- --demo    # development demonstration scenario
-//!     cargo run -- --speed 4 # start at 4x
+//!     cargo run                 # title menu: Continue or New Game
+//!     cargo run -- --continue   # straight into the most recent save
+//!     cargo run -- --new-game   # straight into a new game
+//!     cargo run -- --demo       # development demonstration scenario
+//!     cargo run -- --speed 4    # start at 4x
+//!
+//! `--profile ID` picks the progression profile of a new game (`normal`, or
+//! `development` for fast rates), `--save-dir DIR` where saves are kept and
+//! `--autosave SECONDS` how often the game autosaves (0 for never).
 
 mod camera;
 mod capture;
@@ -22,6 +28,7 @@ mod world_view;
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
 use spirit_sim::ScenarioKind;
+use spirit_sim::save::SaveStore;
 
 fn main() -> AppExit {
     let args: Vec<String> = std::env::args().collect();
@@ -30,18 +37,36 @@ fn main() -> AppExit {
             .position(|a| a == flag)
             .and_then(|i| args.get(i + 1).cloned())
     };
-    let scenario = if args.iter().any(|a| a == "--demo") {
-        ScenarioKind::Demo
-    } else if let Some(key) = value("--scenario") {
-        ScenarioKind::from_key(&key).unwrap_or_else(|| {
-            let keys: Vec<_> = ScenarioKind::ALL.iter().map(|k| k.key()).collect();
-            panic!("unknown scenario {key:?}; expected one of {keys:?}")
-        })
+    let flag = |name: &str| args.iter().any(|a| a == name);
+    let profile = value("--profile").unwrap_or_else(|| "normal".into());
+    let scenario = if flag("--demo") {
+        Some(ScenarioKind::Demo)
     } else {
-        ScenarioKind::NewGame
+        value("--scenario").map(|key| {
+            ScenarioKind::from_key(&key).unwrap_or_else(|| {
+                let keys: Vec<_> = ScenarioKind::ALL.iter().map(|k| k.key()).collect();
+                panic!("unknown scenario {key:?}; expected one of {keys:?}")
+            })
+        })
     };
 
-    let mut sim = sim_runner::Sim::new(scenario);
+    let mut sim = match scenario {
+        Some(kind) => sim_runner::Sim::new(kind),
+        None if flag("--new-game") => sim_runner::Sim::journey(&profile).expect("known profile"),
+        None => sim_runner::Sim::title_screen(&profile).expect("known profile"),
+    };
+    if let Some(dir) = value("--save-dir") {
+        sim.store = SaveStore::new(dir);
+    }
+    if let Some(seconds) = value("--autosave").and_then(|v| v.parse().ok()) {
+        sim.autosave_seconds = seconds;
+    }
+    if flag("--continue") {
+        sim.continue_game();
+    }
+    if !sim.started {
+        sim.open_menu();
+    }
     // Development aid: perform a Soul Separation of this many XP at start.
     if let Some(xp) = value("--separate").and_then(|v| v.parse().ok()) {
         let skill = sim.world.defs.skill_id("woodcutting").unwrap();
@@ -60,7 +85,7 @@ fn main() -> AppExit {
         DefaultPlugins
             .set(WindowPlugin {
                 primary_window: Some(Window {
-                    title: "SpiritScape - Spirit Automation PoC".into(),
+                    title: "SpiritScape".into(),
                     resolution: WindowResolution::from((1600u32, 920u32)),
                     ..default()
                 }),
