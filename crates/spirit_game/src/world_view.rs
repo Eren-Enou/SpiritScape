@@ -39,6 +39,9 @@ struct BuildingParts(usize);
 struct BuildingSite(usize);
 #[derive(Component)]
 struct Stockpile(usize);
+/// Finished goods stacked beside a building.
+#[derive(Component)]
+struct GoodsPile(usize);
 
 /// Leaf colour to apply to a tree model once its scene has spawned.
 #[derive(Component)]
@@ -91,6 +94,7 @@ impl Plugin for WorldViewPlugin {
                         sync_trees,
                         tint_crowns,
                         sync_buildings,
+                        sync_goods_piles,
                         update_site_banners,
                         update_labels,
                         update_hover_tip,
@@ -371,6 +375,16 @@ fn spawn_new_buildings(
             Transform::from_translation(at + Vec3::new(ox, 0.0, oz)),
             Visibility::Hidden,
         ));
+        if let Some(pile) = &bv.goods_pile {
+            let [ox, oz] = bv.goods_pile_offset;
+            commands.spawn((
+                WorldEntity,
+                GoodsPile(b.id),
+                model(&assets, pile),
+                Transform::from_translation(at + Vec3::new(ox, 0.0, oz)),
+                Visibility::Hidden,
+            ));
+        }
         spawn_label(&mut commands, WorldLabel::Building(b.id), 13.0);
     }
     spawned.buildings = w.buildings.len();
@@ -494,13 +508,29 @@ fn sync_buildings(
     for (sp, mut vis, mut tf) in &mut piles {
         let b = &w.buildings[sp.0];
         let amount = match b.state {
-            BuildingState::Complete => b.storage.total(),
+            BuildingState::Complete => b.storage.get(w.defs.objective.resource),
             BuildingState::UnderConstruction { project } => {
                 w.projects[project].delivered.values().sum()
             }
         };
         let fill = (amount as f32 / 40.0).min(1.0);
         tf.scale = Vec3::splat(0.6 + 0.7 * fill);
+        vis.set_if_neq(if amount > 0 {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        });
+    }
+}
+
+fn sync_goods_piles(
+    sim: Res<Sim>,
+    mut piles: Query<(&GoodsPile, &mut Visibility, &mut Transform)>,
+) {
+    let w = &sim.world;
+    for (pile, mut vis, mut tf) in &mut piles {
+        let amount = w.buildings[pile.0].storage.get(w.settlement.order.output);
+        tf.scale = Vec3::splat(0.4 + 0.4 * (amount as f32 / 30.0).min(1.0));
         vis.set_if_neq(if amount > 0 {
             Visibility::Inherited
         } else {
@@ -591,7 +621,6 @@ fn update_labels(
         return;
     };
     let w = &sim.world;
-    let logs = w.defs.objective.resource;
     // (priority, entity, top-left, size); lower priority is placed first and never moves.
     let mut placed: Vec<(u8, Entity, Vec2, Vec2)> = Vec::new();
     for (entity, label, text, color, _, computed, mut vis) in &mut labels {
@@ -614,8 +643,17 @@ fn update_labels(
             }
             WorldLabel::Building(id) => {
                 let b = &w.buildings[id];
+                let def = w.defs.building(b.kind);
                 let content = match b.state {
-                    BuildingState::Complete => format!("{}: {} logs", b.name, b.storage.get(logs)),
+                    BuildingState::Complete if def.capacity == 0 => b.name.clone(),
+                    BuildingState::Complete if b.storage.total() == 0 => {
+                        format!("{}: empty", b.name)
+                    }
+                    BuildingState::Complete => format!(
+                        "{}: {}",
+                        b.name,
+                        w.defs.describe_amounts(b.storage.contents())
+                    ),
                     BuildingState::UnderConstruction { project } => {
                         let p = &w.projects[project];
                         let cost: u32 = w.defs.building(p.kind).cost.iter().map(|c| c.1).sum();
@@ -738,9 +776,59 @@ fn update_hover_tip(
             });
         }
         let b = w.building_at(p)?;
-        let logs = w.defs.objective.resource;
+        let def = w.defs.building(b.kind);
+        let stored = w.defs.describe_amounts(b.storage.contents());
+        if !b.is_complete() {
+            return Some((format!("{}\nUnder construction", b.name), MUTED));
+        }
+        if def.is_station {
+            let level = w.player_station_level(b);
+            let recipes: Vec<String> = w
+                .defs
+                .station_recipes(b.kind)
+                .into_iter()
+                .map(|r| {
+                    let d = w.defs.recipe(r);
+                    let inputs: Vec<_> = d
+                        .inputs
+                        .iter()
+                        .map(|(res, n)| format!("{n} {}", w.defs.resource(*res).name))
+                        .collect();
+                    let lock = if level >= d.level_required {
+                        String::new()
+                    } else {
+                        format!(" - needs Lv {}", d.level_required)
+                    };
+                    format!(
+                        "{}: {} -> {} {}{lock}",
+                        d.name,
+                        inputs.join(", "),
+                        d.output.1,
+                        w.defs.resource(d.output.0).name
+                    )
+                })
+                .collect();
+            return Some((
+                format!(
+                    "{}\nHolds {stored}\n{}\n{}",
+                    b.name,
+                    w.workshop_status().label(),
+                    recipes.join("\n")
+                ),
+                Color::WHITE,
+            ));
+        }
+        if def.capacity == 0 {
+            let text = format!("{}\n+{} Main Storage capacity", b.name, def.capacity_bonus);
+            return Some((text, Color::WHITE));
+        }
         Some((
-            format!("{}\n{} logs stored", b.name, b.storage.get(logs)),
+            format!(
+                "{}\nHolds {stored} ({}/{})",
+                b.name,
+                b.storage.total(),
+                b.storage.capacity
+            ),
             Color::WHITE,
         ))
     });

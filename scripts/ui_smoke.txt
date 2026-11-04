@@ -1,23 +1,29 @@
-# UI smoke test for the Regrind scenario (1600x920 window, scale 1). Run:
+# UI smoke test for the Regrind scenario. Exits with an error on any failure:
 #   cargo run -p spirit_game -- --scenario regrind --script scripts/ui_smoke.txt --capture target/ui_smoke
-# then look through target/ui_smoke/*.png. Coordinates assume the default layout.
-2.0 move 838 200       # hover an Oak crown: tooltip says it's locked
-2.6 shot 01_hover_oak
-3.0 move 395 300       # hover the Main Storage roof
-3.6 shot 02_hover_storage
-4.0 click 1338 417     # Gathering tab
-4.6 shot 03_gathering_tab
-5.0 scroll 600 400 3   # wheel over the map zooms in
+# then look through target/ui_smoke/*.png.
+2.0 move 838 200        # hover an Oak crown: the tooltip says it's locked
+2.6 expect Locked: you are Lv 4
+2.7 shot 01_hover_oak
+3.0 move 395 300        # hover the Main Storage roof
+3.6 expect Holds 20 Logs
+3.7 shot 02_hover_storage
+4.0 press Gathering (G)
+4.6 expect No gatherers
+4.7 shot 03_gathering_tab
+5.0 scroll 600 400 3    # wheel over the map zooms in
 5.8 shot 04_map_zoomed
-6.0 key G              # back to Settlement
-6.5 click 328 708      # log: show all events
-7.0 shot 05_all_events
-7.5 click 1361 381     # Soul Separation: All
-8.0 shot 06_soul_preview
-8.5 click 1443 381     # Separate Soul
-9.2 shot 07_separated
-9.6 click 685 150      # click a tree crown: walk there and chop
-13.0 shot 08_chopping
+6.0 key G               # back to Settlement
+6.5 press Showing important events
+7.0 expect Showing all events
+7.5 press All           # Soul Separation
+8.0 expect Lv 4 -> Lv 1
+8.1 shot 06_soul_preview
+8.5 press Separate Soul
+9.2 expect awakens
+9.3 shot 07_separated
+9.6 tile 10 9           # click a tree: walk there and chop
+13.0 expect Woodcutting
+13.1 shot 08_chopping
 13.5 key H
 14.0 shot 09_ui_hidden
 14.4 key H

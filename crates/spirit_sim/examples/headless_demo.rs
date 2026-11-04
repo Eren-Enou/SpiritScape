@@ -4,7 +4,8 @@
 //!     cargo run -p spirit_sim --example headless_demo -- [seconds] [scenario]
 //!
 //! Scenarios: demo (default), new_game, regrind, grove_sustainable,
-//! grove_oversubscribed. Set QUIET=1 to print only the reports.
+//! grove_oversubscribed, workshop_manual, workshop_automated,
+//! workshop_construction. Set QUIET=1 to print only the reports.
 
 use spirit_sim::metrics::GatheringReport;
 use spirit_sim::{ScenarioKind, World};
@@ -17,7 +18,6 @@ fn main() {
     let quiet = std::env::var("QUIET").is_ok();
     let mut world = World::from_scenario(kind);
     let tps = world.defs.ticks_per_second as u64;
-    let logs = world.defs.resource_id("logs").unwrap();
     let mut printed = 0;
     for _ in 0..seconds * tps {
         world.step();
@@ -37,11 +37,18 @@ fn main() {
         printed = world.events.iter().count();
         if world.tick.is_multiple_of(tps * 60) {
             print_report(&world, &world.gathering_report());
+            print_production(&world);
         }
     }
     println!("\n--- after {seconds}s ---");
     for b in &world.buildings {
-        println!("{} at {}: {} logs", b.name, b.pos, b.storage.get(logs));
+        println!(
+            "{} at {}: {} (capacity {})",
+            b.name,
+            b.pos,
+            world.defs.describe_amounts(b.storage.contents()),
+            b.storage.capacity
+        );
     }
     for s in &world.spirits {
         println!(
@@ -53,6 +60,27 @@ fn main() {
         );
     }
     println!("Planner: {}", world.settlement.planner.status);
+}
+
+fn print_production(world: &World) {
+    let r = world.production_report();
+    let t = &r.processing;
+    let h = &r.hauling;
+    println!(
+        "  production: {} | Main {} logs {}/{} planks | station {} logs {} planks | {:.1} planks/min | bench {}% wait {}% | haulers walk {}% wait {}%",
+        r.status.label(),
+        r.input_in_main,
+        r.output_in_main,
+        r.goal,
+        r.input_at_station,
+        r.output_at_station,
+        r.output_per_min,
+        t.pct_of_working(t.crafting),
+        t.pct_of_working(t.waiting_input),
+        h.pct_of_working(h.traveling),
+        h.pct_of_working(h.waiting_input),
+    );
+    println!("  {}: {}", r.bottleneck.label(), r.summary);
 }
 
 fn print_report(world: &World, r: &GatheringReport) {

@@ -1,6 +1,8 @@
 //! The simulation state and its fixed-step update.
 
-use crate::defs::{GameDefs, JobKind, ResourceId, RoleId, SiteId, SkillId, TreeKindId};
+use crate::defs::{
+    BuildingKindId, GameDefs, JobKind, RecipeId, ResourceId, RoleId, SiteId, SkillId, TreeKindId,
+};
 use crate::entities::{
     Activity, Actor, Building, BuildingId, Player, Project, Spirit, SpiritId, Tree, TreeState,
 };
@@ -8,7 +10,8 @@ use crate::events::{EventKind, EventLog};
 use crate::grid::{Grid, TilePos};
 use crate::metrics::{SNAPSHOT_TICKS, SiteStats, WaitKind};
 use crate::planner::PlannerState;
-use crate::tasks::{self, Goal, SimEvent, StepResult, Task, TaskCtx, Who};
+use crate::production::ProductionOrder;
+use crate::tasks::{self, Budgets, Goal, SimEvent, StepResult, Task, TaskCtx, Who};
 use std::collections::BTreeMap;
 use std::hash::{Hash, Hasher};
 
@@ -32,6 +35,12 @@ pub struct Ledger {
     pub harvested: BTreeMap<ResourceId, u64>,
     /// Resources permanently consumed by construction.
     pub consumed: BTreeMap<ResourceId, u64>,
+    /// Resources used up as recipe inputs.
+    pub processed: BTreeMap<ResourceId, u64>,
+    /// Resources created as recipe outputs.
+    pub crafted: BTreeMap<ResourceId, u64>,
+    /// Completed batches of each recipe.
+    pub batches: BTreeMap<RecipeId, u64>,
     /// XP the player earned through work.
     pub xp_earned: u64,
     /// XP the player transferred into spirits.
@@ -52,6 +61,7 @@ pub struct Settlement {
     /// Per site: may spirits gather there? Closing a site reserves it for
     /// the player's own training.
     pub site_open: Vec<bool>,
+    pub order: ProductionOrder,
 }
 
 /// What a Soul Separation would do, shown before the player confirms.
@@ -68,6 +78,10 @@ pub struct SoulPreview {
     pub lost: Vec<TreeKindId>,
     /// Tree types the new spirit will be able to cut.
     pub spirit_can_cut: Vec<TreeKindId>,
+    /// Recipes the player can make now but could not afterwards.
+    pub lost_recipes: Vec<RecipeId>,
+    /// Recipes the new spirit will be able to make.
+    pub spirit_recipes: Vec<RecipeId>,
     /// Why the ritual can't be performed, if it can't.
     pub error: Option<String>,
 }
@@ -95,6 +109,18 @@ pub enum Command {
         site: SiteId,
         open: bool,
     },
+    /// Stock of the production output to maintain in Main Storage.
+    SetProductionTarget(u32),
+    /// Raw materials production must leave in Main Storage.
+    SetInputReserve(u32),
+    SetProductionEnabled(bool),
+    /// Put a crafting spirit on or take it off the production order.
+    SetSpiritAssigned {
+        spirit: SpiritId,
+        assigned: bool,
+    },
+    /// Approve a building the planner won't start on its own.
+    RequestBuilding(BuildingKindId),
 }
 
 #[derive(Clone, Debug)]
@@ -113,6 +139,8 @@ pub struct World {
     pub main_storage: BuildingId,
     /// Harvest records per gathering site.
     pub site_stats: Vec<SiteStats>,
+    /// Record of finished production output.
+    pub output_stats: SiteStats,
 }
 
 impl World {
@@ -166,29 +194,44 @@ impl World {
         self.projects.iter().find(|p| p.is_active())
     }
 
-    /// Stock counted toward the objective: unreserved units in main storage
-    /// plus units already on their way there (in outposts or carried by
-    /// gathering/hauling spirits). Construction materials are excluded.
+    /// Stock counted toward a goal: unreserved units in main storage plus
+    /// units already on their way there (in outposts, finished at a station,
+    /// or carried by spirits). Construction materials and raw materials
+    /// committed to a station are excluded.
     pub fn projected_stock(&self, r: ResourceId) -> u32 {
         let main = self.main().storage.available(r);
-        let outposts: u32 = self
-            .buildings
-            .iter()
-            .filter(|b| b.id != self.main_storage && b.is_complete())
-            .map(|b| b.storage.get(r))
-            .sum();
+        let outposts: u32 = self.outposts().map(|b| b.storage.get(r)).sum();
+        let finished = if r == self.settlement.order.output {
+            self.station().map_or(0, |b| b.storage.get(r))
+        } else {
+            0
+        };
         let carried: u32 = self
             .spirits
             .iter()
-            .filter(|s| s.job != Some(JobKind::Construct))
+            .filter(|s| {
+                !matches!(
+                    s.job,
+                    Some(JobKind::Construct | JobKind::Supply | JobKind::Craft)
+                )
+            })
             .map(|s| s.actor.inventory.get(r))
             .sum();
-        main + outposts + carried
+        main + outposts + finished + carried
     }
 
     pub fn objective_unmet(&self) -> bool {
         let o = &self.settlement.objective;
-        self.projected_stock(o.resource) < o.target
+        self.projected_stock(o.resource) < self.gather_goal()
+    }
+
+    /// Completed storages other than Main Storage that gatherers may use.
+    pub(crate) fn outposts(&self) -> impl Iterator<Item = &Building> {
+        self.buildings.iter().filter(|b| {
+            b.id != self.main_storage
+                && b.is_complete()
+                && self.defs.building(b.kind).accepts_gatherer_deposits
+        })
     }
 
     /// Total units of `r` physically present anywhere (storages, inventories, sites).
@@ -208,16 +251,47 @@ impl World {
         storages + carried + sites
     }
 
-    /// Checks seeded + harvested == present + consumed for every resource.
+    /// Checks, for every resource, that everything created is accounted for:
+    /// seeded + harvested + crafted == present + consumed + processed.
+    /// Also checks that recipe totals match the batches actually completed.
     pub fn check_conservation(&self) -> Result<(), String> {
         for i in 0..self.defs.resources.len() {
             let r = ResourceId(i as u16);
             let get = |m: &BTreeMap<ResourceId, u64>| m.get(&r).copied().unwrap_or(0);
-            let created = get(&self.ledger.seeded) + get(&self.ledger.harvested);
-            let accounted = self.resource_in_world(r) + get(&self.ledger.consumed);
+            let created =
+                get(&self.ledger.seeded) + get(&self.ledger.harvested) + get(&self.ledger.crafted);
+            let accounted = self.resource_in_world(r)
+                + get(&self.ledger.consumed)
+                + get(&self.ledger.processed);
             if created != accounted {
                 return Err(format!(
-                    "{}: seeded+harvested={created} but present+consumed={accounted}",
+                    "{}: seeded+harvested+crafted={created} but present+consumed+processed={accounted}",
+                    self.defs.resource(r).name
+                ));
+            }
+            let batches = |amounts: &dyn Fn(RecipeId) -> u64| -> u64 {
+                self.ledger
+                    .batches
+                    .iter()
+                    .map(|(id, n)| amounts(*id) * n)
+                    .sum()
+            };
+            let used = batches(&|id| {
+                self.defs
+                    .recipe(id)
+                    .inputs
+                    .iter()
+                    .filter(|(res, _)| *res == r)
+                    .map(|(_, n)| *n as u64)
+                    .sum()
+            });
+            let made = batches(&|id| {
+                let (res, n) = self.defs.recipe(id).output;
+                if res == r { n as u64 } else { 0 }
+            });
+            if used != get(&self.ledger.processed) || made != get(&self.ledger.crafted) {
+                return Err(format!(
+                    "{}: recipe batches don't match the ledger",
                     self.defs.resource(r).name
                 ));
             }
@@ -233,7 +307,17 @@ impl World {
             (t.pos, t.logs_left(), t.claimed_by).hash(&mut h);
         }
         for b in &self.buildings {
-            (b.pos, b.is_complete(), b.storage.contents().clone()).hash(&mut h);
+            let reserved: Vec<u32> = (0..self.defs.resources.len())
+                .map(|i| b.storage.reserved(ResourceId(i as u16)))
+                .collect();
+            (
+                b.pos,
+                b.is_complete(),
+                b.storage.contents().clone(),
+                b.storage.capacity,
+                reserved,
+            )
+                .hash(&mut h);
         }
         let mut actor = |a: &Actor| {
             (
@@ -257,6 +341,8 @@ impl World {
         for p in &self.projects {
             (p.site, p.state as u8, p.build_progress).hash(&mut h);
         }
+        self.ledger.crafted.hash(&mut h);
+        self.ledger.batches.hash(&mut h);
         self.events.total.hash(&mut h);
         h.finish()
     }
@@ -308,6 +394,50 @@ impl World {
                 self.events.push(self.tick, EventKind::Player, msg.clone());
                 Ok(msg)
             }
+            Command::SetProductionTarget(target) => {
+                let order = &mut self.settlement.order;
+                order.target = target;
+                let msg = format!(
+                    "Production target: maintain {target} {} in Main Storage",
+                    self.defs.resource(order.output).name
+                );
+                self.events.push(self.tick, EventKind::Player, msg.clone());
+                Ok(msg)
+            }
+            Command::SetInputReserve(reserve) => {
+                self.settlement.order.input_reserve = reserve;
+                let msg = format!(
+                    "Log reserve: production leaves at least {reserve} {} in Main Storage",
+                    self.defs.resource(self.defs.objective.resource).name
+                );
+                self.events.push(self.tick, EventKind::Player, msg.clone());
+                Ok(msg)
+            }
+            Command::SetProductionEnabled(enabled) => {
+                self.settlement.order.enabled = enabled;
+                let msg = if enabled {
+                    "Production enabled"
+                } else {
+                    "Production disabled"
+                };
+                self.events.push(self.tick, EventKind::Player, msg);
+                Ok(msg.into())
+            }
+            Command::SetSpiritAssigned { spirit, assigned } => {
+                let Some(s) = self.spirits.get_mut(spirit) else {
+                    return Err("Unknown spirit".into());
+                };
+                s.assigned = assigned;
+                let output = &self.defs.resource(self.settlement.order.output).name;
+                let msg = if assigned {
+                    format!("{} assigned to make {output}", s.name)
+                } else {
+                    format!("{} taken off {output} production", s.name)
+                };
+                self.events.push(self.tick, EventKind::Player, msg.clone());
+                Ok(msg)
+            }
+            Command::RequestBuilding(kind) => self.request_building(kind),
         }
     }
 
@@ -378,16 +508,41 @@ impl World {
             if !b.is_complete() {
                 return Err(format!("{} is still under construction", b.name));
             }
-            (
-                vec![
-                    Task::Move {
-                        goal: Goal::Adjacent(p),
-                        label: b.name.clone(),
-                    },
-                    Task::Deposit { building: b.id },
-                ],
-                format!("Depositing at {}", b.name),
-            )
+            let def = self.defs.building(b.kind);
+            let walk = Task::Move {
+                goal: Goal::Adjacent(p),
+                label: b.name.clone(),
+            };
+            let logs = self.defs.objective.resource;
+            let bag = &self.player.actor.inventory;
+            if def.is_station {
+                let activity = self.player_station_activity(b)?;
+                (vec![walk, Task::Craft { building: b.id }], activity)
+            } else if def.capacity == 0 {
+                return Err(format!(
+                    "The {} adds {} to Main Storage's capacity",
+                    b.name, def.capacity_bonus
+                ));
+            } else if bag.total() == 0 && b.storage.available(logs) > 0 {
+                // Empty-handed at a storage: take logs instead of depositing.
+                let amount = bag.free().min(b.storage.available(logs));
+                let task = Task::Withdraw {
+                    building: b.id,
+                    resource: logs,
+                    amount,
+                    reserved: false,
+                };
+                let name = &self.defs.resource(logs).name;
+                (
+                    vec![walk, task],
+                    format!("Taking {amount} {name} from {}", b.name),
+                )
+            } else {
+                (
+                    vec![walk, Task::Deposit { building: b.id }],
+                    format!("Depositing at {}", b.name),
+                )
+            }
         } else if self.grid.is_walkable(p) {
             (
                 vec![Task::Move {
@@ -406,6 +561,43 @@ impl World {
         Ok(activity)
     }
 
+    /// What the player would make at a station, or why they can't.
+    fn player_station_activity(&self, b: &Building) -> Result<String, String> {
+        let recipes = self.defs.station_recipes(b.kind);
+        let first = recipes.first().map(|r| self.defs.recipe(*r));
+        let first = first.ok_or_else(|| format!("Nothing can be made at {}", b.name))?;
+        let level = self.player.level(first.skill, &self.defs.xp_table);
+        if level < first.level_required {
+            return Err(format!(
+                "You need {} level {} to make {} (you are level {level})",
+                self.defs.skill(first.skill).name,
+                first.level_required,
+                first.name
+            ));
+        }
+        let bag = &self.player.actor.inventory;
+        let have = |r| bag.get(r) + b.storage.available(r);
+        match self.defs.best_recipe(b.kind, level, have) {
+            Some(r) => Ok(format!("Making {} at {}", self.defs.recipe(r).name, b.name)),
+            None => {
+                let (r, n) = first.inputs[0];
+                Err(format!(
+                    "You need {n} {} to make {}: take some from Main Storage",
+                    self.defs.resource(r).name,
+                    first.name
+                ))
+            }
+        }
+    }
+
+    /// The player's level in the skill used at a station.
+    pub fn player_station_level(&self, b: &Building) -> u32 {
+        self.defs.station_recipes(b.kind).first().map_or(1, |r| {
+            self.player
+                .level(self.defs.recipe(*r).skill, &self.defs.xp_table)
+        })
+    }
+
     /// Predicts a Soul Separation of `xp` from `skill` without performing it.
     pub fn soul_preview(&self, skill: SkillId, xp: u64) -> SoulPreview {
         let table = &self.defs.xp_table;
@@ -416,6 +608,8 @@ impl World {
         let spirit_level = table.level_for_xp(xp);
         let tiers = self.defs.tree_tiers(skill);
         let required = |k: &TreeKindId| self.defs.tree(*k).level_required;
+        let recipes = self.defs.recipe_tiers(skill);
+        let recipe_level = |r: &RecipeId| self.defs.recipe(*r).level_required;
         let skill_name = &self.defs.skill(skill).name;
         let error = if self.defs.soul_role_for(skill).is_none() {
             Some(format!("{skill_name} cannot form a spirit yet"))
@@ -448,6 +642,16 @@ impl World {
                 .copied()
                 .filter(|k| spirit_level >= required(k))
                 .collect(),
+            lost_recipes: recipes
+                .iter()
+                .copied()
+                .filter(|r| current_level >= recipe_level(r) && after_level < recipe_level(r))
+                .collect(),
+            spirit_recipes: recipes
+                .iter()
+                .copied()
+                .filter(|r| spirit_level >= recipe_level(r))
+                .collect(),
             error,
         }
     }
@@ -456,6 +660,13 @@ impl World {
         kinds
             .iter()
             .map(|k| self.defs.tree(*k).name.clone())
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
+    pub(crate) fn recipe_names(&self, ids: &[RecipeId]) -> String {
+        ids.iter()
+            .map(|r| self.defs.recipe(*r).name.clone())
             .collect::<Vec<_>>()
             .join(", ")
     }
@@ -493,11 +704,23 @@ impl World {
         if !preview.spirit_can_cut.is_empty() {
             msg += &format!(" and can cut {}", self.tree_names(&preview.spirit_can_cut));
         }
+        if !preview.spirit_recipes.is_empty() {
+            msg += &format!(
+                " and can make {}",
+                self.recipe_names(&preview.spirit_recipes)
+            );
+        }
         msg.push('.');
         if !preview.lost.is_empty() {
             msg += &format!(
                 " You can no longer cut {} until you retrain.",
                 self.tree_names(&preview.lost)
+            );
+        }
+        if !preview.lost_recipes.is_empty() {
+            msg += &format!(
+                " You can no longer make {} until you retrain.",
+                self.recipe_names(&preview.lost_recipes)
             );
         }
         self.events.push(self.tick, EventKind::Player, msg);
@@ -515,6 +738,7 @@ impl World {
         for st in &mut self.site_stats {
             st.trim(self.tick, window);
         }
+        self.output_stats.trim(self.tick, window);
         if self.tick.is_multiple_of(SNAPSHOT_TICKS) {
             for s in &mut self.spirits {
                 s.time.snapshot(self.tick, window);
@@ -578,7 +802,7 @@ impl World {
     }
 
     fn step_player(&mut self, events: &mut Vec<SimEvent>) {
-        let level = self.player_chop_level();
+        let level = self.player_task_level();
         let World {
             defs,
             grid,
@@ -615,18 +839,24 @@ impl World {
         }
     }
 
-    /// The player's level in whatever skill their current chop target uses.
-    fn player_chop_level(&self) -> u32 {
-        let skill = match self.player.actor.queue.front() {
-            Some(Task::Chop { tree }) => self.defs.tree(self.trees[*tree].kind).skill,
-            _ => return 1,
-        };
-        self.player.level(skill, &self.defs.xp_table)
+    /// The player's level in whatever skill their current task uses.
+    fn player_task_level(&self) -> u32 {
+        match self.player.actor.queue.front() {
+            Some(Task::Chop { tree }) => {
+                let skill = self.defs.tree(self.trees[*tree].kind).skill;
+                self.player.level(skill, &self.defs.xp_table)
+            }
+            Some(Task::Craft { building }) => self.player_station_level(&self.buildings[*building]),
+            _ => 1,
+        }
     }
 
     fn step_spirits(&mut self, events: &mut Vec<SimEvent>) {
         let o = &self.settlement.objective;
-        let mut budget = o.target as i64 - self.projected_stock(o.resource) as i64;
+        let mut budgets = Budgets {
+            gather: self.gather_goal() as i64 - self.projected_stock(o.resource) as i64,
+            craft: self.production_deficit() as i64,
+        };
         for sid in 0..self.spirits.len() {
             if self.spirits[sid].actor.queue.is_empty() && self.tick >= self.spirits[sid].next_think
             {
@@ -656,7 +886,7 @@ impl World {
                 &mut spirit.actor,
                 Who::Spirit(sid),
                 level,
-                Some(&mut budget),
+                Some(&mut budgets),
                 &mut ctx,
             ) {
                 StepResult::Continue => {}
@@ -664,6 +894,23 @@ impl World {
                     spirit.actor.queue.pop_front();
                 }
                 StepResult::Failed(reason) => {
+                    // Materials set aside for this trip go back to general use.
+                    // A project's reservation belongs to the project, not the trip.
+                    if spirit.job != Some(JobKind::Construct) {
+                        for t in &spirit.actor.queue {
+                            if let Task::Withdraw {
+                                building,
+                                resource,
+                                amount,
+                                reserved: true,
+                            } = t
+                            {
+                                buildings[*building]
+                                    .storage
+                                    .release_reserved(*resource, *amount);
+                            }
+                        }
+                    }
                     spirit.actor.clear_tasks();
                     spirit.next_think = *tick + defs.idle_rethink_ticks;
                     spirit.wait = Some(WaitKind::Other);
@@ -676,8 +923,7 @@ impl World {
         }
     }
 
-    fn player_earned_xp(&mut self, tree: usize, xp: u64) {
-        let skill = self.defs.tree(self.trees[tree].kind).skill;
+    fn player_earned_xp(&mut self, skill: SkillId, xp: u64) {
         let table = &self.defs.xp_table;
         let before = self.player.level(skill, table);
         let highest_before = self.player.history(skill).highest_level;
@@ -702,6 +948,15 @@ impl World {
         if !unlocked.is_empty() {
             msg += &format!(" You can now cut {}.", self.tree_names(&unlocked));
         }
+        let recipes: Vec<RecipeId> = self
+            .defs
+            .recipe_tiers(skill)
+            .into_iter()
+            .filter(|r| (before + 1..=after).contains(&self.defs.recipe(*r).level_required))
+            .collect();
+        if !recipes.is_empty() {
+            msg += &format!(" You can now make {}.", self.recipe_names(&recipes));
+        }
         self.events.push(self.tick, EventKind::Player, msg);
     }
 
@@ -713,7 +968,9 @@ impl World {
                     self.site_stats[site.index()].record(self.tick, window);
                 }
                 match who {
-                    Who::Player => self.player_earned_xp(tree, xp),
+                    Who::Player => {
+                        self.player_earned_xp(self.defs.tree(self.trees[tree].kind).skill, xp)
+                    }
                     // Spirits harvest but never gain experience.
                     Who::Spirit(sid) => self.spirits[sid].units_gathered += 1,
                 }
@@ -753,6 +1010,19 @@ impl World {
                 self.events.push(self.tick, EventKind::Construction, msg);
             }
             SimEvent::ProjectCompleted { project } => self.on_project_completed(project),
+            SimEvent::Crafted { who, recipe } => {
+                let def = self.defs.recipe(recipe);
+                let (skill, xp, amount) = (def.skill, def.xp, def.output.1);
+                let window = self.defs.gathering.window_ticks;
+                for _ in 0..amount {
+                    self.output_stats.record(self.tick, window);
+                }
+                match who {
+                    Who::Player => self.player_earned_xp(skill, xp),
+                    // Spirits produce but never gain experience.
+                    Who::Spirit(sid) => self.spirits[sid].units_crafted += amount,
+                }
+            }
         }
     }
 }

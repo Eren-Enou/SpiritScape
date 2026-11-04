@@ -56,6 +56,8 @@ crown_tint = [1.0, 0.68, 0.18]
 [buildings.main_storage]
 stockpile = "models/nature/log_stackLarge.glb"
 stockpile_offset = [-0.72, 0.0]
+goods_pile = "models/town/planks.glb"
+goods_pile_offset = [0.0, 0.8]
 parts = [
     { model = "models/town/wall-wood.glb", rot = 0 },
     { model = "models/town/wall-wood-window-shutters.glb", rot = 90 },
@@ -73,6 +75,30 @@ parts = [
     { model = "models/town/poles.glb", rot = 90 },
     { model = "models/town/poles.glb", rot = 180 },
     { model = "models/town/poles.glb", rot = 270 },
+    { model = "models/town/roof-point.glb", y = 1.0 },
+]
+
+# An open-sided shed: logs go in on one side, planks come out on the other.
+[buildings.workshop]
+stockpile = "models/nature/log_stack.glb"
+stockpile_offset = [-0.72, 0.0]
+goods_pile = "models/town/planks.glb"
+goods_pile_offset = [0.72, 0.0]
+parts = [
+    { model = "models/town/poles.glb", rot = 0 },
+    { model = "models/town/poles.glb", rot = 180 },
+    { model = "models/town/fence.glb", rot = 90 },
+    { model = "models/town/roof-point.glb", y = 1.0 },
+]
+
+[buildings.storehouse]
+stockpile = "models/nature/log_stack.glb"
+site = [{ model = "models/town/planks.glb" }]
+parts = [
+    { model = "models/town/wall-wood.glb", rot = 0 },
+    { model = "models/town/wall-wood.glb", rot = 90 },
+    { model = "models/town/wall-wood.glb", rot = 180 },
+    { model = "models/town/wall-wood-door.glb", rot = 270 },
     { model = "models/town/roof-point.glb", y = 1.0 },
 ]
 
@@ -100,6 +126,9 @@ model = "models/characters/Rogue_Hooded.glb"
 
 [characters.roles.builder]
 model = "models/characters/Mage.glb"
+
+[characters.roles.woodworker]
+model = "models/characters/Knight.glb"
 
 [spirit_look]
 alpha = 0.65

@@ -425,7 +425,9 @@ fn autonomous_field_storage_lifecycle() {
     // No duplicate or endless construction.
     w.run_ticks(20_000);
     assert_eq!(w.projects.len(), 1);
-    assert_eq!(w.buildings.len(), 2);
+    let field_storage = w.defs.building_kind_id("field_storage").unwrap();
+    let built = w.buildings.iter().filter(|b| b.kind == field_storage);
+    assert_eq!(built.count(), 1);
     w.check_conservation().unwrap();
 }
 

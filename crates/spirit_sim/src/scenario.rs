@@ -8,6 +8,7 @@ use crate::grid::{BUILTIN_MAP, Grid, MapLayout};
 use crate::inventory::Storage;
 use crate::metrics::SiteStats;
 use crate::planner::PlannerState;
+use crate::production::ProductionOrder;
 use crate::world::{Ledger, Objective, Settlement, World};
 use serde::Deserialize;
 use std::collections::BTreeMap;
@@ -24,15 +25,24 @@ pub enum ScenarioKind {
     GroveSustainable,
     /// Four spirits at the Starting Grove: extraction outpaces regrowth.
     GroveOversubscribed,
+    /// Train Woodworking by hand, then sacrifice it into a spirit.
+    WorkshopManual,
+    /// Spirits maintain a plank target with no player help.
+    WorkshopAutomated,
+    /// The chain supplies planks to a construction project.
+    WorkshopConstruction,
 }
 
 impl ScenarioKind {
-    pub const ALL: [ScenarioKind; 5] = [
+    pub const ALL: [ScenarioKind; 8] = [
         ScenarioKind::NewGame,
         ScenarioKind::Demo,
         ScenarioKind::Regrind,
         ScenarioKind::GroveSustainable,
         ScenarioKind::GroveOversubscribed,
+        ScenarioKind::WorkshopManual,
+        ScenarioKind::WorkshopAutomated,
+        ScenarioKind::WorkshopConstruction,
     ];
 
     pub fn key(self) -> &'static str {
@@ -42,6 +52,9 @@ impl ScenarioKind {
             ScenarioKind::Regrind => "regrind",
             ScenarioKind::GroveSustainable => "grove_sustainable",
             ScenarioKind::GroveOversubscribed => "grove_oversubscribed",
+            ScenarioKind::WorkshopManual => "workshop_manual",
+            ScenarioKind::WorkshopAutomated => "workshop_automated",
+            ScenarioKind::WorkshopConstruction => "workshop_construction",
         }
     }
 
@@ -71,6 +84,15 @@ pub struct ScenarioDef {
     /// Sites where spirits may not gather (reserved for the player).
     #[serde(default)]
     pub closed_sites: Vec<String>,
+    /// Stock of the production output to maintain.
+    #[serde(default)]
+    pub plank_target: u32,
+    /// Raw materials production must leave in Main Storage.
+    #[serde(default)]
+    pub log_reserve: u32,
+    /// Buildings already ordered at start.
+    #[serde(default)]
+    pub requested_buildings: Vec<String>,
 }
 
 pub fn load_scenarios(text: &str) -> Result<BTreeMap<String, ScenarioDef>, String> {
@@ -159,6 +181,12 @@ impl World {
             site_open[id.index()] = false;
         }
         let site_stats = vec![SiteStats::default(); defs.sites.len()];
+        let order = ProductionOrder {
+            output: defs.production.output,
+            target: scenario.plank_target,
+            input_reserve: scenario.log_reserve,
+            enabled: true,
+        };
         let mut world = World {
             defs,
             tick: 0,
@@ -173,8 +201,10 @@ impl World {
                 allow_autonomous_construction: true,
                 planner: PlannerState::default(),
                 site_open,
+                order,
             },
             site_stats,
+            output_stats: SiteStats::default(),
             events: EventLog::new(event_cap),
             ledger: Ledger::default(),
             main_storage,
@@ -219,6 +249,13 @@ impl World {
             world
                 .events
                 .push(0, EventKind::Player, scenario.description.clone());
+        }
+        for key in &scenario.requested_buildings {
+            let kind = world
+                .defs
+                .building_kind_id(key)
+                .ok_or_else(|| format!("unknown building {key:?}"))?;
+            world.request_building(kind)?;
         }
         Ok(world)
     }
