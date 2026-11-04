@@ -17,6 +17,11 @@
  | world     World::step() fixed tick, commands, conservation ledger       |
  | metrics   time use, site output, bottleneck report                      |
  | production  plank order, upstream demand, workshop status and report      |
+ | training    support for the player's skilling: cache, bench, priorities   |
+ | soul        comparing sacrifices; milestone wording                       |
+ | journey     new-game guidance and milestone times                         |
+ | save        versioned files, validation, atomic replacement               |
+ | autoplay    a reference player, for tests and pacing measurements         |
  | scenario  new game and demo setup from scenarios.toml                   |
  +-------------------------------------------------------------------------+
                   ^ Command                       | read-only state
@@ -76,6 +81,11 @@
 - **Demand runs one step upstream and is bounded.** `production.rs` turns a plank shortfall into a log request for haulers and a capped raise of the gatherers' goal. It doesn't move anything itself. See `docs/V0.4_WORKSHOP.md`.
 - **Trips reserve stock.** A `JobPlan` may carry a `reserve`, taken when the job starts, using the same `Storage` reservations as construction. If a trip fails its unused reservation is released. A project's reservation belongs to the project and survives a failed trip.
 - **Stock counted toward a goal excludes what's committed.** `projected_stock` leaves out logs at a station or on their way to one, and construction materials, but counts finished planks at the station.
+
+- **A world is its state plus definitions.** Saves hold the state and name a profile; definitions come from the game's data. A save records the order of definitions it refers to, so old saves survive additions but are refused if anything moves.
+- **The pace lives in one place.** Progression profiles are blocks in `data/defs.toml`, resolved when definitions load. The simulation only sees the resulting table and costs. `World::from_scenario` stays on development rates, so scenarios and tests don't change.
+- **Guidance watches and never gates.** `journey` reads the world and has no effect on it beyond messages, so a player can ignore it, and scenarios simply don't have one.
+- **Materials set aside for the player use `Storage` reservations.** A station's reserved inputs belong to the player, and spirits can't touch them. Training support is hauler job rules, so its priority against production is data.
 
 ## Resource and XP conservation
 

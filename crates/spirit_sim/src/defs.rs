@@ -4,14 +4,14 @@
 //! into [`GameDefs`], which uses compact index ids and simulation ticks.
 
 use crate::skills::XpTable;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 pub const BUILTIN_DEFS: &str = include_str!("../../../data/defs.toml");
 
 macro_rules! id_type {
     ($($name:ident),*) => {$(
-        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
         pub struct $name(pub u16);
         impl $name {
             pub fn index(self) -> usize {
@@ -30,7 +30,7 @@ id_type!(
     RecipeId
 );
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum JobKind {
     Gather,
@@ -43,6 +43,10 @@ pub enum JobKind {
     Supply,
     /// Carry finished goods from a station to Main Storage.
     Collect,
+    /// Empty the player's Training Cache into Main Storage.
+    TrainingCollect,
+    /// Carry raw materials to a station for the player's own training.
+    TrainingSupply,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
@@ -60,6 +64,14 @@ pub enum Condition {
     WorkshopOutputReady,
     /// Finished goods are ready and no hauler exists to take them.
     OutputUnattended,
+    /// The Training Cache has a load waiting and training comes first.
+    TrainingPickupUrgent,
+    /// The Training Cache has a load waiting.
+    TrainingPickupReady,
+    /// The bench is short of training materials and training comes first.
+    TrainingSupplyUrgent,
+    /// The bench is short of training materials.
+    TrainingSupplyWanted,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
@@ -240,9 +252,18 @@ pub struct BuildingDef {
     pub capacity_bonus: u32,
     /// Built on the player's request.
     pub manual: bool,
+    /// Room for materials set aside for the player's training at a station.
+    pub training_buffer: u32,
+    /// The player's drop-off point in their training area.
+    pub training_cache: bool,
 }
 
 impl BuildingDef {
+    /// Storage a new building of this kind starts with.
+    pub fn storage_capacity(&self) -> u32 {
+        self.capacity + self.training_buffer
+    }
+
     pub fn build_ticks_at(&self, level: u32) -> u32 {
         let reduction = level.saturating_sub(1) * self.build_ticks_per_level_x10 / 10;
         self.build_ticks
@@ -270,8 +291,30 @@ pub struct PlannerRules {
     pub reject_cooldown_ticks: u64,
 }
 
+/// A selectable pace of personal progression.
+#[derive(Clone, Debug, Deserialize)]
+pub struct ProfileInfo {
+    pub id: String,
+    pub title: String,
+    pub description: String,
+}
+
+/// When the new-game guidance moves on.
+#[derive(Clone, Copy, Debug, Deserialize)]
+pub struct JourneyRules {
+    pub first_spirit_level: u32,
+    pub woodworking_level: u32,
+}
+
 #[derive(Clone, Debug)]
 pub struct GameDefs {
+    /// The progression profile these definitions were resolved with.
+    pub profile: ProfileInfo,
+    /// Every profile in the data file.
+    pub profiles: Vec<ProfileInfo>,
+    pub journey: JourneyRules,
+    /// Real seconds between autosaves; 0 turns autosave off.
+    pub autosave_seconds: f32,
     pub ticks_per_second: u32,
     pub idle_rethink_ticks: u64,
     pub event_log_capacity: usize,
@@ -298,7 +341,9 @@ pub struct GameDefs {
 #[derive(Deserialize)]
 struct RawDefs {
     simulation: RawSimulation,
+    saves: RawSaves,
     progression: RawProgression,
+    journey: JourneyRules,
     resources: Vec<ResourceDef>,
     skills: Vec<SkillDef>,
     tree_types: Vec<RawTreeType>,
@@ -309,7 +354,6 @@ struct RawDefs {
     sites: Vec<RawSite>,
     gathering: RawGathering,
     player: RawPlayer,
-    soul_separation: RawSoul,
     roles: Vec<RawRole>,
     buildings: Vec<RawBuilding>,
     objective: RawObjective,
@@ -324,7 +368,25 @@ struct RawSimulation {
 }
 
 #[derive(Deserialize)]
+struct RawSaves {
+    autosave_seconds: f32,
+}
+
+#[derive(Deserialize)]
 struct RawProgression {
+    default_profile: String,
+    profiles: Vec<RawProfile>,
+}
+
+#[derive(Clone, Deserialize)]
+struct RawProfile {
+    id: String,
+    title: String,
+    description: String,
+    soul_min_xp: u64,
+    /// Cost of buildings that expand the settlement, as a percentage.
+    #[serde(default = "hundred")]
+    improvement_cost_pct: u32,
     xp_table: Vec<u64>,
 }
 
@@ -397,11 +459,6 @@ struct RawPlayer {
 }
 
 #[derive(Deserialize)]
-struct RawSoul {
-    min_xp: u64,
-}
-
-#[derive(Deserialize)]
 struct RawRole {
     id: String,
     name: String,
@@ -456,6 +513,10 @@ struct RawBuilding {
     capacity_bonus: u32,
     #[serde(default)]
     manual: bool,
+    #[serde(default)]
+    training_buffer: u32,
+    #[serde(default)]
+    training_cache: bool,
 }
 
 #[derive(Deserialize)]
@@ -496,14 +557,42 @@ impl GameDefs {
         Self::from_toml(BUILTIN_DEFS).expect("built-in data/defs.toml must be valid")
     }
 
+    /// The built-in definitions under a named progression profile.
+    pub fn builtin_profile(profile: &str) -> Result<Self, String> {
+        Self::from_toml_profile(BUILTIN_DEFS, Some(profile))
+    }
+
     pub fn from_toml(text: &str) -> Result<Self, String> {
+        Self::from_toml_profile(text, None)
+    }
+
+    /// Resolves the definitions under `profile`, or the file's default.
+    pub fn from_toml_profile(text: &str, profile: Option<&str>) -> Result<Self, String> {
         let raw: RawDefs = toml::from_str(text).map_err(|e| format!("defs.toml: {e}"))?;
         let tps = raw.simulation.ticks_per_second.max(1);
         let ticks = |secs: f32| -> u64 { (secs * tps as f32).round().max(0.0) as u64 };
         // Per-level reductions are kept in tenths of a tick to avoid floats in the sim.
         let tenth_ticks = |secs: f32| -> u32 { (secs * tps as f32 * 10.0).round().max(0.0) as u32 };
 
-        let xp_table = XpTable::new(raw.progression.xp_table)?;
+        let wanted = profile.unwrap_or(&raw.progression.default_profile);
+        let chosen = raw
+            .progression
+            .profiles
+            .iter()
+            .find(|p| p.id == wanted)
+            .ok_or_else(|| format!("unknown progression profile {wanted:?}"))?
+            .clone();
+        let profiles: Vec<ProfileInfo> = raw
+            .progression
+            .profiles
+            .iter()
+            .map(|p| ProfileInfo {
+                id: p.id.clone(),
+                title: p.title.clone(),
+                description: p.description.clone(),
+            })
+            .collect();
+        let xp_table = XpTable::new(chosen.xp_table)?;
         let resources = raw.resources;
         let skills = raw.skills;
 
@@ -579,9 +668,14 @@ impl GameDefs {
 
         let mut buildings = Vec::new();
         for b in raw.buildings {
+            let pct = if b.capacity_bonus > 0 {
+                chosen.improvement_cost_pct
+            } else {
+                100
+            };
             let mut cost = Vec::new();
             for c in &b.cost {
-                cost.push((resource_id(&c.resource)?, c.amount));
+                cost.push((resource_id(&c.resource)?, c.amount * pct / 100));
             }
             buildings.push(BuildingDef {
                 map_char: b
@@ -603,6 +697,8 @@ impl GameDefs {
                 input_buffer: b.input_buffer,
                 capacity_bonus: b.capacity_bonus,
                 manual: b.manual,
+                training_buffer: b.training_buffer,
+                training_cache: b.training_cache,
                 id: b.id,
                 name: b.name,
             });
@@ -661,6 +757,14 @@ impl GameDefs {
         };
 
         Ok(GameDefs {
+            profile: ProfileInfo {
+                id: chosen.id,
+                title: chosen.title,
+                description: chosen.description,
+            },
+            profiles,
+            journey: raw.journey,
+            autosave_seconds: raw.saves.autosave_seconds.max(0.0),
             ticks_per_second: tps,
             idle_rethink_ticks: ticks(raw.simulation.idle_rethink_seconds).max(1),
             event_log_capacity: raw.simulation.event_log_capacity.max(10),
@@ -669,7 +773,7 @@ impl GameDefs {
                 move_ticks: (ticks(raw.player.move_seconds_per_tile) as u32).max(1),
                 carry_capacity: raw.player.carry_capacity.max(1),
             },
-            soul_min_xp: raw.soul_separation.min_xp.max(1),
+            soul_min_xp: chosen.soul_min_xp.max(1),
             resources,
             skills,
             trees,

@@ -1,0 +1,61 @@
+# UI test of a real playthrough: title menu, guidance, saving, loading, the
+# Progress and Training tabs, and a Soul Separation with its comparison.
+# Keep saves away from your own with --save-dir, and start from an empty one:
+#   cargo run --release -- --save-dir target/ui_saves --script scripts/ui_journey.txt --capture target/ui_journey
+# then scripts/ui_continue.txt resumes what this one left behind.
+1.5 expect No saved game yet
+1.6 shot 01_menu
+1.8 press Fast Game
+2.5 expect Reach Woodcutting level 3
+2.6 expect Click a tree
+2.7 shot 02_goal
+2.9 press 8x
+3.0 tile 9 9              # chop one tree after another
+4.2 tile 8 11
+5.4 tile 11 10
+6.6 tile 10 7
+7.8 tile 12 12
+9.0 tile 14 7
+10.2 tile 15 9
+11.8 expect Create a Woodcutting Spirit
+12.1 shot 03_chopping
+12.2 press 1x
+12.4 press Save
+12.8 expect Game saved
+13.0 key T
+13.5 expect Spirits carry; only you earn XP
+13.6 expect Train at Starting Grove
+13.7 shot 04_training_tab
+13.8 scroll 1380 600 -30
+14.2 press Train at Starting Grove
+14.6 expect Training at Starting Grove
+14.8 press Stock the bench: OFF
+15.2 expect Stock the bench: ON
+15.4 key J
+15.9 expect YOUR WORKFORCE
+16.0 expect Invested in spirits
+16.1 expect Training Cache (0 built)
+16.2 shot 05_progress_tab
+16.4 key F9               # back to the save: the training area is gone again
+17.2 expect Game loaded
+17.4 key T
+17.9 expect Train at Starting Grove
+18.0 key J
+18.5 scroll 1380 400 30
+19.0 press Half
+19.3 expect Compare
+19.4 expect For the settlement
+19.5 expect This can't be undone
+19.6 shot 06_soul_compare
+19.8 press Separate Soul
+20.2 expect Confirm: give up
+20.3 press Confirm: give up*
+21.0 expect Your Woodcutting Spirit can cut
+21.1 expect awakens
+21.2 shot 07_separated
+21.4 press Menu
+22.0 expect Saved game
+22.1 expect Continue
+22.2 press Back
+22.8 press Save
+23.2 exit

@@ -17,6 +17,12 @@ target and the whole chain runs itself, from gatherers through haulers to the
 bench, and planks pay for a Storehouse that expands Main Storage. See
 [`docs/V0.4_WORKSHOP.md`](docs/V0.4_WORKSHOP.md).
 
+**v0.5** makes it a game you can play and return to: a title menu, saving and
+loading, a normal pace of progression, light guidance through the first cycle,
+and spirits that support your retraining by carrying your materials. See
+[`docs/V0.5_PROGRESSION.md`](docs/V0.5_PROGRESSION.md), which also has a
+checklist for playtesting.
+
 The question this prototype answers: *can a player create a spirit, give it a
 goal, and watch the world physically change because the spirit's work causes a
 problem that autonomous planning can solve?* See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
@@ -72,18 +78,22 @@ The last three are development aids.
 | `H` | Hide or show the UI panels |
 | `G` | Switch between the Settlement and Gathering tabs |
 | `P` | Switch to and from the Production tab |
+| `J` / `T` | Switch to and from the Progress / Training tab |
+| `F5` / `F9` | Save / go back to the last manual save |
 | Click Main Storage with empty hands | Take logs |
 | Click the Workshop | Saw planks until you run out of logs |
 | Mouse wheel over the panel | Scroll the panel |
 | Hover a tree or building | Describe it: tier, level needed, logs left, regrowth time |
-| `Space` / `1`-`4` / `F5` | Pause / speed / restart |
+| `Space` / `1`-`4` | Pause / speed |
 | Panel buttons | Pause, speed, restart, load scenario, Soul Separation, objective target, autonomous building, and (Gathering tab) whether spirits may gather at each site |
 
 ## Playing the normal game
 
+Run `cargo run --release` and choose **New Game**. The **What's next** card at the top of the panel always says what would make sense to do. Your world autosaves, and **Continue** brings it back.
+
 1. Click the slender **Trees** in the Starting Grove (next to Main Storage) to chop. Each log gives 15 Woodcutting XP. The round **Oaks** need level 5 and give 30 XP per log.
 2. Click Main Storage to deposit your logs.
-3. Under **Soul Separation**, choose an amount (at least 100 XP) and read the preview: your level before and after, the spirit's permanent level, and any trees you would lose. Press **Separate Soul** to confirm. The XP leaves you, and a Woodcutting Spirit appears with that XP as its fixed level. A spirit needs at least 388 XP (level 5) to cut Oak.
+3. Under **Soul Separation**, compare the options and read the preview: your level before and after, the spirit's permanent level, and anything you would lose. Press **Separate Soul**, then confirm. The XP leaves you, and a Woodcutting Spirit appears with that XP as its fixed level. A spirit needs level 5 to cut Oak.
 4. The spirit works toward the settlement objective (default: maintain 50 logs in Main Storage). Raise the target with **Target +10** to create more demand.
 5. Press `G` for the Gathering tab. It shows how much each site produces, how spirits spend their time and what limits output. Clicking **Reserve for me** under Starting Grove reserves it for your own training, which sends Oak-capable spirits across the bridge to the Distant Forest. Long delivery trips from there are what make the planner build a field storage.
 
@@ -121,10 +131,12 @@ cargo run -p spirit_sim --example regrind_playtest -- 400
 cargo test -p spirit_sim
 ```
 
-71 tests:
+119 tests:
 - 22 end-to-end simulation tests in `crates/spirit_sim/tests/simulation.rs`;
 - 13 gathering and progression tests in `crates/spirit_sim/tests/gathering.rs`;
 - 31 workshop and production tests in `crates/spirit_sim/tests/workshop.rs`;
+- 18 save and load tests in `crates/spirit_sim/tests/persistence.rs`;
+- 30 progression, training support and full-cycle tests in `crates/spirit_sim/tests/progression.rs`;
 - 5 unit tests for pathfinding and storage.
 
 They cover:

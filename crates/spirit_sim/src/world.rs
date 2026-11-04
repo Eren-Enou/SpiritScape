@@ -6,12 +6,14 @@ use crate::defs::{
 use crate::entities::{
     Activity, Actor, Building, BuildingId, Player, Project, Spirit, SpiritId, Tree, TreeState,
 };
-use crate::events::{EventKind, EventLog};
+use crate::events::{EventKind, EventLog, Notices};
 use crate::grid::{Grid, TilePos};
+use crate::journey::Journey;
 use crate::metrics::{SNAPSHOT_TICKS, SiteStats, WaitKind};
 use crate::planner::PlannerState;
 use crate::production::ProductionOrder;
 use crate::tasks::{self, Budgets, Goal, SimEvent, StepResult, Task, TaskCtx, Who};
+use crate::training::TrainingSupport;
 use std::collections::BTreeMap;
 use std::hash::{Hash, Hasher};
 
@@ -27,7 +29,7 @@ const SPIRIT_NAMES: &[&str] = &[
 ];
 
 /// Running totals used to verify conservation of resources and XP.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct Ledger {
     /// Resources placed by the scenario at start.
     pub seeded: BTreeMap<ResourceId, u64>,
@@ -47,13 +49,13 @@ pub struct Ledger {
     pub xp_separated: u64,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Objective {
     pub resource: ResourceId,
     pub target: u32,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Settlement {
     pub objective: Objective,
     pub allow_autonomous_construction: bool,
@@ -62,6 +64,8 @@ pub struct Settlement {
     /// the player's own training.
     pub site_open: Vec<bool>,
     pub order: ProductionOrder,
+    /// How the settlement helps the player's own skilling.
+    pub training: TrainingSupport,
 }
 
 /// What a Soul Separation would do, shown before the player confirms.
@@ -82,6 +86,8 @@ pub struct SoulPreview {
     pub lost_recipes: Vec<RecipeId>,
     /// Recipes the new spirit will be able to make.
     pub spirit_recipes: Vec<RecipeId>,
+    /// What the spirit would add to the settlement, in plain words.
+    pub benefit: String,
     /// Why the ritual can't be performed, if it can't.
     pub error: Option<String>,
 }
@@ -121,6 +127,14 @@ pub enum Command {
     },
     /// Approve a building the planner won't start on its own.
     RequestBuilding(BuildingKindId),
+    /// Choose where the player trains, or no such place. Spirits stay out.
+    SetTrainingArea(Option<SiteId>),
+    /// Have a Hauling Spirit empty the Training Cache.
+    SetTrainingCollect(bool),
+    /// Have a Hauling Spirit keep the bench stocked for the player.
+    SetTrainingSupply(bool),
+    /// Put training support ahead of production for Hauling Spirits.
+    SetTrainingFirst(bool),
 }
 
 #[derive(Clone, Debug)]
@@ -141,6 +155,10 @@ pub struct World {
     pub site_stats: Vec<SiteStats>,
     /// Record of finished production output.
     pub output_stats: SiteStats,
+    /// Short messages about important moments.
+    pub notices: Notices,
+    /// Guidance through a real playthrough. Scenarios don't have it.
+    pub journey: Option<Journey>,
 }
 
 impl World {
@@ -212,7 +230,12 @@ impl World {
             .filter(|s| {
                 !matches!(
                     s.job,
-                    Some(JobKind::Construct | JobKind::Supply | JobKind::Craft)
+                    Some(
+                        JobKind::Construct
+                            | JobKind::Supply
+                            | JobKind::Craft
+                            | JobKind::TrainingSupply
+                    )
                 )
             })
             .map(|s| s.actor.inventory.get(r))
@@ -344,6 +367,10 @@ impl World {
         self.ledger.crafted.hash(&mut h);
         self.ledger.batches.hash(&mut h);
         self.events.total.hash(&mut h);
+        self.notices.total.hash(&mut h);
+        self.ledger.xp_earned.hash(&mut h);
+        self.ledger.xp_separated.hash(&mut h);
+        self.player.time.hash(&mut h);
         h.finish()
     }
 
@@ -383,6 +410,9 @@ impl World {
                     return Err("Unknown site".into());
                 };
                 *slot = open;
+                if open && self.settlement.training.area == Some(site) {
+                    self.settlement.training.area = None;
+                }
                 let name = &self.defs.site(site).name;
                 let msg = if open {
                     format!("{name} is open to spirits")
@@ -438,6 +468,10 @@ impl World {
                 Ok(msg)
             }
             Command::RequestBuilding(kind) => self.request_building(kind),
+            Command::SetTrainingArea(site) => self.set_training_area(site),
+            Command::SetTrainingCollect(on) => Ok(self.set_training_collect(on)),
+            Command::SetTrainingSupply(on) => Ok(self.set_training_supply(on)),
+            Command::SetTrainingFirst(on) => Ok(self.set_training_first(on)),
         }
     }
 
@@ -576,7 +610,7 @@ impl World {
             ));
         }
         let bag = &self.player.actor.inventory;
-        let have = |r| bag.get(r) + b.storage.available(r);
+        let have = |r| bag.get(r) + b.storage.get(r);
         match self.defs.best_recipe(b.kind, level, have) {
             Some(r) => Ok(format!("Making {} at {}", self.defs.recipe(r).name, b.name)),
             None => {
@@ -652,6 +686,7 @@ impl World {
                 .copied()
                 .filter(|r| spirit_level >= recipe_level(r))
                 .collect(),
+            benefit: self.spirit_benefit(skill, spirit_level),
             error,
         }
     }
@@ -724,6 +759,8 @@ impl World {
             );
         }
         self.events.push(self.tick, EventKind::Player, msg);
+        let notice = self.spirit_notice(role, &preview);
+        self.notices.push(self.tick, notice);
         Ok(id)
     }
 
@@ -753,11 +790,13 @@ impl World {
         }
 
         let mut events = Vec::new();
+        self.player.account_tick();
         self.step_player(&mut events);
         self.step_spirits(&mut events);
         for e in events {
             self.handle_event(e);
         }
+        self.update_journey();
     }
 
     pub fn run_ticks(&mut self, n: u64) {
@@ -788,6 +827,7 @@ impl World {
         ledger: &'a mut Ledger,
         tick: u64,
         events: &'a mut Vec<SimEvent>,
+        player_output_at_station: bool,
     ) -> TaskCtx<'a> {
         TaskCtx {
             defs,
@@ -798,11 +838,13 @@ impl World {
             ledger,
             tick,
             events,
+            player_output_at_station,
         }
     }
 
     fn step_player(&mut self, events: &mut Vec<SimEvent>) {
         let level = self.player_task_level();
+        let at_station = self.player_output_at_station();
         let World {
             defs,
             grid,
@@ -818,7 +860,7 @@ impl World {
             return;
         }
         let mut ctx = Self::task_ctx(
-            defs, grid, trees, buildings, projects, ledger, *tick, events,
+            defs, grid, trees, buildings, projects, ledger, *tick, events, at_station,
         );
         match tasks::step(&mut player.actor, Who::Player, level, None, &mut ctx) {
             StepResult::Continue => {}
@@ -880,7 +922,7 @@ impl World {
             }
             let level = spirit.level();
             let mut ctx = Self::task_ctx(
-                defs, grid, trees, buildings, projects, ledger, *tick, events,
+                defs, grid, trees, buildings, projects, ledger, *tick, events, false,
             );
             match tasks::step(
                 &mut spirit.actor,
@@ -958,6 +1000,8 @@ impl World {
             msg += &format!(" You can now make {}.", self.recipe_names(&recipes));
         }
         self.events.push(self.tick, EventKind::Player, msg);
+        let notice = self.level_notice(skill, after, highest_before, &unlocked, &recipes);
+        self.notices.push(self.tick, notice);
     }
 
     fn handle_event(&mut self, e: SimEvent) {
@@ -984,6 +1028,9 @@ impl World {
                 gather_pos,
             } => {
                 self.spirits[sid].units_delivered += amount;
+                if self.spirits[sid].job == Some(JobKind::TrainingCollect) {
+                    self.on_training_collected(sid, amount);
+                }
                 let role = self.defs.role(self.spirits[sid].role);
                 if role.has_job(JobKind::Gather)
                     && let Some(gather_pos) = gather_pos

@@ -10,13 +10,54 @@ ticks_per_second = 10
 idle_rethink_seconds = 0.5
 event_log_capacity = 200
 
+# How often the game writes the autosave, in real seconds. 0 turns it off.
+# `--autosave SECONDS` overrides this.
+[saves]
+autosave_seconds = 120.0
+
+# ---------------------------------------------------------------------------
+# Progression profiles. Everything that sets the pace of personal progression
+# lives here, and nowhere else: the rest of this file is the same in both.
+#
+# xp_table is the cumulative XP required for each level (index 0 is level 1),
+# shared by every skill, for the player and for spirit competency. Keep the
+# profile a world was started with: a spirit's level is read from its XP, so
+# the same XP means a different level in another profile.
+#
+# See docs/V0.5_PROGRESSION.md for why the normal numbers are what they are.
+# ---------------------------------------------------------------------------
 [progression]
-# Cumulative XP required to reach each level. Index 0 is level 1.
-# Shared by every skill, for the player and for spirit competency.
+default_profile = "development"
+
+[[progression.profiles]]
+id = "development"
+title = "Development"
+description = "Fast rates for automated tests and experiments."
+soul_min_xp = 100
 xp_table = [
     0, 83, 174, 276, 388, 512, 650, 801, 969, 1154,
     1358, 1584, 1833, 2107, 2411, 2746, 3115, 3523, 3973, 4470,
 ]
+
+[[progression.profiles]]
+id = "normal"
+title = "Normal"
+description = "The pace intended for actual play."
+soul_min_xp = 300
+# Training a skill by hand makes plenty of its product, so improvements cost
+# more here: otherwise hand-made planks pay for them before a spirit is needed.
+improvement_cost_pct = 400
+xp_table = [
+    0, 120, 380, 900, 1800, 3600, 5800, 8500, 11800, 16000,
+    21000, 27000, 34000, 42500, 52500, 64500, 79000, 96000, 116000, 140000,
+]
+
+# When the new-game guidance moves on. It never blocks anything.
+[journey]
+# Woodcutting level at which Soul Separation is first suggested.
+first_spirit_level = 3
+# Woodworking level to reach before the guidance suggests a Woodworking Spirit.
+woodworking_level = 5
 
 [[resources]]
 id = "logs"
@@ -146,10 +187,6 @@ measure_window_seconds = 120.0
 move_seconds_per_tile = 0.25
 carry_capacity = 28
 
-[soul_separation]
-# Smallest XP sacrifice that can form a spirit.
-min_xp = 100
-
 # ---------------------------------------------------------------------------
 # Spirit roles. Each role lists prioritized job rules: every time a spirit
 # finishes its task queue it picks the highest-priority job whose condition
@@ -157,8 +194,14 @@ min_xp = 100
 #
 # Conditions: always, inventory_full, carrying_any, objective_unmet,
 #             outpost_stock_available, project_assigned, production_wanted,
-#             workshop_needs_input, workshop_output_ready, output_unattended
-# Jobs:       gather, deliver, haul, construct, craft, supply, collect
+#             workshop_needs_input, workshop_output_ready, output_unattended,
+#             training_pickup_urgent, training_pickup_ready,
+#             training_supply_urgent, training_supply_wanted
+# Jobs:       gather, deliver, haul, construct, craft, supply, collect,
+#             training_collect, training_supply
+#
+# The two "urgent" conditions only hold when the player has put training
+# first, which is how that choice moves support above production.
 # ---------------------------------------------------------------------------
 
 [[roles]]
@@ -188,9 +231,13 @@ haul_min = 5
 color = [0.95, 0.75, 0.30]
 jobs = [
     { job = "deliver", priority = 100, when = "carrying_any" },
+    { job = "training_collect", priority = 80, when = "training_pickup_urgent" },
+    { job = "training_supply", priority = 75, when = "training_supply_urgent" },
     { job = "collect", priority = 70, when = "workshop_output_ready" },
     { job = "supply", priority = 60, when = "workshop_needs_input" },
     { job = "haul", priority = 50, when = "outpost_stock_available" },
+    { job = "training_collect", priority = 45, when = "training_pickup_ready" },
+    { job = "training_supply", priority = 40, when = "training_supply_wanted" },
 ]
 
 [[roles]]
@@ -258,6 +305,9 @@ name = "Workshop"
 map_char = "K"
 capacity = 40
 input_buffer = 20
+# Extra room for logs set aside for the player's own training. Production
+# can't touch them.
+training_buffer = 20
 accepts_gatherer_deposits = false
 color = [0.80, 0.60, 0.45]
 
@@ -276,6 +326,22 @@ build_seconds = 20.0
 build_seconds_per_level = 0.5
 min_build_seconds = 8.0
 color = [0.70, 0.55, 0.40]
+
+# A drop-off point in the player's training area. The player fills it, and a
+# Hauling Spirit empties it into Main Storage while support is on.
+[[buildings]]
+id = "training_cache"
+name = "Training Cache"
+capacity = 56
+accepts_gatherer_deposits = false
+manual = true
+training_cache = true
+max_count = 1
+cost = [{ resource = "logs", amount = 15 }]
+build_seconds = 12.0
+build_seconds_per_level = 0.5
+min_build_seconds = 5.0
+color = [0.60, 0.70, 0.55]
 
 [objective]
 # "Maintain <target> <resource> in the main settlement storage."

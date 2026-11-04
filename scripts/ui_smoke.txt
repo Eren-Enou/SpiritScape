@@ -19,9 +19,11 @@
 8.0 expect Lv 4 -> Lv 1
 8.1 shot 06_soul_preview
 8.5 press Separate Soul
-9.2 expect awakens
-9.3 shot 07_separated
-9.6 tile 10 9           # click a tree: walk there and chop
+8.8 expect Confirm: give up 360 XP forever
+8.9 press Confirm*
+9.5 expect awakens
+9.6 shot 07_separated
+9.8 tile 10 9           # click a tree: walk there and chop
 13.0 expect Woodcutting
 13.1 shot 08_chopping
 13.5 key H

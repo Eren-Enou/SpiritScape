@@ -10,25 +10,25 @@ use crate::world::World;
 
 /// A planned job, ready to be installed on a spirit.
 #[derive(Default)]
-struct JobPlan {
-    description: String,
-    tasks: Vec<Task>,
-    claim_tree: Option<TreeId>,
-    deliver_target: Option<BuildingId>,
+pub(crate) struct JobPlan {
+    pub(crate) description: String,
+    pub(crate) tasks: Vec<Task>,
+    pub(crate) claim_tree: Option<TreeId>,
+    pub(crate) deliver_target: Option<BuildingId>,
     /// Site and tree type of a gathering job.
-    gather: Option<(SiteId, TreeKindId)>,
+    pub(crate) gather: Option<(SiteId, TreeKindId)>,
     /// Stock set aside for this trip when the job starts.
-    reserve: Option<(BuildingId, ResourceId, u32)>,
+    pub(crate) reserve: Option<(BuildingId, ResourceId, u32)>,
 }
 
 /// Why a job can't be planned right now.
-struct Blocked {
+pub(crate) struct Blocked {
     kind: WaitKind,
     reason: String,
 }
 
 impl Blocked {
-    fn new(kind: WaitKind, reason: impl Into<String>) -> Self {
+    pub(crate) fn new(kind: WaitKind, reason: impl Into<String>) -> Self {
         Self {
             kind,
             reason: reason.into(),
@@ -67,6 +67,14 @@ impl World {
             Condition::OutputUnattended => {
                 !self.has_role_with(JobKind::Haul) && self.output_ready(s.actor.inventory.capacity)
             }
+            Condition::TrainingPickupUrgent => {
+                self.settlement.training.training_first && self.training_pickup_ready(sid)
+            }
+            Condition::TrainingPickupReady => self.training_pickup_ready(sid),
+            Condition::TrainingSupplyUrgent => {
+                self.settlement.training.training_first && self.training_supply_ready(sid)
+            }
+            Condition::TrainingSupplyWanted => self.training_supply_ready(sid),
         }
     }
 
@@ -111,6 +119,12 @@ impl World {
             }
             Condition::WorkshopOutputReady | Condition::OutputUnattended => {
                 format!("{} finished at the workshop", self.output_waiting())
+            }
+            Condition::TrainingPickupUrgent | Condition::TrainingPickupReady => {
+                "logs waiting in the Training Cache".into()
+            }
+            Condition::TrainingSupplyUrgent | Condition::TrainingSupplyWanted => {
+                "the bench is short of training logs".into()
             }
         }
     }
@@ -337,6 +351,8 @@ impl World {
             JobKind::Craft => self.plan_craft(sid),
             JobKind::Supply => self.plan_supply(sid),
             JobKind::Collect => self.plan_collect(sid),
+            JobKind::TrainingCollect => self.plan_training_collect(sid),
+            JobKind::TrainingSupply => self.plan_training_supply(sid),
         }
     }
 

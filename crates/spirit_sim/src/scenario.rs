@@ -3,12 +3,14 @@
 
 use crate::defs::{GameDefs, ResourceId};
 use crate::entities::{Actor, Building, BuildingState, Player, Tree, TreeState};
-use crate::events::{EventKind, EventLog};
+use crate::events::{EventKind, EventLog, Notices};
 use crate::grid::{BUILTIN_MAP, Grid, MapLayout};
 use crate::inventory::Storage;
+use crate::journey::Journey;
 use crate::metrics::SiteStats;
 use crate::planner::PlannerState;
 use crate::production::ProductionOrder;
+use crate::training::TrainingSupport;
 use crate::world::{Ledger, Objective, Settlement, World};
 use serde::Deserialize;
 use std::collections::BTreeMap;
@@ -66,7 +68,11 @@ impl ScenarioKind {
 #[derive(Clone, Debug, Deserialize)]
 pub struct SpiritSeed {
     pub role: String,
+    /// Fixed XP, or use `level` for the XP of a level in the current profile.
+    #[serde(default)]
     pub xp: u64,
+    #[serde(default)]
+    pub level: Option<u32>,
     pub spawn: String,
 }
 
@@ -102,14 +108,26 @@ pub fn load_scenarios(text: &str) -> Result<BTreeMap<String, ScenarioDef>, Strin
 impl World {
     /// Builds a world from the built-in definitions, map and scenario.
     pub fn from_scenario(kind: ScenarioKind) -> World {
-        let defs = GameDefs::builtin();
-        let scenarios =
-            load_scenarios(BUILTIN_SCENARIOS).expect("built-in scenarios must be valid");
+        Self::scenario_with(kind, GameDefs::builtin()).expect("built-in scenario must be valid")
+    }
+
+    /// A real playthrough: the new game under a progression profile, with
+    /// guidance through the first progression cycle.
+    pub fn new_journey(profile: &str) -> Result<World, String> {
+        let defs = GameDefs::builtin_profile(profile)?;
+        let mut world = Self::scenario_with(ScenarioKind::NewGame, defs)?;
+        world.journey = Some(Journey::default());
+        world.update_journey();
+        Ok(world)
+    }
+
+    fn scenario_with(kind: ScenarioKind, defs: GameDefs) -> Result<World, String> {
+        let scenarios = load_scenarios(BUILTIN_SCENARIOS)?;
         let scenario = scenarios
             .get(kind.key())
-            .expect("scenario missing from scenarios.toml");
-        let map = MapLayout::parse(BUILTIN_MAP).expect("built-in map must be valid");
-        World::build(defs, &map, scenario).expect("built-in scenario must be valid")
+            .ok_or_else(|| format!("scenario {:?} missing", kind.key()))?;
+        let map = MapLayout::parse(BUILTIN_MAP)?;
+        World::build(defs, &map, scenario)
     }
 
     pub fn build(defs: GameDefs, map: &MapLayout, scenario: &ScenarioDef) -> Result<World, String> {
@@ -140,7 +158,7 @@ impl World {
                         pos,
                         name: def.name.clone(),
                         state: BuildingState::Complete,
-                        storage: Storage::new(def.capacity),
+                        storage: Storage::new(def.storage_capacity()),
                     });
                     grid.set_occupied(pos, true);
                 }
@@ -202,12 +220,15 @@ impl World {
                 planner: PlannerState::default(),
                 site_open,
                 order,
+                training: TrainingSupport::default(),
             },
             site_stats,
             output_stats: SiteStats::default(),
             events: EventLog::new(event_cap),
             ledger: Ledger::default(),
             main_storage,
+            notices: Notices::default(),
+            journey: None,
         };
 
         for (skill, &xp) in &scenario.player_xp {
@@ -234,7 +255,10 @@ impl World {
             let pos = map
                 .marker(c)
                 .ok_or_else(|| format!("map has no spawn marker {c:?}"))?;
-            world.add_spirit(role, seed.xp, pos);
+            let xp = seed
+                .level
+                .map_or(seed.xp, |l| world.defs.xp_table.xp_for_level(l));
+            world.add_spirit(role, xp, pos);
         }
 
         let o = &world.settlement.objective;

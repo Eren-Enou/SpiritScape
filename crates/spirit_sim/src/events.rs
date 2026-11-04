@@ -2,7 +2,7 @@
 
 use std::collections::VecDeque;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum EventKind {
     Player,
     Spirit,
@@ -10,7 +10,7 @@ pub enum EventKind {
     Construction,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Event {
     pub tick: u64,
     pub kind: EventKind,
@@ -20,7 +20,7 @@ pub struct Event {
     pub detail: bool,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct EventLog {
     entries: VecDeque<Event>,
     capacity: usize,
@@ -68,5 +68,50 @@ impl EventLog {
         self.entries
             .iter()
             .any(|e| e.kind == kind && e.text.contains(needle))
+    }
+}
+
+/// Most milestone messages kept for the front end.
+const NOTICE_CAPACITY: usize = 16;
+
+/// A short message about something important, shown to the player on top of
+/// the event log.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Notice {
+    pub tick: u64,
+    pub text: String,
+}
+
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
+pub struct Notices {
+    entries: VecDeque<Notice>,
+    /// Total ever pushed, so a reader can tell what's new.
+    pub total: u64,
+}
+
+impl Notices {
+    pub fn push(&mut self, tick: u64, text: impl Into<String>) {
+        if self.entries.len() == NOTICE_CAPACITY {
+            self.entries.pop_front();
+        }
+        self.entries.push_back(Notice {
+            tick,
+            text: text.into(),
+        });
+        self.total += 1;
+    }
+
+    /// Oldest first.
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = &Notice> {
+        self.entries.iter()
+    }
+
+    /// The `n` most recent notices, newest first.
+    pub fn recent(&self, n: usize) -> impl Iterator<Item = &Notice> {
+        self.entries.iter().rev().take(n)
+    }
+
+    pub fn contains(&self, needle: &str) -> bool {
+        self.entries.iter().any(|n| n.text.contains(needle))
     }
 }

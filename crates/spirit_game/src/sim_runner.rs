@@ -1,13 +1,20 @@
 //! Owns the simulation and advances it at a fixed tick rate scaled by the
-//! chosen speed. Rendering never changes simulation state.
+//! chosen speed. Rendering never changes simulation state. Also owns the
+//! player's saves: a world is written to and read from here, never by the UI.
 
 use bevy::prelude::*;
 use spirit_sim::defs::SkillId;
+use spirit_sim::save::{Loaded, SaveError, SaveStore, Slot};
 use spirit_sim::{Command, ScenarioKind, World};
+use std::collections::VecDeque;
 
 pub const SPEEDS: [u32; 4] = [1, 2, 4, 8];
 /// Upper bound on ticks per frame so a slow frame can't snowball.
 const MAX_TICKS_PER_FRAME: u32 = 200;
+/// How long a milestone message stays up, in seconds.
+const NOTICE_SECONDS: f32 = 3.5;
+/// Messages waiting to be shown. Older ones are skipped; the log has them.
+const MAX_WAITING_NOTICES: usize = 3;
 
 #[derive(Resource)]
 pub struct Sim {
@@ -19,46 +26,219 @@ pub struct Sim {
     /// Skill and XP amount selected in the Soul Separation panel.
     pub soul_skill: SkillId,
     pub soul_amount: u64,
+    /// The next press of Separate Soul performs the ritual.
+    pub soul_armed: bool,
     /// Feedback from the last player command.
     pub message: String,
-    /// Bumped on restart so the renderer rebuilds its entities.
+    /// Bumped when the world is replaced so the renderer rebuilds its entities.
     pub generation: u32,
     /// Large on-screen notice and its remaining seconds.
     pub banner: Option<(String, f32)>,
+    notices_seen: u64,
+    waiting_notices: VecDeque<String>,
+    pub store: SaveStore,
+    /// Real seconds between autosaves; 0 turns autosave off.
+    pub autosave_seconds: f32,
+    autosave_timer: f32,
+    /// The title menu is open; the world is on hold.
+    pub menu: bool,
+    /// A real game has begun, so there's something worth saving.
+    pub started: bool,
+    /// The profile whose New Game button is waiting for a second press.
+    pub confirm_new: Option<&'static str>,
+    /// What the title menu says about the save, refreshed when it opens.
+    pub save_summary: Option<String>,
+    /// Why the last load failed.
+    pub menu_error: Option<String>,
 }
 
 impl Sim {
-    pub fn new(scenario: ScenarioKind) -> Self {
-        let world = World::from_scenario(scenario);
+    fn build(world: World, scenario: ScenarioKind) -> Self {
+        let store = SaveStore::new(SaveStore::default_dir());
         Self {
             soul_skill: world
                 .defs
                 .skill_id("woodcutting")
                 .expect("woodcutting skill"),
             soul_amount: world.defs.soul_min_xp,
-            world,
-            scenario,
+            soul_armed: false,
             paused: false,
-            speed: match scenario {
-                ScenarioKind::Demo
-                | ScenarioKind::GroveSustainable
-                | ScenarioKind::GroveOversubscribed
-                | ScenarioKind::WorkshopAutomated
-                | ScenarioKind::WorkshopConstruction => 4,
-                _ => 1,
-            },
+            speed: Self::default_speed(scenario, &world),
             accumulator: 0.0,
             message: String::new(),
             generation: 0,
             banner: None,
+            notices_seen: world.notices.total,
+            waiting_notices: VecDeque::new(),
+            autosave_seconds: world.defs.autosave_seconds,
+            autosave_timer: 0.0,
+            store,
+            menu: false,
+            started: true,
+            confirm_new: None,
+            save_summary: None,
+            menu_error: None,
+            world,
+            scenario,
+        }
+    }
+
+    fn default_speed(scenario: ScenarioKind, world: &World) -> u32 {
+        if world.journey.is_some() {
+            return 1;
+        }
+        match scenario {
+            ScenarioKind::Demo
+            | ScenarioKind::GroveSustainable
+            | ScenarioKind::GroveOversubscribed
+            | ScenarioKind::WorkshopAutomated
+            | ScenarioKind::WorkshopConstruction => 4,
+            _ => 1,
+        }
+    }
+
+    /// A development scenario.
+    pub fn new(scenario: ScenarioKind) -> Self {
+        Self::build(World::from_scenario(scenario), scenario)
+    }
+
+    /// A real playthrough under a progression profile.
+    pub fn journey(profile: &str) -> Result<Self, String> {
+        Ok(Self::build(
+            World::new_journey(profile)?,
+            ScenarioKind::NewGame,
+        ))
+    }
+
+    /// The game as it opens with nothing chosen yet: the title menu over a
+    /// world that isn't being played.
+    pub fn title_screen(profile: &str) -> Result<Self, String> {
+        let mut sim = Self::journey(profile)?;
+        sim.started = false;
+        Ok(sim)
+    }
+
+    pub fn is_journey(&self) -> bool {
+        self.world.journey.is_some()
+    }
+
+    /// Replaces the world, keeping saves and settings.
+    fn adopt(&mut self, world: World, scenario: ScenarioKind) {
+        self.soul_skill = world
+            .defs
+            .skill_id("woodcutting")
+            .expect("woodcutting skill");
+        self.soul_amount = world.defs.soul_min_xp;
+        self.soul_armed = false;
+        self.speed = Self::default_speed(scenario, &world);
+        self.paused = false;
+        self.accumulator = 0.0;
+        self.generation += 1;
+        self.banner = None;
+        self.notices_seen = world.notices.total;
+        self.waiting_notices.clear();
+        self.autosave_timer = 0.0;
+        self.world = world;
+        self.scenario = scenario;
+        self.started = true;
+        self.confirm_new = None;
+        self.menu_error = None;
+        self.menu = false;
+    }
+
+    /// Going to another world: a playthrough is kept before it's replaced.
+    fn keep_progress(&mut self) {
+        if self.is_journey() && self.started {
+            self.write_autosave();
         }
     }
 
     pub fn restart(&mut self, scenario: ScenarioKind) {
-        let generation = self.generation + 1;
-        *self = Sim::new(scenario);
-        self.generation = generation;
+        self.keep_progress();
+        self.adopt(World::from_scenario(scenario), scenario);
         self.message = "Simulation restarted".into();
+    }
+
+    pub fn new_journey(&mut self, profile: &str) {
+        match World::new_journey(profile) {
+            Ok(world) => {
+                self.adopt(world, ScenarioKind::NewGame);
+                self.message = String::new();
+                // The old save stays until this game first saves over it.
+            }
+            Err(e) => self.menu_error = Some(e),
+        }
+    }
+
+    fn use_save(&mut self, result: Result<Loaded, SaveError>) {
+        match result {
+            Ok(loaded) => {
+                let scenario =
+                    ScenarioKind::from_key(&loaded.meta.scenario).unwrap_or(ScenarioKind::NewGame);
+                let note = loaded.warning;
+                self.adopt(loaded.world, scenario);
+                self.message = note.unwrap_or_else(|| "Game loaded".into());
+            }
+            Err(e) => {
+                self.menu_error = Some(e.to_string());
+                self.message = e.to_string();
+            }
+        }
+    }
+
+    /// Loads the most recent save.
+    pub fn continue_game(&mut self) {
+        let result = self.store.load_newest();
+        self.use_save(result);
+    }
+
+    /// Goes back to the last manual save.
+    pub fn load_manual(&mut self) {
+        let result = self.store.load(Slot::Manual);
+        self.use_save(result);
+    }
+
+    pub fn save_game(&mut self) {
+        self.message = match self
+            .store
+            .write(Slot::Manual, &self.world, self.scenario.key())
+        {
+            Ok(()) => {
+                self.autosave_timer = 0.0;
+                "Game saved".into()
+            }
+            Err(e) => e.to_string(),
+        };
+    }
+
+    fn write_autosave(&mut self) {
+        if let Err(e) = self
+            .store
+            .write(Slot::Auto, &self.world, self.scenario.key())
+        {
+            self.message = e.to_string();
+        }
+    }
+
+    pub fn open_menu(&mut self) {
+        self.keep_progress();
+        self.confirm_new = None;
+        self.refresh_save_summary();
+        self.menu = true;
+    }
+
+    pub fn refresh_save_summary(&mut self) {
+        let tps = self.world.defs.ticks_per_second as u64;
+        self.save_summary = self.store.newest().map(|(_, m)| {
+            let secs = m.tick / tps;
+            format!(
+                "Saved game: {:02}:{:02}:{:02} played ({} pace)",
+                secs / 3600,
+                secs / 60 % 60,
+                secs % 60,
+                m.profile
+            )
+        });
     }
 
     /// Performs a Soul Separation and, on success, shows what was given up.
@@ -128,12 +308,22 @@ pub struct SimRunnerPlugin;
 
 impl Plugin for SimRunnerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (keyboard_controls, advance_simulation).chain());
+        app.add_systems(
+            Update,
+            (
+                keyboard_controls,
+                advance_simulation,
+                show_notices,
+                autosave,
+            )
+                .chain(),
+        )
+        .add_systems(Last, save_on_exit);
     }
 }
 
 fn advance_simulation(time: Res<Time>, mut sim: ResMut<Sim>) {
-    if sim.paused {
+    if sim.paused || sim.menu {
         return;
     }
     let tps = sim.world.defs.ticks_per_second as f32;
@@ -145,7 +335,52 @@ fn advance_simulation(time: Res<Time>, mut sim: ResMut<Sim>) {
     }
 }
 
+/// Puts new milestone messages up one at a time.
+fn show_notices(mut sim: ResMut<Sim>) {
+    let total = sim.world.notices.total;
+    let fresh = (total - sim.notices_seen.min(total)) as usize;
+    if fresh > 0 {
+        sim.notices_seen = total;
+        let texts: Vec<String> = sim
+            .world
+            .notices
+            .recent(fresh)
+            .map(|n| n.text.clone())
+            .collect();
+        sim.waiting_notices.extend(texts.into_iter().rev());
+        while sim.waiting_notices.len() > MAX_WAITING_NOTICES {
+            sim.waiting_notices.pop_front();
+        }
+    }
+    if sim.banner.is_none()
+        && let Some(text) = sim.waiting_notices.pop_front()
+    {
+        sim.banner = Some((text, NOTICE_SECONDS));
+    }
+}
+
+fn autosave(time: Res<Time>, mut sim: ResMut<Sim>) {
+    if sim.menu || !sim.started || !sim.is_journey() || sim.autosave_seconds <= 0.0 {
+        return;
+    }
+    sim.autosave_timer += time.delta_secs();
+    if sim.autosave_timer >= sim.autosave_seconds {
+        sim.autosave_timer = 0.0;
+        sim.write_autosave();
+    }
+}
+
+/// Closing the window keeps the playthrough, however recently it last saved.
+fn save_on_exit(mut exits: MessageReader<AppExit>, mut sim: ResMut<Sim>) {
+    if exits.read().next().is_some() {
+        sim.keep_progress();
+    }
+}
+
 fn keyboard_controls(keys: Res<ButtonInput<KeyCode>>, mut sim: ResMut<Sim>) {
+    if sim.menu {
+        return;
+    }
     if keys.just_pressed(KeyCode::Space) {
         sim.paused = !sim.paused;
     }
@@ -163,7 +398,9 @@ fn keyboard_controls(keys: Res<ButtonInput<KeyCode>>, mut sim: ResMut<Sim>) {
         }
     }
     if keys.just_pressed(KeyCode::F5) {
-        let s = sim.scenario;
-        sim.restart(s);
+        sim.save_game();
+    }
+    if keys.just_pressed(KeyCode::F9) {
+        sim.load_manual();
     }
 }

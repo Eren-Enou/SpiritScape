@@ -4,7 +4,7 @@
 use crate::defs::ResourceId;
 use std::collections::BTreeMap;
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Inventory {
     items: BTreeMap<ResourceId, u32>,
     pub capacity: u32,
@@ -62,7 +62,7 @@ impl Inventory {
 
 /// Building storage with per-resource reservations. Reserved units stay in
 /// `contents` (they physically exist) but are not available to normal users.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Storage {
     contents: BTreeMap<ResourceId, u32>,
     reserved: BTreeMap<ResourceId, u32>,

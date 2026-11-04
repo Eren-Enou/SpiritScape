@@ -3,7 +3,7 @@
 use crate::defs::{BuildingKindId, JobKind, ResourceId, RoleId, SiteId, SkillId, TreeKindId};
 use crate::grid::TilePos;
 use crate::inventory::{Inventory, Storage};
-use crate::metrics::{TimeLog, WaitKind};
+use crate::metrics::{TimeLog, TimeUse, WaitKind};
 use crate::skills::XpTable;
 use crate::tasks::Task;
 use std::collections::{BTreeMap, VecDeque};
@@ -13,13 +13,13 @@ pub type BuildingId = usize;
 pub type SpiritId = usize;
 pub type ProjectId = usize;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum TreeState {
     Grown { logs: u32 },
     Depleted { regrow_at: u64 },
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Tree {
     pub id: TreeId,
     pub kind: TreeKindId,
@@ -46,13 +46,13 @@ impl Tree {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum BuildingState {
     UnderConstruction { project: ProjectId },
     Complete,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Building {
     pub id: BuildingId,
     pub kind: BuildingKindId,
@@ -69,7 +69,7 @@ impl Building {
 }
 
 /// Tile-to-tile movement. `progress` counts ticks toward entering `path[0]`.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Mover {
     pub pos: TilePos,
     pub path: VecDeque<TilePos>,
@@ -103,7 +103,7 @@ impl Mover {
 }
 
 /// State shared by everything that walks around and carries items.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Actor {
     pub mover: Mover,
     pub inventory: Inventory,
@@ -162,7 +162,7 @@ impl Actor {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Activity {
     Idle(String),
     Working(String),
@@ -185,7 +185,7 @@ impl Activity {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Spirit {
     pub id: SpiritId,
     pub name: String,
@@ -260,22 +260,30 @@ impl Spirit {
     pub fn skill(&self) -> SkillId {
         self.skill
     }
+
+    /// Re-derives the level from the fixed XP when a save is loaded, so the
+    /// XP is the one source of truth. XP itself is never touched.
+    pub(crate) fn refresh_level(&mut self, table: &XpTable) {
+        self.level = table.level_for_xp(self.xp);
+    }
 }
 
 /// Lifetime progression in one skill, kept separately from current XP.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct SkillHistory {
     pub highest_level: u32,
     pub xp_sacrificed: u64,
     pub spirits_created: u32,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Player {
     pub actor: Actor,
     xp: BTreeMap<SkillId, u64>,
     history: BTreeMap<SkillId, SkillHistory>,
     pub activity: String,
+    /// How the player has spent their time since the start.
+    pub time: TimeUse,
 }
 
 impl Player {
@@ -285,7 +293,25 @@ impl Player {
             xp: BTreeMap::new(),
             history: BTreeMap::new(),
             activity: "Idle".into(),
+            time: TimeUse::default(),
         }
+    }
+
+    /// Adds this tick to the matching time-use bucket.
+    pub(crate) fn account_tick(&mut self) {
+        let t = &mut self.time;
+        match self.actor.queue.front() {
+            Some(Task::Chop { .. }) => t.gathering += 1,
+            Some(Task::Craft { .. }) => t.crafting += 1,
+            Some(Task::Move { .. }) => t.traveling += 1,
+            Some(_) => t.handling += 1,
+            None => t.idle += 1,
+        }
+    }
+
+    /// Total XP the player has given to spirits, across every skill.
+    pub fn xp_invested(&self) -> u64 {
+        self.history.values().map(|h| h.xp_sacrificed).sum()
     }
 
     pub fn xp(&self, skill: SkillId) -> u64 {
@@ -328,7 +354,7 @@ impl Player {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum ProjectState {
     /// Waiting until the cost can be reserved in main storage.
     AwaitingMaterials,
@@ -339,7 +365,7 @@ pub enum ProjectState {
     Complete,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Project {
     pub id: ProjectId,
     pub kind: BuildingKindId,

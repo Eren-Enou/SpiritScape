@@ -84,6 +84,9 @@ fn keyboard_movement(
     mut sim: ResMut<Sim>,
     mut facing: ResMut<Facing>,
 ) {
+    if sim.menu {
+        return;
+    }
     const DIRS: [([KeyCode; 2], IVec2); 4] = [
         ([KeyCode::KeyW, KeyCode::ArrowUp], IVec2::new(0, -1)),
         ([KeyCode::KeyS, KeyCode::ArrowDown], IVec2::new(0, 1)),
@@ -264,7 +267,8 @@ fn map_clicks(
     hovered: Res<HoveredTile>,
     mut sim: ResMut<Sim>,
 ) {
-    if mouse.just_pressed(MouseButton::Left)
+    if !sim.menu
+        && mouse.just_pressed(MouseButton::Left)
         && let Some(tile) = hovered.0
     {
         sim.command(Command::PlayerInteract(tile));
