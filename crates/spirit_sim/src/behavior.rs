@@ -187,12 +187,12 @@ impl World {
         };
         if changed {
             let s = &self.spirits[sid];
-            let msg = format!(
-                "{} is {}: {}",
-                s.name,
-                activity.label().to_lowercase(),
-                activity.text()
-            );
+            // Short of materials isn't stuck: it clears up by itself.
+            let word = match s.wait {
+                Some(WaitKind::Recovery | WaitKind::Inputs) => "waiting".to_string(),
+                _ => activity.label().to_lowercase(),
+            };
+            let msg = format!("{} is {word}: {}", s.name, activity.text());
             let key = match &activity {
                 // Counts in the text change without the reason changing.
                 Activity::Blocked(r) => {
