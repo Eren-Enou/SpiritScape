@@ -377,6 +377,7 @@ impl World {
                 ended_at: None,
                 markers_read: Vec::new(),
                 season_seen: None,
+                tips_seen: None,
                 visitor: None,
                 visitors_met: 0,
                 offers_taken: 0,

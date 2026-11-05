@@ -397,6 +397,8 @@ pub struct JourneyRules {
 pub struct GameDefs {
     /// Long-term goals, in the order they're suggested.
     pub ambitions: Vec<crate::ambitions::AmbitionDef>,
+    /// What to say as each system first matters.
+    pub tips: Vec<crate::tips::TipDef>,
     /// People who pass through, in the order they come.
     pub visitors: Vec<crate::visitors::VisitorDef>,
     /// The year, in order.
@@ -447,6 +449,8 @@ struct RawDefs {
     journey: JourneyRules,
     #[serde(default)]
     ambitions: Vec<crate::ambitions::AmbitionDef>,
+    #[serde(default)]
+    tips: Vec<crate::tips::TipDef>,
     #[serde(default)]
     visitors: Vec<crate::visitors::VisitorDef>,
     #[serde(default)]
@@ -1074,6 +1078,7 @@ impl GameDefs {
 
         Ok(GameDefs {
             ambitions: raw.ambitions,
+            tips: raw.tips,
             visitors: raw.visitors,
             seasons: raw.seasons,
             markers: raw.markers,

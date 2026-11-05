@@ -90,6 +90,10 @@ pub struct Settlement {
     /// Orders beyond the main one.
     #[serde(default)]
     pub extra_orders: Vec<ProductionOrder>,
+    /// Tips already given. None until they've first been read, so an older
+    /// save isn't told everything again.
+    #[serde(default)]
+    pub tips_seen: Option<Vec<String>>,
     /// Who's at the settlement right now.
     #[serde(default)]
     pub visitor: Option<crate::visitors::VisitorHere>,
@@ -1128,6 +1132,7 @@ impl World {
             self.update_ambitions();
             self.update_deeds();
             self.update_visitors();
+            self.update_tips();
         }
         if self.tick.is_multiple_of(5) {
             self.update_markers();

@@ -514,8 +514,8 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                 },
             ))
             .with_children(|g| {
-                card(g, "WHAT'S NEXT", |c| body(c, Card::Goal));
-                card(g, "ON THE ROAD", |c| {
+                card(g, "WHAT'S NEXT", |c| {
+                    body(c, Card::Goal);
                     body(c, Card::Visitor);
                     button_row(
                         c,
@@ -1480,6 +1480,7 @@ fn update_buttons(
             // A playthrough isn't a sandbox: nothing here throws it away.
             UiAction::Load(_) => !sim.is_journey() && scenario_buttons.0,
             UiAction::Restart | UiAction::ToggleScenarios => !sim.is_journey(),
+            UiAction::ShowTab(t) => tab_key(*t).is_none_or(|id| w.is_open(id)),
             UiAction::LeaveLoad => w.load_is_stuck(),
             UiAction::VisitorYes => w.visitor().is_some_and(|v| v.can_accept),
             UiAction::VisitorNo => w.visitor().is_some(),
@@ -1966,9 +1967,26 @@ fn player_lines(sim: &Sim) -> Vec<Line> {
     let w = &sim.world;
     let mut lines = Vec::new();
     for skill in soul_skills(w) {
-        lines.extend(skill_lines(w, skill));
+        if w.is_open(&w.defs.skill(skill).id) {
+            lines.extend(skill_lines(w, skill));
+        }
     }
     lines
+}
+
+/// The name a tab goes by in the game's data. Settlement is always there.
+fn tab_key(tab: Tab) -> Option<&'static str> {
+    match tab {
+        Tab::Settlement => None,
+        Tab::Gathering => Some("gathering"),
+        Tab::Production => Some("production"),
+        Tab::Progress => Some("progress"),
+        Tab::Training => Some("training"),
+        Tab::Spirits => Some("spirits"),
+        Tab::Soul => Some("soul"),
+        Tab::Outpost => Some("outpost"),
+        Tab::Projects => Some("projects"),
+    }
 }
 
 /// The player is working at a bench.
@@ -2443,7 +2461,7 @@ fn goal_lines(w: &World) -> Vec<Line> {
 /// Who's here, if anyone.
 fn visitor_lines(w: &World) -> Vec<Line> {
     let Some(v) = w.visitor() else {
-        return vec![vec![muted("Nobody on the road today.")]];
+        return Vec::new();
     };
     let mut lines = vec![
         vec![text(v.name)],

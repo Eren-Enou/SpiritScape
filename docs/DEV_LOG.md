@@ -2,6 +2,14 @@
 
 The handoff between development runs. Newest first.
 
+## v0.29 Onboarding
+
+**Status:** on branch `v0.29-onboarding`, with its PR targeting `v0.28-visitors`. Not merged.
+
+**Shipped:** twelve tips that open tabs and skills as they first matter.
+
+**Next:** sound and visual feedback for levels, unlocks, seasons and the ending.
+
 ## v0.28 Visitors
 
 **Status:** on branch `v0.28-visitors`, with its PR targeting `v0.27-seasons`. Not merged.
