@@ -2,6 +2,16 @@
 
 The handoff between development runs. Newest first.
 
+## v0.20 Ready to Play
+
+**Status:** on branch `v0.20-playtest-ready`, with its PR targeting `v0.19-every-goal`. Not merged.
+
+**Shipped:** `docs/PLAYTEST.md`, the `full_map` scenario and a `--fps` flag.
+
+**Measured:** 60 frames a second, capped by vertical sync, on the busiest map on this machine.
+
+**Next:** the backlog is finished. Everything left needs the user: the playtest, physical input, and the four decisions listed in `docs/PLAYTEST.md`. Don't add systems before then.
+
 ## v0.19 Every Goal
 
 **Status:** on branch `v0.19-every-goal`, with its PR targeting `v0.18-demand-and-goals`. Not merged.
