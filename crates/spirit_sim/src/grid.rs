@@ -259,6 +259,55 @@ impl Grid {
         p.neighbors4().into_iter().filter(|n| self.is_walkable(*n))
     }
 
+    /// The largest stretch of connected open ground, by tile. Ties go to
+    /// whichever comes first on the map.
+    pub fn mainland(&self) -> Vec<bool> {
+        let mut seen = vec![false; self.terrain.len()];
+        let mut best: Vec<usize> = Vec::new();
+        for y in 0..self.height {
+            for x in 0..self.width {
+                let start = TilePos::new(x, y);
+                if seen[self.idx(start)] || !self.is_walkable(start) {
+                    continue;
+                }
+                seen[self.idx(start)] = true;
+                let mut region = vec![self.idx(start)];
+                let mut queue = VecDeque::from([start]);
+                while let Some(p) = queue.pop_front() {
+                    for n in self.walkable_neighbors(p).collect::<Vec<_>>() {
+                        let i = self.idx(n);
+                        if !seen[i] {
+                            seen[i] = true;
+                            region.push(i);
+                            queue.push_back(n);
+                        }
+                    }
+                }
+                if region.len() > best.len() {
+                    best = region;
+                }
+            }
+        }
+        let mut land = vec![false; self.terrain.len()];
+        for i in best {
+            land[i] = true;
+        }
+        land
+    }
+
+    /// Whether `p` is on that ground.
+    pub fn on_land(&self, land: &[bool], p: TilePos) -> bool {
+        self.in_bounds(p) && land[self.idx(p)]
+    }
+
+    /// The tile of that ground closest to `p` in a straight line.
+    pub fn nearest_land(&self, land: &[bool], p: TilePos) -> Option<TilePos> {
+        (0..self.height)
+            .flat_map(|y| (0..self.width).map(move |x| TilePos::new(x, y)))
+            .filter(|t| land[self.idx(*t)])
+            .min_by_key(|t| (t.manhattan(p), t.y, t.x))
+    }
+
     /// Multi-source BFS over walkable tiles. Sources are always expanded,
     /// even if they are not walkable themselves.
     pub fn distance_field(&self, sources: &[TilePos]) -> DistanceField {

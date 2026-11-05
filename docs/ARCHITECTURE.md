@@ -169,3 +169,7 @@ A road is a building whose `paves` list becomes `Terrain::Road` when it's finish
 ## Recipes that use finished goods (v0.11)
 
 `chosen_only` recipes stay out of `best_recipe`, and out of anything that guesses what a player or spirit wants from what's lying around. They run only when the player picks one or an order asks for one. Any new code that scans recipes by input needs the same check. A good can now be an output and an input at one bench, so `used_at_bench` stops haulers taking away what the bench is about to use. See [V0.11_FITTED_PANELS.md](V0.11_FITTED_PANELS.md).
+
+## Staying on open ground (v0.13)
+
+`free_the_stranded` runs every `stranded_check_seconds`. `Grid::mainland` finds the largest connected open area, and anyone off it is moved to the nearest tile of it. Only the position changes, so tasks, bags and reservations carry on. See [V0.13_STRANDED_RESCUE.md](V0.13_STRANDED_RESCUE.md).

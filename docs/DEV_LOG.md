@@ -2,6 +2,16 @@
 
 The handoff between development runs. Newest first.
 
+## v0.13 Stranded Rescue
+
+**Status:** on branch `v0.13-stranded-rescue`, with its PR targeting `v0.12-guided-player`. Not merged.
+
+**Shipped:** a check every 10 seconds that moves anyone cut off from the main open ground to its nearest edge, and the `walled_in` scenario.
+
+**Decided:** a short jump, not removing buildings, and it runs all the time, not only on load.
+
+**Next:** what remote production is for, then physical input.
+
 ## v0.12 Guided Player
 
 **Status:** on branch `v0.12-guided-player`, with its PR targeting `v0.11-fitted-panels`. Not merged.
