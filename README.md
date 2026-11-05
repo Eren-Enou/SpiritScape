@@ -152,6 +152,12 @@ Settlement projects add `--scenario forest_access`, `project_queue`, `expanded_c
 cargo run -p spirit_sim --release --example expansion_report
 ```
 
+Plank roads add `--scenario plank_surplus`. See [docs/V0.10_PLANK_ROADS.md](docs/V0.10_PLANK_ROADS.md).
+
+```bash
+cargo run -p spirit_sim --release --example road_report
+```
+
 ## Tests
 
 ```bash
