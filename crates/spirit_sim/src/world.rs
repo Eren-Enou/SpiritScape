@@ -520,7 +520,10 @@ impl World {
             Command::SetOrderReserve { output, reserve } => {
                 let order = self.order_for_mut(output).ok_or("No such order")?;
                 order.input_reserve = reserve;
-                let msg = format!("{} now keeps {reserve} in reserve", self.defs.resource(output).name);
+                let msg = format!(
+                    "{} now keeps {reserve} in reserve",
+                    self.defs.resource(output).name
+                );
                 self.events.push(self.tick, EventKind::Player, msg.clone());
                 Ok(msg)
             }
@@ -535,7 +538,10 @@ impl World {
             Command::SetOrderPriority { output, priority } => {
                 let order = self.order_for_mut(output).ok_or("No such order")?;
                 order.priority = priority;
-                let msg = format!("{} priority set to {priority}", self.defs.resource(output).name);
+                let msg = format!(
+                    "{} priority set to {priority}",
+                    self.defs.resource(output).name
+                );
                 self.events.push(self.tick, EventKind::Player, msg.clone());
                 Ok(msg)
             }
@@ -543,7 +549,9 @@ impl World {
                 let valid = policy
                     .station
                     .is_none_or(|b| self.buildings.get(b).is_some())
-                    && policy.site.is_none_or(|s| s.index() < self.defs.sites.len());
+                    && policy
+                        .site
+                        .is_none_or(|s| s.index() < self.defs.sites.len());
                 if !valid {
                     return Err("That place doesn't exist".into());
                 }
@@ -650,7 +658,7 @@ impl World {
                 goal: Goal::Adjacent(p),
                 label: b.name.clone(),
             };
-            let logs = self.defs.objective.resource;
+            let logs = self.player_takes(b);
             let bag = &self.player.actor.inventory;
             if def.is_station {
                 let activity = self.player_station_activity(b)?;
@@ -700,6 +708,19 @@ impl World {
             self.player.activity = activity.clone();
         }
         Ok(activity)
+    }
+
+    /// What empty hands pick up at a storage: the input of the best recipe
+    /// the player can make from what's there, or else ordinary logs.
+    fn player_takes(&self, b: &Building) -> ResourceId {
+        let mut recipes: Vec<_> = self.defs.recipes.iter().collect();
+        recipes.sort_by_key(|d| std::cmp::Reverse(d.level_required));
+        recipes
+            .into_iter()
+            .filter(|d| self.player.level(d.skill, &self.defs.xp_table) >= d.level_required)
+            .flat_map(|d| d.inputs.iter())
+            .find(|(r, n)| b.storage.available(*r) >= *n)
+            .map_or(self.defs.objective.resource, |(r, _)| *r)
     }
 
     /// What the player would make at a station, or why they can't.
@@ -1010,10 +1031,13 @@ impl World {
         for i in 0..self.defs.resources.len() {
             let r = ResourceId(i as u16);
             let stock = self.projected_stock(r) as i64;
-            budgets.gather.insert(r, self.gather_goal_of(r) as i64 - stock);
+            budgets
+                .gather
+                .insert(r, self.gather_goal_of(r) as i64 - stock);
             budgets.craft.insert(r, self.deficit_of(r) as i64);
         }
         for sid in 0..self.spirits.len() {
+            self.switch_craft_if_needed(sid);
             if self.spirits[sid].actor.queue.is_empty() && self.tick >= self.spirits[sid].next_think
             {
                 self.think(sid);

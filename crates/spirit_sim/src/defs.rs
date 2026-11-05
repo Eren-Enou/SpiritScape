@@ -570,11 +570,7 @@ fn single_char(s: &str, what: &str) -> Result<char, String> {
 /// Production planning looks one step upstream and never recurses, which is
 /// only sound while no recipe's output leads back to its own input.
 fn check_no_cycles(recipes: &[RecipeDef], resources: usize) -> Result<(), String> {
-    fn visit(
-        r: usize,
-        recipes: &[RecipeDef],
-        state: &mut [u8],
-    ) -> Result<(), String> {
+    fn visit(r: usize, recipes: &[RecipeDef], state: &mut [u8]) -> Result<(), String> {
         match state[r] {
             1 => return Err("recipes form a loop".into()),
             2 => return Ok(()),

@@ -71,7 +71,7 @@ impl World {
 
     /// Whether the player's planks stay at the bench for a hauler to collect.
     pub(crate) fn player_output_at_station(&self) -> bool {
-        self.settlement.training.supply && self.has_role_with(JobKind::Collect)
+        self.settlement.training.supply && self.has_worker_for(JobKind::Collect)
     }
 
     /// Logs on their way to the bench for the player.
@@ -118,9 +118,7 @@ impl World {
     pub(crate) fn training_gather_demand(&self, r: ResourceId) -> u32 {
         let dedicated = self.settlement.training.supply
             && r == self.training_input()
-            && self
-                .gatherers()
-                .any(|s| s.policy.focus == Focus::Training);
+            && self.gatherers().any(|s| s.policy.focus == Focus::Training);
         match self.station() {
             Some(b) if dedicated => self.bench_size(b),
             _ => 0,

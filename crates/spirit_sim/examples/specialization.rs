@@ -24,9 +24,19 @@ fn plank_rate(w: &mut World) -> u64 {
     crafted(w, planks) - before
 }
 
+/// Gives a line enough logs and room that only benches and workers limit it.
+fn feed(w: &mut World) {
+    let main = w.main_storage;
+    let logs = w.defs.objective.resource;
+    w.buildings[main].storage.capacity += 2000;
+    w.buildings[main].storage.deposit(logs, 800);
+    *w.ledger.seeded.entry(logs).or_default() += 800;
+    w.apply(Command::SetProductionTarget(1500)).unwrap();
+}
+
 fn advanced() {
     println!("Scenario A: advanced specialization");
-    let mut w = World::from_scenario(ScenarioKind::AdvancedSpecialization);
+    let w = World::from_scenario(ScenarioKind::AdvancedSpecialization);
     let (wc, ww) = (
         w.defs.skill_id("woodcutting").unwrap(),
         w.defs.skill_id("woodworking").unwrap(),
@@ -103,14 +113,10 @@ fn expanded() {
         crafted(&w, planks),
         crafted(&w, beams)
     );
-    let bottleneck_rate = plank_rate(&mut World::from_scenario(
-        ScenarioKind::ProductionBottleneck,
-    ));
-    let main = w.main_storage;
-    let logs = w.defs.objective.resource;
-    w.buildings[main].storage.capacity += 400;
-    w.buildings[main].storage.deposit(logs, 400);
-    *w.ledger.seeded.entry(logs).or_default() += 400;
+    let mut one = World::from_scenario(ScenarioKind::ProductionBottleneck);
+    feed(&mut one);
+    let bottleneck_rate = plank_rate(&mut one);
+    feed(&mut w);
     let after = plank_rate(&mut w);
     println!("  one Workshop: {bottleneck_rate} planks/min; two Workshops: {after} planks/min");
     for s in w.station_reports() {
@@ -154,8 +160,8 @@ fn main() {
     bottleneck();
     expanded();
     println!("Scenario D: supported retraining");
-    println!(" Woodworking, 1500 XP:");
-    table(&compare_sawing(1500), 1500);
-    println!(" Woodcutting, 1000 XP:");
-    table(&compare_chopping(1000), 1000);
+    println!(" Woodworking, 3000 XP:");
+    table(&compare_sawing(3000), 3000);
+    println!(" Woodcutting, 2000 XP:");
+    table(&compare_chopping(2000), 2000);
 }

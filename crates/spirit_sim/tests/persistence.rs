@@ -191,7 +191,12 @@ fn player_progress_survives_loading() {
     let mut w = World::from_scenario(ScenarioKind::Regrind);
     let skill = w.defs.skill_id("woodcutting").unwrap();
     w.soul_separate(skill, 200).unwrap();
-    let tree = w.trees.iter().find(|t| w.player_can_cut(t.kind)).unwrap().pos;
+    let tree = w
+        .trees
+        .iter()
+        .find(|t| w.player_can_cut(t.kind))
+        .unwrap()
+        .pos;
     w.apply(Command::PlayerInteract(tree)).unwrap();
     w.run_ticks(120);
     let l = reload(&w);

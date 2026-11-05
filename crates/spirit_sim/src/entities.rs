@@ -227,7 +227,10 @@ impl Focus {
         match self {
             Focus::Anything => true,
             Focus::Settlement => !training,
-            Focus::Training => training || matches!(job, JobKind::Deliver | JobKind::Gather),
+            // Collecting is included: the player's planks wait at the bench.
+            Focus::Training => {
+                training || matches!(job, JobKind::Deliver | JobKind::Gather | JobKind::Collect)
+            }
             Focus::Rest => job == JobKind::Deliver,
         }
     }

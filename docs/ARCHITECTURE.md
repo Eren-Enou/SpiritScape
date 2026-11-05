@@ -87,6 +87,11 @@
 - **Guidance watches and never gates.** `journey` reads the world and has no effect on it beyond messages, so a player can ignore it, and scenarios simply don't have one.
 - **Materials set aside for the player use `Storage` reservations.** A station's reserved inputs belong to the player, and spirits can't touch them. Training support is hauler job rules, so its priority against production is data.
 
+- **Places at a station are derived, not stored.** A spirit or player with a `Craft` task holds a place, so occupancy can't drift from what workers are doing.
+- **Planning stays one step deep.** Every order turns its shortfall into input requests and a capped gather goal. Recipes that form a loop are refused when data loads, which is why no recursion is needed.
+- **Instructions narrow, never widen.** `SpiritPolicy` filters jobs, trees and stations after role and level have decided what's possible.
+- **Saves upgrade on read.** New fields have serde defaults, and `migrate_v1` adds what defaults can't. `tests/fixtures/` holds real older saves, and `SaveStore` keeps the original file.
+
 ## Resource and XP conservation
 
 `Ledger` records logs placed by the scenario (`seeded`), logs cut (`harvested`)
@@ -100,7 +105,7 @@ that adds XP to a spirit.
 
 - **One gathering skill and two tiers.** Higher levels mostly unlock Oak; chop speed improves only slightly per level. Retraining after a sacrifice currently takes under two minutes (see `docs/V0.3_GATHERING.md`).
 - **Waiting spirits stand still** where they ran out of work. They don't fall back to lower tiers or help with other jobs.
-- **One production order and one station.** See the technical debt list in `docs/V0.4_WORKSHOP.md`.
+- **Training stock lives at the first station only.** See the technical debt list in `docs/V0.6_SPECIALIZATION.md`.
 - **Hauling and Construction aren't trainable skills.** Those spirits are founding spirits seeded by the scenario, in both the normal game and the demo.
 - **Only one autonomous building type (Field Storage) and one resource (Logs).** The definitions support more, but the planner's "detect" step only measures gatherer delivery distance.
 - **Simplified movement.** Spirits move tile to tile on a 4-connected grid with BFS pathfinding and pass through each other. The return leg is assumed to equal the delivery leg when measuring travel share.

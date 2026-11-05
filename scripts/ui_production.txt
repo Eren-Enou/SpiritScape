@@ -1,0 +1,51 @@
+# UI test of workstation limits, several orders, spirit instructions and
+# placing a Workshop. Exits with an error if anything expected is missing:
+#   cargo run --release -- --scenario expanded_production --save-dir target/ui_saves2 --script scripts/ui_production.txt --capture target/ui_production
+1.5 press Production (P)
+2.0 expect ORDERS
+2.1 expect Structural Beams
+2.2 expect WORKSHOPS
+2.3 scroll 1380 600 -10
+2.8 shot 01_orders
+3.0 press Beams +5
+3.4 expect Production target: maintain 13 Structural Beams
+3.5 press Beams: normal priority
+3.9 expect Beams: first
+4.0 expect places
+4.1 shot 02_workshops
+4.3 key O
+4.8 expect INSTRUCTIONS
+4.9 expect Focus: Anything
+5.0 press Next spirit
+5.4 expect Top tier first: ON
+5.5 press Focus: Anything
+5.9 expect Focus: Settlement work
+6.0 expect has new instructions
+6.1 press Gather at: anywhere
+6.5 expect Gather at: Starting Grove
+6.6 shot 03_instructions
+6.8 press Next spirit
+7.0 press Next spirit
+7.2 press Next spirit
+7.4 press Next spirit
+7.8 press Work at: any bench
+8.2 expect Work at: Workshop
+8.3 press 8x
+12.0 key P
+12.5 expect WORKSHOPS
+12.6 shot 04_two_workshops
+12.65 press Place Workshop*
+12.75 expect Click a free tile
+12.8 tile 8 17
+12.95 expect Ordered a Workshop
+13.0 scroll 1380 400 40
+13.3 press 1x
+13.5 press Save
+13.8 expect Game saved
+13.9 key F9
+14.5 expect Game loaded
+14.6 key O
+14.9 expect Focus: Anything
+15.0 press Next spirit
+15.4 expect Focus: Settlement work
+15.5 exit

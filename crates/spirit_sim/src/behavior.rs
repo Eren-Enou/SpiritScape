@@ -427,15 +427,16 @@ impl World {
         let short: Vec<bool> = (0..self.defs.resources.len())
             .map(|i| self.gather_short(ResourceId(i as u16)))
             .collect();
-        let wanted = |k: TreeKindId| {
-            self.spirit_can_cut(s, k) && short[self.defs.tree(k).resource.index()]
-        };
+        let wanted =
+            |k: TreeKindId| self.spirit_can_cut(s, k) && short[self.defs.tree(k).resource.index()];
         let first_choice = s
             .policy
             .prefer_advanced
             .then(|| {
                 let mut tiers = self.defs.tree_tiers(s.skill()).into_iter();
-                tiers.rfind(|k| wanted(*k)).map(|k| self.defs.tree(k).resource)
+                tiers
+                    .rfind(|k| wanted(*k))
+                    .map(|k| self.defs.tree(k).resource)
             })
             .flatten();
         let suits = |t: &Tree| {
@@ -633,7 +634,7 @@ impl World {
     }
 
     /// Whether someone will do `job` for the settlement.
-    fn has_worker_for(&self, job: JobKind) -> bool {
+    pub(crate) fn has_worker_for(&self, job: JobKind) -> bool {
         self.spirits
             .iter()
             .any(|s| self.defs.role(s.role).has_job(job) && s.policy.focus.allows(job))
@@ -644,15 +645,12 @@ impl World {
     fn plan_craft(&self, sid: SpiritId) -> Result<JobPlan, Blocked> {
         let s = &self.spirits[sid];
         let mut blocked: Option<Blocked> = None;
-        for o in self.orders() {
-            if self.deficit_of(o.output) == 0 || !self.can_make(s, o.output) {
-                continue;
-            }
-            for b in self.stations_for(o.output) {
+        for output in self.orders_for(s) {
+            for b in self.stations_for(output) {
                 if !self.may_work_at(s, b.id) {
                     continue;
                 }
-                match self.plan_craft_at(sid, b, o.output) {
+                match self.plan_craft_at(sid, b, output) {
                     Ok(plan) => return Ok(plan),
                     // A full bench says most about why this spirit is idle.
                     Err(e) if e.kind == WaitKind::Station => blocked = Some(e),
@@ -663,6 +661,66 @@ impl World {
             }
         }
         Err(blocked.unwrap_or_else(|| "No workshop available".into()))
+    }
+
+    /// What this spirit could make, in the order it should try: urgent orders
+    /// first and, between equals, the hardest work it's qualified for, because
+    /// fewer spirits can do that.
+    fn orders_for(&self, s: &Spirit) -> Vec<ResourceId> {
+        let mut list: Vec<_> = self
+            .orders()
+            .into_iter()
+            .filter(|o| self.deficit_of(o.output) > 0 && self.can_make(s, o.output))
+            .map(|o| {
+                let tier = self
+                    .defs
+                    .recipes
+                    .iter()
+                    .filter(|d| d.output.0 == o.output && d.level_required <= s.level())
+                    .map(|d| d.level_required)
+                    .max()
+                    .unwrap_or(0);
+                (
+                    std::cmp::Reverse(o.priority),
+                    std::cmp::Reverse(tier),
+                    o.output,
+                )
+            })
+            .collect();
+        list.sort();
+        list.into_iter().map(|x| x.2).collect()
+    }
+
+    /// Between batches, a worker leaves its bench job if something more
+    /// urgent has become possible right where it stands.
+    pub(crate) fn switch_craft_if_needed(&mut self, sid: SpiritId) {
+        let s = &self.spirits[sid];
+        let Some(&Task::Craft {
+            building,
+            output: Some(current),
+        }) = s.actor.queue.front()
+        else {
+            return;
+        };
+        if s.actor.action_ticks > 0 {
+            return;
+        }
+        let b = &self.buildings[building];
+        let have = |r| s.actor.inventory.get(r) + b.storage.available(r);
+        let better = self
+            .orders_for(s)
+            .into_iter()
+            .take_while(|o| *o != current)
+            .any(|o| {
+                self.defs
+                    .best_recipe_for(b.kind, s.level(), o, have)
+                    .is_some()
+            });
+        if better {
+            let s = &mut self.spirits[sid];
+            s.actor.clear_tasks();
+            s.next_think = self.tick;
+        }
     }
 
     /// Work at one station. With no supplier in the settlement, the worker

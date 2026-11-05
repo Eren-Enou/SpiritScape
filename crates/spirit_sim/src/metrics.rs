@@ -268,6 +268,11 @@ impl World {
         }
     }
 
+    /// Ids of the gathering spirits, in order.
+    pub fn gatherer_ids(&self) -> Vec<usize> {
+        self.gatherers().map(|s| s.id).collect()
+    }
+
     pub(crate) fn gatherers(&self) -> impl Iterator<Item = &Spirit> {
         self.spirits
             .iter()

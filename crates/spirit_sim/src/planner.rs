@@ -407,9 +407,10 @@ impl World {
     ) -> Result<String, String> {
         self.check_order(kind)?;
         let occupied = self.player.actor.pos() == site
-            || self.spirits.iter().any(|s| {
-                s.actor.pos() == site || s.actor.mover.path.iter().any(|p| *p == site)
-            });
+            || self
+                .spirits
+                .iter()
+                .any(|s| s.actor.pos() == site || s.actor.mover.path.iter().any(|p| *p == site));
         if !self.grid.is_buildable(site)
             || occupied
             || self.grid.walkable_neighbors(site).count() < 2

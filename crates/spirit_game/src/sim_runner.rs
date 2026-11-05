@@ -3,7 +3,7 @@
 //! player's saves: a world is written to and read from here, never by the UI.
 
 use bevy::prelude::*;
-use spirit_sim::defs::SkillId;
+use spirit_sim::defs::{BuildingKindId, SkillId};
 use spirit_sim::save::{Loaded, SaveError, SaveStore, Slot};
 use spirit_sim::{Command, ScenarioKind, World};
 use std::collections::VecDeque;
@@ -50,6 +50,10 @@ pub struct Sim {
     pub save_summary: Option<String>,
     /// Why the last load failed.
     pub menu_error: Option<String>,
+    /// The building the next map click will place.
+    pub placing: Option<BuildingKindId>,
+    /// The spirit shown in the Spirits tab.
+    pub selected_spirit: usize,
 }
 
 impl Sim {
@@ -78,6 +82,8 @@ impl Sim {
             confirm_new: None,
             save_summary: None,
             menu_error: None,
+            placing: None,
+            selected_spirit: 0,
             world,
             scenario,
         }
@@ -144,6 +150,8 @@ impl Sim {
         self.confirm_new = None;
         self.menu_error = None;
         self.menu = false;
+        self.placing = None;
+        self.selected_spirit = 0;
     }
 
     /// Going to another world: a playthrough is kept before it's replaced.

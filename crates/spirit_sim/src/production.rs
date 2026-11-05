@@ -216,7 +216,8 @@ impl World {
                     .filter(|s| self.may_work_at(s, b.id))
                     .map(|s| s.level())
                     .max()?;
-                self.defs.best_recipe_for(b.kind, level, output, |_| u32::MAX)
+                self.defs
+                    .best_recipe_for(b.kind, level, output, |_| u32::MAX)
             })
             .max_by_key(|r| self.defs.recipe(*r).level_required)
     }
@@ -331,10 +332,7 @@ impl World {
                 for b in self.staffed_stations(order.output) {
                     let buffer = self.defs.building(b.kind).input_buffer;
                     let have = b.storage.available(r) + self.incoming(b.id, r);
-                    let want = need
-                        .min(buffer)
-                        .saturating_sub(have)
-                        .min(b.storage.free());
+                    let want = need.min(buffer).saturating_sub(have).min(b.storage.free());
                     if want > 0 {
                         requests.push((b.id, r, want));
                     }
@@ -398,10 +396,9 @@ impl World {
     pub fn gather_goal_of(&self, r: ResourceId) -> u32 {
         let o = &self.settlement.objective;
         let base = if r == o.resource { o.target } else { 0 };
-        let wanted = self
-            .orders()
-            .iter()
-            .any(|o| o.enabled && self.uses_input(o.output, r) && self.recipe_for(o.output).is_some());
+        let wanted = self.orders().iter().any(|o| {
+            o.enabled && self.uses_input(o.output, r) && self.recipe_for(o.output).is_some()
+        });
         let goal = if wanted {
             base.max(self.reserve_of(r)) + self.upstream_demand(r)
         } else {
@@ -449,7 +446,8 @@ impl World {
 
     /// Someone is working at this station right now.
     fn being_worked(&self, id: BuildingId) -> bool {
-        let at_bench = |q: Option<&Task>| matches!(q, Some(Task::Craft { building, .. }) if *building == id);
+        let at_bench =
+            |q: Option<&Task>| matches!(q, Some(Task::Craft { building, .. }) if *building == id);
         self.crafters().any(|s| at_bench(s.actor.queue.front()))
             || at_bench(self.player.actor.queue.front())
     }

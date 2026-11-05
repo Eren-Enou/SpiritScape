@@ -23,6 +23,12 @@ and spirits that support your retraining by carrying your materials. See
 [`docs/V0.5_PROGRESSION.md`](docs/V0.5_PROGRESSION.md), which also has a
 checklist for playtesting.
 
+**v0.6** adds a top tier to both skills (Ironwood and Structural Beams at level
+10), limited places at each Workshop, further workshops you place yourself,
+several production orders at once, simple instructions for each spirit, and
+infrastructure that speeds up retraining. See
+[`docs/V0.6_SPECIALIZATION.md`](docs/V0.6_SPECIALIZATION.md).
+
 The question this prototype answers: *can a player create a spirit, give it a
 goal, and watch the world physically change because the spirit's work causes a
 problem that autonomous planning can solve?* See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
@@ -78,7 +84,7 @@ The last three are development aids.
 | `H` | Hide or show the UI panels |
 | `G` | Switch between the Settlement and Gathering tabs |
 | `P` | Switch to and from the Production tab |
-| `J` / `T` | Switch to and from the Progress / Training tab |
+| `J` / `T` / `O` | Switch to and from the Progress / Training / Spirits tab |
 | `F5` / `F9` | Save / go back to the last manual save |
 | Click Main Storage with empty hands | Take logs |
 | Click the Workshop | Saw planks until you run out of logs |
@@ -131,12 +137,13 @@ cargo run -p spirit_sim --example regrind_playtest -- 400
 cargo test -p spirit_sim
 ```
 
-119 tests:
+162 tests:
 - 22 end-to-end simulation tests in `crates/spirit_sim/tests/simulation.rs`;
 - 13 gathering and progression tests in `crates/spirit_sim/tests/gathering.rs`;
 - 31 workshop and production tests in `crates/spirit_sim/tests/workshop.rs`;
 - 18 save and load tests in `crates/spirit_sim/tests/persistence.rs`;
 - 30 progression, training support and full-cycle tests in `crates/spirit_sim/tests/progression.rs`;
+- 43 specialization, workstation, order and save-upgrade tests in `crates/spirit_sim/tests/specialization.rs`;
 - 5 unit tests for pathfinding and storage.
 
 They cover:
