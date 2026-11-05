@@ -4,12 +4,13 @@
 //! only code that moves resources between trees, inventories, storages and
 //! construction sites, which keeps conservation easy to audit.
 
-use crate::defs::{GameDefs, RecipeId, ResourceId};
+use crate::defs::{BuildingDef, GameDefs, RecipeDef, RecipeId, ResourceId};
 use crate::entities::{
     Actor, Building, BuildingId, BuildingState, Project, ProjectId, ProjectState, SpiritId, Tree,
     TreeId, TreeState,
 };
 use crate::grid::{Grid, TilePos};
+use crate::inventory::Inventory;
 use crate::world::Ledger;
 use std::collections::BTreeMap;
 
@@ -141,6 +142,8 @@ pub struct TaskCtx<'a> {
     pub events: &'a mut Vec<SimEvent>,
     /// The player's finished goods stay at the station for a hauler.
     pub player_output_at_station: bool,
+    /// The recipe the player chose. They make nothing else while it's set.
+    pub player_recipe: Option<RecipeId>,
 }
 
 /// How many more units spirits should harvest and craft this tick, so they
@@ -330,9 +333,16 @@ fn step_craft(
         };
         actor.inventory.get(r) + stock
     };
-    let chosen = match output {
-        Some(o) => ctx.defs.best_recipe_for(station.kind, level, o, have),
-        None => ctx.defs.best_recipe(station.kind, level, have),
+    let chosen = match (output, ctx.player_recipe.filter(|_| is_player)) {
+        (Some(o), _) => ctx.defs.best_recipe_for(station.kind, level, o, have),
+        (None, Some(r)) => {
+            let def = ctx.defs.recipe(r);
+            let ready = def.station == station.kind
+                && level >= def.level_required
+                && def.inputs.iter().all(|&(res, n)| have(res) >= n);
+            ready.then_some(r)
+        }
+        (None, None) => ctx.defs.best_recipe(station.kind, level, have),
     };
     let Some(recipe_id) = chosen else {
         actor.action_ticks = 0;
@@ -346,16 +356,7 @@ fn step_craft(
         return StepResult::Done;
     }
     let def = &ctx.defs.buildings[station.kind.index()];
-    let output_limit = def.capacity.saturating_sub(def.input_buffer);
-    let station_room = station.storage.free() >= out_n
-        && station.storage.get(out) + out_n <= output_limit.max(out_n);
-    let bag_room = actor.inventory.free()
-        + recipe
-            .inputs
-            .iter()
-            .map(|&(r, n)| actor.inventory.get(r).min(n))
-            .sum::<u32>()
-        >= out_n;
+    let (station_room, bag_room) = craft_room(def, station, &actor.inventory, recipe);
     let to_bag = is_player && bag_room && !(ctx.player_output_at_station && station_room);
     if !to_bag && !station_room {
         actor.action_ticks = 0;
@@ -396,6 +397,27 @@ fn step_craft(
         building: building_id,
     });
     StepResult::Continue
+}
+
+/// Whether a batch's result fits at the station, and in this bag.
+pub(crate) fn craft_room(
+    def: &BuildingDef,
+    station: &Building,
+    bag: &Inventory,
+    recipe: &RecipeDef,
+) -> (bool, bool) {
+    let (out, out_n) = recipe.output;
+    let output_limit = def.capacity.saturating_sub(def.input_buffer);
+    let station_room = station.storage.free() >= out_n
+        && station.storage.get(out) + out_n <= output_limit.max(out_n);
+    let bag_room = bag.free()
+        + recipe
+            .inputs
+            .iter()
+            .map(|&(r, n)| bag.get(r).min(n))
+            .sum::<u32>()
+        >= out_n;
+    (station_room, bag_room)
 }
 
 fn step_deposit(

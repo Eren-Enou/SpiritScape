@@ -118,6 +118,8 @@ pub struct TreeTypeDef {
     pub chop_ticks: u32,
     pub chop_ticks_per_level_x10: u32,
     pub min_chop_ticks: u32,
+    /// Why this tree matters, for the moment it's unlocked.
+    pub why: String,
 }
 
 impl TreeTypeDef {
@@ -146,6 +148,8 @@ pub struct RecipeDef {
     pub craft_ticks_per_level_x10: u32,
     pub min_craft_ticks: u32,
     pub xp: u64,
+    /// Why this recipe matters, for the moment it's unlocked.
+    pub why: String,
 }
 
 impl RecipeDef {
@@ -203,6 +207,12 @@ pub struct GatheringRules {
 pub struct PlayerRules {
     pub move_ticks: u32,
     pub carry_capacity: u32,
+    /// Farthest walk, in tiles, to the next tree of a gathering session.
+    pub gather_reach_tiles: u32,
+    /// Longest a gathering session waits for a tree to regrow.
+    pub gather_wait_ticks: u64,
+    /// Longest a crafting session waits for spirits to bring what it needs.
+    pub craft_wait_ticks: u64,
 }
 
 #[derive(Clone, Debug)]
@@ -413,6 +423,8 @@ struct RawTreeType {
     chop_seconds: f32,
     chop_seconds_per_level: f32,
     min_chop_seconds: f32,
+    #[serde(default)]
+    why: String,
 }
 
 #[derive(Deserialize)]
@@ -430,6 +442,8 @@ struct RawRecipe {
     craft_seconds_per_level: f32,
     min_craft_seconds: f32,
     xp: u64,
+    #[serde(default)]
+    why: String,
 }
 
 #[derive(Deserialize)]
@@ -466,6 +480,9 @@ fn hundred() -> u32 {
 struct RawPlayer {
     move_seconds_per_tile: f32,
     carry_capacity: u32,
+    gather_reach_tiles: u32,
+    gather_wait_seconds: f32,
+    craft_wait_seconds: f32,
 }
 
 #[derive(Deserialize)]
@@ -661,6 +678,7 @@ impl GameDefs {
                 chop_ticks: ticks(t.chop_seconds) as u32,
                 chop_ticks_per_level_x10: tenth_ticks(t.chop_seconds_per_level),
                 min_chop_ticks: ticks(t.min_chop_seconds) as u32,
+                why: t.why,
                 id: t.id,
                 name: t.name,
             });
@@ -771,6 +789,7 @@ impl GameDefs {
                 craft_ticks_per_level_x10: tenth_ticks(r.craft_seconds_per_level),
                 min_craft_ticks: ticks(r.min_craft_seconds) as u32,
                 xp: r.xp,
+                why: r.why,
                 id: r.id,
                 name: r.name,
             });
@@ -820,6 +839,9 @@ impl GameDefs {
             player: PlayerRules {
                 move_ticks: (ticks(raw.player.move_seconds_per_tile) as u32).max(1),
                 carry_capacity: raw.player.carry_capacity.max(1),
+                gather_reach_tiles: raw.player.gather_reach_tiles.max(1),
+                gather_wait_ticks: ticks(raw.player.gather_wait_seconds),
+                craft_wait_ticks: ticks(raw.player.craft_wait_seconds),
             },
             soul_min_xp: chosen.soul_min_xp.max(1),
             resources,

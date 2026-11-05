@@ -12,6 +12,7 @@ plank_target = 30
 log_reserve = 10
 player_xp = {}
 main_storage = {}
+auto_gather = true
 # Hauling and Construction skills do not exist yet, so the settlement starts
 # with founding spirits for those roles. Given by level, because this scenario
 # is played under both progression profiles.

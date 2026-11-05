@@ -16,7 +16,10 @@
 //! Nothing here simulates time away: a loaded world resumes at the saved tick.
 //!
 //! Older formats are upgraded when they're read (`migrate_v1`), and the first
-//! time that happens `SaveStore` keeps a copy of the original file.
+//! time that happens `SaveStore` keeps a copy of the original file. Format 3
+//! (v0.7) only added fields with safe defaults, so a format 2 save needs no
+//! migration: a job under way in one finishes as a single task and the player
+//! then stands idle, because older saves have no session to continue.
 
 use crate::defs::{GameDefs, ResourceId};
 use crate::entities::{Building, Player, Project, Spirit, Tree};
@@ -25,6 +28,7 @@ use crate::grid::{BUILTIN_MAP, Grid, MapLayout};
 use crate::journey::Journey;
 use crate::metrics::SiteStats;
 use crate::scenario::{extra_orders, new_tree};
+use crate::session::SessionKind;
 use crate::tasks::Task;
 use crate::world::{Ledger, Settlement, World};
 use serde::{Deserialize, Serialize};
@@ -35,7 +39,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Bump when the format changes, and add a migration to `decode`.
-pub const SAVE_VERSION: u32 = 2;
+pub const SAVE_VERSION: u32 = 3;
 const MAGIC: &str = "SPIRITSCAPE-SAVE";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -376,6 +380,28 @@ fn validate(defs: &GameDefs, s: &WorldState) -> Result<(), String> {
             p.assigned.is_none_or(|a| a < s.spirits.len()),
             "project worker",
         )?;
+    }
+    if let Some(r) = s.player.recipe {
+        check(r.index() < defs.recipes.len(), "chosen recipe")?;
+    }
+    if let Some(session) = &s.player.session {
+        match session.kind {
+            SessionKind::Gathering {
+                site,
+                resource,
+                prefer,
+                target,
+            } => {
+                check(site.is_none_or(|x| x.index() < sites), "session site")?;
+                check(resource.index() < defs.resources.len(), "session resource")?;
+                check(prefer.index() < defs.trees.len(), "session tree type")?;
+                check(target < s.trees.len(), "session tree")?;
+            }
+            SessionKind::Crafting { building } => {
+                check(building < s.buildings.len(), "session building")?;
+            }
+        }
+        check(session.started <= s.tick, "session start")?;
     }
     let task_ok = |t: &Task| match t {
         Task::Move { .. } => true,

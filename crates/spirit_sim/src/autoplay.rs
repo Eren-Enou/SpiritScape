@@ -107,7 +107,7 @@ impl Bot {
             let main = w.main().pos;
             self.storage_trips += 1;
             self.click(w, Command::PlayerInteract(main));
-        } else if logs >= 2 || bench >= 2 {
+        } else if logs >= 2 || bench >= 2 || w.has_training_help() && w.settlement.training.supply {
             self.click(w, Command::PlayerInteract(station));
         } else if bag.total() > 0
             || (w.main().storage.available(self.logs) >= 2 && !w.settlement.training.supply)
@@ -123,7 +123,8 @@ impl Bot {
 
     /// Issues the next action when the player is free. Call once per tick.
     pub fn play(&mut self, w: &mut World, goal: Goal) {
-        if !w.player.actor.queue.is_empty() || w.tick < self.next_action {
+        let busy = !w.player.actor.queue.is_empty() || w.player.session.is_some();
+        if busy || w.tick < self.next_action {
             return;
         }
         match goal {
@@ -177,7 +178,7 @@ impl Bot {
         {
             w.step();
         }
-        w.player.actor.clear_tasks();
+        let _ = w.apply(Command::PlayerStop);
     }
 }
 
@@ -295,6 +296,8 @@ pub fn play_first_cycle(profile: &str) -> Result<(World, PacingReport), String> 
         .position(|b| b.capacity_bonus > 0)
         .map(|i| crate::defs::BuildingKindId(i as u16))
         .ok_or("no improvement defined")?;
+    // The settlement may be building something of its own; one project at a time.
+    bot.chop_until(&mut w, hour, |w| w.active_project().is_none());
     w.apply(Command::RequestBuilding(storehouse))?;
     let built = bot.chop_until(&mut w, hour, |w| {
         w.journey

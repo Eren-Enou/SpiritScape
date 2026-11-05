@@ -4,6 +4,7 @@
 //! testable headless. The Bevy front end (`spirit_game`) only reads this
 //! state and submits [`world::Command`]s.
 
+pub mod advice;
 pub mod autoplay;
 pub mod behavior;
 pub mod defs;
@@ -17,6 +18,7 @@ pub mod planner;
 pub mod production;
 pub mod save;
 pub mod scenario;
+pub mod session;
 pub mod skills;
 pub mod soul;
 pub mod tasks;

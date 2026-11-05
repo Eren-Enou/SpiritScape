@@ -1,9 +1,12 @@
 //! Physical things in the world: trees, buildings, the player and spirits.
 
-use crate::defs::{BuildingKindId, JobKind, ResourceId, RoleId, SiteId, SkillId, TreeKindId};
+use crate::defs::{
+    BuildingKindId, JobKind, RecipeId, ResourceId, RoleId, SiteId, SkillId, TreeKindId,
+};
 use crate::grid::TilePos;
 use crate::inventory::{Inventory, Storage};
-use crate::metrics::{TimeLog, TimeUse, WaitKind};
+use crate::metrics::{PlayLog, TimeLog, TimeUse, WaitKind};
+use crate::session::{Session, SessionKind, SessionSummary};
 use crate::skills::XpTable;
 use crate::tasks::Task;
 use std::collections::{BTreeMap, VecDeque};
@@ -352,6 +355,25 @@ pub struct Player {
     pub activity: String,
     /// How the player has spent their time since the start.
     pub time: TimeUse,
+    /// The continuous activity the player started, if any.
+    #[serde(default)]
+    pub session: Option<Session>,
+    /// How the last session went and why it ended.
+    #[serde(default)]
+    pub last_session: Option<SessionSummary>,
+    /// A gathering session moves on to another tree by itself.
+    #[serde(default = "auto_gather_default")]
+    pub auto_gather: bool,
+    /// The recipe the player has chosen. With none, the best they can make.
+    #[serde(default)]
+    pub recipe: Option<RecipeId>,
+    /// Measurements for comparing play sessions.
+    #[serde(default)]
+    pub log: PlayLog,
+}
+
+fn auto_gather_default() -> bool {
+    true
 }
 
 impl Player {
@@ -362,18 +384,29 @@ impl Player {
             history: BTreeMap::new(),
             activity: "Idle".into(),
             time: TimeUse::default(),
+            session: None,
+            last_session: None,
+            auto_gather: true,
+            recipe: None,
+            log: PlayLog::default(),
         }
     }
 
     /// Adds this tick to the matching time-use bucket.
     pub(crate) fn account_tick(&mut self) {
         let t = &mut self.time;
+        let session = self.session.as_ref().map(|s| &s.kind);
         match self.actor.queue.front() {
             Some(Task::Chop { .. }) => t.gathering += 1,
             Some(Task::Craft { .. }) => t.crafting += 1,
             Some(Task::Move { .. }) => t.traveling += 1,
             Some(_) => t.handling += 1,
-            None => t.idle += 1,
+            None => match session {
+                Some(SessionKind::Gathering { .. }) => t.waiting_recovery += 1,
+                Some(SessionKind::Crafting { .. }) => t.waiting_input += 1,
+                None if self.actor.inventory.is_full() => t.blocked_storage += 1,
+                None => t.idle += 1,
+            },
         }
     }
 

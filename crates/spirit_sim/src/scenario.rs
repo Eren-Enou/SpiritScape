@@ -121,6 +121,10 @@ pub struct ScenarioDef {
     /// Stock of each further product to maintain.
     #[serde(default)]
     pub extra_targets: BTreeMap<String, u32>,
+    /// Gathering moves on to the next tree by itself. Real games start with
+    /// this on. The older test scenarios keep one click per tree.
+    #[serde(default)]
+    pub auto_gather: bool,
 }
 
 /// A full-grown tree of `kind`.
@@ -278,6 +282,7 @@ impl World {
             product_stats: BTreeMap::new(),
         };
 
+        world.player.auto_gather = scenario.auto_gather;
         for (skill, &xp) in &scenario.player_xp {
             let id = world
                 .defs

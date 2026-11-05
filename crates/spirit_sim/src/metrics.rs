@@ -4,10 +4,10 @@
 //! Everything recorded here is integer ticks and counts, so it is part of the
 //! deterministic state. Rates and shares are derived only when reporting.
 
-use crate::defs::{JobKind, SiteId};
+use crate::defs::{JobKind, SiteId, SkillId};
 use crate::entities::{Activity, Spirit};
 use crate::world::World;
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 
 /// Why a worker is not working right now.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -96,6 +96,49 @@ impl TimeUse {
     pub fn pct_of_working(&self, part: u64) -> u32 {
         (part * 100).checked_div(self.working()).unwrap_or(0) as u32
     }
+}
+
+/// A sacrificed level on its way back, or back.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Regain {
+    pub skill: SkillId,
+    /// The level the player held when they gave XP up.
+    pub level: u32,
+    pub xp_given: u64,
+    pub started: u64,
+    pub done: Option<u64>,
+}
+
+/// What a play session did, for comparing playstyles. Counters only: nothing
+/// reads these to make a decision, so they can't change how the game plays.
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct PlayLog {
+    /// Clicks and key presses on trees.
+    pub gather_interactions: u32,
+    /// On workshops.
+    pub workshop_interactions: u32,
+    /// On storages.
+    pub storage_interactions: u32,
+    /// Walking orders on empty ground.
+    pub walk_interactions: u32,
+    /// Interactions the game refused.
+    pub refused_interactions: u32,
+    /// Sessions the player started.
+    pub sessions: u32,
+    /// XP earned through work, per skill. Sacrifices don't reduce it.
+    pub xp_earned: BTreeMap<SkillId, u64>,
+    /// Ticks the player spent in a session.
+    pub training_ticks: u64,
+    /// Over those ticks, summed across spirits: time they existed and time
+    /// they spent on a task.
+    pub spirit_ticks: u64,
+    pub spirit_busy_ticks: u64,
+    /// Units spirits cut and made while the player trained.
+    pub spirit_gathered: u32,
+    pub spirit_crafted: u32,
+    pub regains: Vec<Regain>,
+    /// Main Storage is known to be short of room.
+    pub storage_warned: bool,
 }
 
 /// Snapshot interval for rolling windows.
