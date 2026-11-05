@@ -305,6 +305,17 @@ pub struct Spirit {
     pub time: TimeLog,
     /// Last tick each kind of decision was logged, to rate-limit repeats.
     pub(crate) log_times: BTreeMap<String, u64>,
+    /// When it was made, and how much of the player's XP it was made from.
+    #[serde(default)]
+    pub born: u64,
+    #[serde(default)]
+    pub gift_xp: u64,
+    /// Its trait, for a spirit made by Soul Separation.
+    #[serde(default)]
+    pub character: Option<u16>,
+    /// Deeds earned and when, in order.
+    #[serde(default)]
+    pub deeds: Vec<(u16, u64)>,
 }
 
 impl Spirit {
@@ -340,6 +351,10 @@ impl Spirit {
             last_tree_kind: None,
             time: TimeLog::default(),
             log_times: BTreeMap::new(),
+            born: 0,
+            gift_xp: 0,
+            character: None,
+            deeds: Vec::new(),
         }
     }
 

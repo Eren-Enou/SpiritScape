@@ -151,6 +151,80 @@ hint = "Reach Woodcutting level 20."
 skill = "woodcutting"
 level = 20
 
+# What a spirit made by Soul Separation can be like. It's fixed when the spirit
+# awakens, and only spirits you make have one. Keep these in order: saves refer
+# to them by position, so new ones go at the end.
+[[traits]]
+id = "steady"
+name = "Steady"
+text = "It works at one pace and doesn't complain."
+
+[[traits]]
+id = "broad_backed"
+name = "Broad-backed"
+text = "It carries three more than others of its kind."
+carry = 3
+
+[[traits]]
+id = "quiet"
+name = "Quiet"
+text = "You rarely notice it, until you notice how much it has done."
+
+[[traits]]
+id = "curious"
+name = "Curious"
+text = "It stops to look at things, and it always seems pleased about them."
+
+[[traits]]
+id = "sturdy"
+name = "Sturdy"
+text = "It carries two more than others of its kind."
+carry = 2
+
+# Milestones in a spirit's working life. They change nothing it does. The title
+# of its latest deed goes after its name. Saves refer to these by position too.
+[[deeds]]
+id = "first_hundred_trips"
+measure = "trips"
+amount = 100
+title = "Well-Travelled"
+text = "It has made a hundred trips."
+
+[[deeds]]
+id = "thousand_trips"
+measure = "trips"
+amount = 1000
+title = "Road-Worn"
+text = "It has made a thousand trips."
+
+[[deeds]]
+id = "hundred_gathered"
+measure = "gathered"
+amount = 100
+title = "Handy"
+text = "It has gathered its first hundred."
+
+[[deeds]]
+id = "thousand_gathered"
+measure = "gathered"
+amount = 1000
+title = "Tireless"
+text = "It has gathered a thousand."
+
+[[deeds]]
+id = "hundred_crafted"
+measure = "crafted"
+amount = 100
+title = "Practised"
+text = "It has made its first hundred."
+
+[[deeds]]
+id = "thousand_crafted"
+measure = "crafted"
+amount = 1000
+title = "Master Hand"
+text = "It has made a thousand."
+
 [[resources]]
 id = "logs"
 name = "Logs"

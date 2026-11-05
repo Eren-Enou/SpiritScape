@@ -24,6 +24,7 @@ pub mod scenario;
 pub mod session;
 pub mod skills;
 pub mod soul;
+pub mod stories;
 pub mod tasks;
 pub mod training;
 pub mod world;
