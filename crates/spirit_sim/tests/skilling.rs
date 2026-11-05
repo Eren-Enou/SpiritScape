@@ -234,7 +234,7 @@ fn it_waits_for_regrowth_and_then_carries_on() {
     assert!(run_until(&mut w, 300, |w| w.player.actor.queue.is_empty()));
     let report = w.activity_report();
     assert_eq!(report.state, ActivityState::Waiting);
-    assert!(report.title.contains("regrow"), "{}", report.title);
+    assert!(report.title.contains("recover"), "{}", report.title);
     let xp = w.player.xp(wc);
     let waited = w.player.time.waiting_recovery;
     w.run_ticks(50);

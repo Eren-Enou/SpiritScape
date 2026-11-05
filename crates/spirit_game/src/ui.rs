@@ -1721,7 +1721,7 @@ fn update_buttons(
             }
             UiAction::ToggleAutoGather => {
                 let on = w.player.auto_gather;
-                format!("Next tree: {}", if on { "AUTO" } else { "I'LL CLICK" })
+                format!("Next target: {}", if on { "AUTO" } else { "I'LL CLICK" })
             }
             UiAction::CycleRecipe => match w.player.recipe {
                 Some(r) => format!("Making: {}", w.defs.recipe(r).name),

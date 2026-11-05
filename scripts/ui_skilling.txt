@@ -3,7 +3,7 @@
 #   cargo run --release -- --scenario skilling_session --save-dir target/ui_saves3 --script scripts/ui_skilling.txt --capture target/ui_skilling
 1.5 expect NOW
 1.6 expect Idle
-1.7 expect Next tree: AUTO
+1.7 expect Next target: AUTO
 1.8 expect SETTLEMENT
 1.9 shot 01_start
 2.0 tile 9 9              # one click on a tree
@@ -17,10 +17,10 @@
 7.1 expect Idle
 7.2 expect Stopped
 7.3 shot 03_stopped
-7.5 press Next tree: AUTO
-7.9 expect Next tree: I'LL CLICK
-8.0 press Next tree: I'LL CLICK
-8.4 expect Next tree: AUTO
+7.5 press Next target: AUTO
+7.9 expect Next target: I'LL CLICK
+8.0 press Next target: I'LL CLICK
+8.4 expect Next target: AUTO
 8.6 tile 15 9
 8.7 tile 12 12
 9.5 key X

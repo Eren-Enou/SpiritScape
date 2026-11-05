@@ -179,7 +179,7 @@ impl World {
         let d = self.defs.tree(kind);
         with_reason(
             format!(
-                "{}: in {}. {} {} a tree, {} XP each.",
+                "{}: in {}. {} {} each, {} XP apiece.",
                 d.name,
                 self.tree_sites(kind),
                 d.logs,
