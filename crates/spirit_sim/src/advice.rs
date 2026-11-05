@@ -7,6 +7,7 @@
 use crate::defs::{JobKind, SkillId};
 use crate::entities::Activity;
 use crate::metrics::{TimeUse, WaitKind};
+use crate::outpost::WorkerState;
 use crate::world::World;
 
 /// The settlement in a few numbers and at most one sentence of concern.
@@ -16,6 +17,8 @@ pub struct SettlementGlance {
     pub waiting: u32,
     pub blocked: u32,
     pub idle: u32,
+    /// Of the idle ones, how many are awaiting an assignment.
+    pub unassigned: u32,
     /// How production stands, in a few words.
     pub production: String,
     pub production_ok: bool,
@@ -83,16 +86,17 @@ impl World {
     }
 
     pub fn settlement_glance(&self) -> SettlementGlance {
-        let (mut working, mut waiting, mut blocked, mut idle) = (0, 0, 0, 0);
+        let (mut working, mut waiting, mut blocked, mut idle, mut unassigned) = (0, 0, 0, 0, 0);
         for s in &self.spirits {
-            match (&s.activity, s.wait) {
-                _ if !s.actor.queue.is_empty() => working += 1,
-                (Activity::Working(_), _) => working += 1,
-                (Activity::Idle(_), _) => idle += 1,
-                (Activity::Blocked(_), Some(WaitKind::Storage | WaitKind::Other) | None) => {
-                    blocked += 1
+            match self.worker_state(s) {
+                WorkerState::Working => working += 1,
+                WorkerState::NoResources => waiting += 1,
+                WorkerState::Logistics => blocked += 1,
+                WorkerState::GoalsMet => idle += 1,
+                WorkerState::Unassigned => {
+                    idle += 1;
+                    unassigned += 1;
                 }
-                (Activity::Blocked(_), _) => waiting += 1,
             }
         }
         let orders = self.order_reports();
@@ -135,6 +139,7 @@ impl World {
             waiting,
             blocked,
             idle,
+            unassigned,
             production,
             production_ok,
             attention,

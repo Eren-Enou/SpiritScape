@@ -66,6 +66,9 @@ pub struct Building {
     /// Units made here since it was built.
     #[serde(default)]
     pub crafted: u32,
+    /// Stock haulers leave here for local use.
+    #[serde(default)]
+    pub keep: BTreeMap<ResourceId, u32>,
 }
 
 impl Building {
@@ -244,7 +247,7 @@ impl Focus {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct SpiritPolicy {
     pub focus: Focus,
-    /// Gather only here.
+    /// Gather only here. For a hauler: carry only for this site.
     pub site: Option<SiteId>,
     /// Work only at this station.
     pub station: Option<BuildingId>,
@@ -269,6 +272,9 @@ pub struct Spirit {
     pub units_gathered: u32,
     pub units_delivered: u32,
     pub units_crafted: u32,
+    /// Finished trips ending at a storage or bench.
+    #[serde(default)]
+    pub trips: u32,
     /// Assigned to the production order (only matters to spirits that craft).
     pub assigned: bool,
     /// The player's instructions.
@@ -310,6 +316,7 @@ impl Spirit {
             units_gathered: 0,
             units_delivered: 0,
             units_crafted: 0,
+            trips: 0,
             assigned: true,
             policy: SpiritPolicy::default(),
             wait: None,

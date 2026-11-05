@@ -1547,6 +1547,9 @@ fn header_lines(sim: &Sim) -> Vec<Line> {
         ScenarioKind::SkillingSession => "Skilling session",
         ScenarioKind::WorkshopRecipes => "Workshop recipes",
         ScenarioKind::FullStorage => "Full storage",
+        ScenarioKind::CentralProduction => "Central production",
+        ScenarioKind::RemoteProduction => "Remote production",
+        ScenarioKind::OutpostEstablishment => "Outpost",
     };
     let speed = if sim.paused {
         colored("PAUSED", WARN)

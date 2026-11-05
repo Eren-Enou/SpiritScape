@@ -227,3 +227,62 @@ spirits = [
     { role = "hauler", xp = 388, spawn = "H" },
     { role = "builder", xp = 388, spawn = "B" },
 ]
+
+# v0.8. The first two start identically apart from where the bench is: the same
+# spirits, the same store at Old Growth, the same target.
+
+[central_production]
+title = "Central production"
+description = "Hardwood is cut at Old Growth, carried home and made into Structural Beams at the original Workshop."
+objective_target = 20
+log_reserve = 0
+auto_gather = true
+main_storage = { logs = 40 }
+extra_targets = { beams = 60 }
+prebuilt = [{ building = "outpost_storage", at = [34, 4] }]
+spirits = [
+    { role = "woodcutter", xp = 1154, spawn = "W", prefer_advanced = true, site = "old_growth" },
+    { role = "woodcutter", xp = 1154, spawn = "W", prefer_advanced = true, site = "old_growth" },
+    { role = "hauler", xp = 388, spawn = "H" },
+    { role = "woodworker", xp = 1154, spawn = "B", works_at = [3, 16] },
+    { role = "builder", xp = 388, spawn = "B" },
+]
+
+[remote_production]
+title = "Remote production"
+description = "Hardwood is cut at Old Growth and made into Structural Beams at a Workshop beside the trees. Only the finished beams travel home."
+objective_target = 20
+log_reserve = 0
+auto_gather = true
+main_storage = { logs = 40 }
+extra_targets = { beams = 60 }
+prebuilt = [
+    { building = "outpost_storage", at = [34, 4], keep = { hardwood = 20 } },
+    { building = "workshop", at = [36, 4] },
+]
+spirits = [
+    { role = "woodcutter", xp = 1154, spawn = "W", prefer_advanced = true, site = "old_growth" },
+    { role = "woodcutter", xp = 1154, spawn = "W", prefer_advanced = true, site = "old_growth" },
+    { role = "hauler", xp = 388, spawn = "H" },
+    { role = "woodworker", xp = 1154, spawn = "B", works_at = [36, 4] },
+    { role = "builder", xp = 388, spawn = "B" },
+]
+
+[outpost_establishment]
+title = "Establish an outpost"
+description = "Old Growth is empty. Open the Outpost tab (U), place an Outpost Storage and a Workshop there, then staff it. The spirits make what the buildings need, including the beams."
+objective_target = 40
+plank_target = 20
+log_reserve = 0
+auto_gather = true
+player_xp = { woodworking = 1154, woodcutting = 1154 }
+main_storage = { logs = 100, planks = 40 }
+extra_targets = { beams = 10 }
+spirits = [
+    { role = "woodcutter", xp = 388, spawn = "W" },
+    { role = "woodcutter", xp = 1154, spawn = "W", prefer_advanced = true },
+    { role = "hauler", xp = 388, spawn = "H" },
+    { role = "hauler", xp = 388, spawn = "H" },
+    { role = "woodworker", xp = 1154, spawn = "B" },
+    { role = "builder", xp = 388, spawn = "B" },
+]

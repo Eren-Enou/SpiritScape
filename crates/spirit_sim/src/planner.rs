@@ -432,8 +432,11 @@ impl World {
         if def.max_count.is_some_and(|m| count >= m) {
             return Err(format!("The settlement can't have more {name}s"));
         }
-        if self.active_project().is_some() {
-            return Err("Finish the current construction project first".into());
+        if let Some(p) = self.active_project() {
+            return Err(format!(
+                "Finish the current construction project first: the {}",
+                self.defs.building(p.kind).name
+            ));
         }
         Ok(())
     }
@@ -502,6 +505,7 @@ impl World {
                     },
             ),
             crafted: 0,
+            keep: BTreeMap::new(),
         });
         self.grid.set_occupied(site, true);
         self.projects.push(Project {

@@ -200,6 +200,11 @@ impl World {
         }
         self.end_session(SessionEnd::Player, String::new());
         self.start_session(SessionKind::Crafting { building });
+        // Where you work is where support should come.
+        if self.training_bench().is_none_or(|b| b.id != building) {
+            self.release_bench_stock();
+            self.settlement.training.bench = Some(building);
+        }
     }
 
     fn start_session(&mut self, kind: SessionKind) {
@@ -306,6 +311,8 @@ impl World {
             None => "You'll make the best recipe your materials allow".to_string(),
         };
         if self.player.recipe != recipe {
+            // What's set aside for the old recipe is no use to the new one.
+            self.release_bench_stock();
             self.player.recipe = recipe;
             // Time spent on a batch of the old recipe doesn't count.
             if matches!(self.player.actor.queue.front(), Some(Task::Craft { .. })) {
@@ -608,7 +615,7 @@ impl World {
         match block {
             CraftBlock::Missing { resource, .. }
                 if self.settlement.training.supply
-                    && *resource == self.defs.objective.resource
+                    && *resource == self.training_input()
                     && self.has_worker_for(JobKind::TrainingSupply) =>
             {
                 let name = &self.defs.resource(*resource).name;
@@ -634,7 +641,7 @@ impl World {
 
     /// Every recipe at the player's bench, with what it takes.
     pub fn recipe_options(&self) -> Vec<RecipeOption> {
-        let Some(b) = self.station() else {
+        let Some(b) = self.training_bench() else {
             return Vec::new();
         };
         let tpm = self.defs.ticks_per_second as u64 * 60;

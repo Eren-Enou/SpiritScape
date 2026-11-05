@@ -182,6 +182,19 @@ pub enum Command {
     SetPlayerRecipe(Option<RecipeId>),
     /// Set the training-support options to a named way of training.
     SetTrainingMode(TrainingMode),
+    /// Choose the bench to train at, or the default with `None`.
+    SetTrainingBench(Option<BuildingId>),
+    /// Stock haulers leave at a store for local use.
+    SetLocalStock {
+        building: BuildingId,
+        resource: ResourceId,
+        amount: u32,
+    },
+    /// Send everyone who can do a site's work there, or release them.
+    SetOutpostStaffed {
+        site: SiteId,
+        on: bool,
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -604,6 +617,13 @@ impl World {
             Command::SetAutoGather(on) => Ok(self.set_auto_gather(on)),
             Command::SetPlayerRecipe(r) => self.set_player_recipe(r),
             Command::SetTrainingMode(mode) => Ok(self.set_training_mode(mode)),
+            Command::SetTrainingBench(bench) => self.set_training_bench(bench),
+            Command::SetLocalStock {
+                building,
+                resource,
+                amount,
+            } => self.set_local_stock(building, resource, amount),
+            Command::SetOutpostStaffed { site, on } => self.set_outpost_staffed(site, on),
         }
     }
 
@@ -790,7 +810,15 @@ impl World {
             .filter(|d| self.player.level(d.skill, &self.defs.xp_table) >= d.level_required)
             .flat_map(|d| d.inputs.iter())
             .find(|(r, n)| b.storage.available(*r) >= *n)
-            .map_or(self.defs.objective.resource, |(r, _)| *r)
+            .map(|(r, _)| *r)
+            .unwrap_or_else(|| {
+                // With nothing to make, ordinary logs, or whatever is here.
+                let basic = self.defs.objective.resource;
+                let plenty = b.storage.contents().keys().copied();
+                let most = plenty.max_by_key(|r| (b.storage.available(*r), std::cmp::Reverse(*r)));
+                most.filter(|_| b.storage.available(basic) == 0)
+                    .unwrap_or(basic)
+            })
     }
 
     /// What the player would make at a station, or why they can't.
@@ -1257,6 +1285,7 @@ impl World {
                 gather_pos,
             } => {
                 self.spirits[sid].units_delivered += amount;
+                self.spirits[sid].trips += 1;
                 if self.spirits[sid].job == Some(JobKind::TrainingCollect) {
                     self.on_training_collected(sid, amount);
                 }

@@ -228,6 +228,18 @@ id = "old_growth"
 name = "Old Growth"
 area = [28, 0, 47, 8]
 regrow_pct = 100
+# Far enough from home to be worth running as a production site of its own.
+outpost = true
+
+# When a long walk is worth making. These stop spirits crossing the map for a
+# handful of materials, and from drifting between far-apart benches.
+[logistics]
+long_trip_tiles = 16
+# A free worker walks to a far bench only if it can make this many batches.
+long_trip_batches = 4
+# A carrier makes a long trip for at least this share of a full load, unless
+# that's more than is wanted.
+long_trip_load_pct = 50
 
 [gathering]
 # Window for measured throughput and time-use shares.
@@ -430,6 +442,21 @@ build_seconds = 10.0
 build_seconds_per_level = 0.5
 min_build_seconds = 4.0
 color = [0.70, 0.60, 0.45]
+
+# Storage for a remote site. Gatherers drop off here, a local Workshop draws
+# from it, and haulers take the surplus home. It has no bonus of any kind.
+[[buildings]]
+id = "outpost_storage"
+name = "Outpost Storage"
+capacity = 80
+accepts_gatherer_deposits = true
+manual = true
+max_count = 2
+cost = [{ resource = "logs", amount = 30 }, { resource = "planks", amount = 15 }]
+build_seconds = 20.0
+build_seconds_per_level = 0.5
+min_build_seconds = 8.0
+color = [0.62, 0.52, 0.42]
 
 [objective]
 # "Maintain <target> <resource> in the main settlement storage."

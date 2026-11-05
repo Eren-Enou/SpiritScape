@@ -14,6 +14,7 @@ pub mod grid;
 pub mod inventory;
 pub mod journey;
 pub mod metrics;
+pub mod outpost;
 pub mod planner;
 pub mod production;
 pub mod save;
