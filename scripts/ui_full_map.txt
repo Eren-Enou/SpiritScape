@@ -1,0 +1,8 @@
+# UI test of the busiest map, for looks and frame rate:
+#   cargo run --release -- --scenario full_map --fps --save-dir target/ui_saves20 --script scripts/ui_full_map.txt --capture target/ui_full_map
+1.5 key C
+2.0 shot 01_overview
+2.1 press 8x
+20.0 shot 02_running
+20.1 expect Old Growth
+20.3 exit

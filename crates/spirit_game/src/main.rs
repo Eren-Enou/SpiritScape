@@ -12,7 +12,8 @@
 //!
 //! `--profile ID` picks the progression profile of a new game (`normal`, or
 //! `development` for fast rates), `--save-dir DIR` where saves are kept and
-//! `--autosave SECONDS` how often the game autosaves (0 for never).
+//! `--autosave SECONDS` how often the game autosaves (0 for never). `--fps`
+//! logs the frame rate every five seconds.
 
 mod camera;
 mod capture;
@@ -111,6 +112,9 @@ fn main() -> AppExit {
         script::ScriptPlugin,
     ))
     .add_systems(Update, capture::capture_system);
+    if flag("--fps") {
+        app.add_systems(Update, log_frame_rate);
+    }
     // A script takes its own screenshots, so `--capture` is just its folder then.
     if let Some(script) = script::Script::from_args(&args) {
         app.insert_resource(script);
@@ -118,6 +122,19 @@ fn main() -> AppExit {
         app.insert_resource(plan);
     }
     app.run()
+}
+
+/// Average and slowest frame over the last five seconds.
+fn log_frame_rate(time: Res<Time>, mut window: Local<(f32, u32, f32)>) {
+    let dt = time.delta_secs();
+    window.0 += dt;
+    window.1 += 1;
+    window.2 = window.2.max(dt);
+    if window.0 >= 5.0 {
+        let fps = window.1 as f32 / window.0;
+        info!("fps {fps:.0}, slowest frame {:.1} ms", window.2 * 1000.0);
+        *window = (0.0, 0, 0.0);
+    }
 }
 
 /// `assets/` next to the working directory (or the executable), falling back
