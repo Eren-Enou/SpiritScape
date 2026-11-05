@@ -164,6 +164,12 @@ Fitted Panels add `--scenario panel_workshop`. See [docs/V0.11_FITTED_PANELS.md]
 cargo run -p spirit_sim --release --example panel_report
 ```
 
+Quarrying adds `--scenario quarry_start`. See [docs/V0.15_QUARRYING.md](docs/V0.15_QUARRYING.md).
+
+```bash
+cargo run -p spirit_sim --release --example quarry_report
+```
+
 To check that the game's own messages are enough, see [docs/V0.12_GUIDED_PLAYER.md](docs/V0.12_GUIDED_PLAYER.md).
 
 ```bash

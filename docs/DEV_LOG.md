@@ -2,6 +2,18 @@
 
 The handoff between development runs. Newest first.
 
+## v0.15 Quarrying
+
+**Status:** on branch `v0.15-quarrying`, with its PR targeting `v0.14-full-loads`. Not merged.
+
+**Shipped:** the Quarrying skill, Stone, the South Quarry, the Quarrying Spirit, the Stone Causeway, the `quarry_start` scenario, the `quarry_report` example and save format 8.
+
+**Measured:** the walk to the Distant Forest drops from 16.2 to 9.0 seconds. The causeway takes about 6.5 minutes at development rates, and helping saves only 11 seconds.
+
+**Physical input:** I asked for computer control and it was declined or timed out. It stays unverified. Don't retry unless the user offers.
+
+**Next:** long-term goals and onboarding. The reference route doesn't use Quarrying yet, and the guidance doesn't mention it. Wording that says "trees" for all gathering needs a pass.
+
 ## v0.14 Full Loads
 
 **Status:** on branch `v0.14-full-loads`, with its PR targeting `v0.13-stranded-rescue`. Not merged.

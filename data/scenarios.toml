@@ -355,6 +355,18 @@ spirits = [
     { role = "builder", xp = 388, spawn = "B" },
 ]
 
+[quarry_start]
+title = "Quarry"
+description = "Walk south to the South Quarry and cut Stone, or make a Quarrying Spirit from the Soul tab (R). Then plan the Stone Causeway in the Projects tab (B)."
+objective_target = 20
+auto_gather = true
+player_xp = { woodcutting = 388, quarrying = 388 }
+main_storage = { logs = 60 }
+spirits = [
+    { role = "quarrier", xp = 388, spawn = "W" },
+    { role = "builder", xp = 388, spawn = "B" },
+]
+
 [walled_in]
 title = "Walled in"
 description = "Older saves can hold a Construction Spirit shut in by what it built. Within a few seconds it climbs out and gets back to work."
