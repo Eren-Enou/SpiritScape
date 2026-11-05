@@ -91,6 +91,9 @@ pub struct Mover {
     pub path: VecDeque<TilePos>,
     pub progress: u32,
     pub ticks_per_tile: u32,
+    /// Ticks this step takes, which roads shorten. 0 means `ticks_per_tile`.
+    #[serde(default)]
+    pub stride: u32,
 }
 
 impl Mover {
@@ -100,6 +103,7 @@ impl Mover {
             path: VecDeque::new(),
             progress: 0,
             ticks_per_tile,
+            stride: 0,
         }
     }
 
@@ -107,7 +111,12 @@ impl Mover {
     pub fn visual_pos(&self) -> (f32, f32) {
         match self.path.front() {
             Some(next) if self.progress > 0 => {
-                let t = self.progress as f32 / self.ticks_per_tile as f32;
+                let step = if self.stride > 0 {
+                    self.stride
+                } else {
+                    self.ticks_per_tile
+                };
+                let t = self.progress as f32 / step as f32;
                 (
                     self.pos.x as f32 + (next.x - self.pos.x) as f32 * t,
                     self.pos.y as f32 + (next.y - self.pos.y) as f32 * t,

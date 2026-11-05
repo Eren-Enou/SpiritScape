@@ -405,6 +405,15 @@ impl World {
         if let Some([x, y]) = def.access_site {
             return Ok(TilePos::new(x, y));
         }
+        if !def.paves.is_empty() {
+            // Work starts at the near end, or the first place that's clear.
+            return def
+                .paves
+                .iter()
+                .map(|&[x, y]| TilePos::new(x, y))
+                .find(|p| self.site_ready(*p))
+                .ok_or_else(|| "There's nowhere clear to start".to_string());
+        }
         if let Some(site) = def.home_site.as_ref().and_then(|s| self.defs.site_id(s)) {
             let (x, y) = self.defs.site(site).center();
             return self
@@ -702,11 +711,12 @@ impl World {
         let bench_bonus = def.training_bonus;
         let is_station = def.is_station;
         let opens = def.opens.clone();
+        let paves = def.paves.clone();
         let slot_bonus = def.slot_bonus;
         let site = p.site;
         let benefit = def.benefit.clone();
         let name = def.name.clone();
-        let notice = if !opens.is_empty() || slot_bonus > 0 {
+        let notice = if !opens.is_empty() || !paves.is_empty() || slot_bonus > 0 {
             Some(format!("{name} complete. {benefit}"))
         } else if is_station {
             Some(format!(
@@ -734,6 +744,14 @@ impl World {
         let gatherers_use_it = def.accepts_gatherer_deposits;
         for [x, y] in opens {
             self.grid.open_crossing(TilePos::new(x, y));
+        }
+        if !paves.is_empty() {
+            // The works are over: the place they stood is road like the rest.
+            self.grid.set_occupied(site, false);
+            let pct = self.defs.construction.road_pct;
+            for [x, y] in paves {
+                self.grid.pave(TilePos::new(x, y), pct);
+            }
         }
         if slot_bonus > 0 {
             let reach = self.defs.construction.annex_reach;

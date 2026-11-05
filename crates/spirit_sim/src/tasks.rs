@@ -219,8 +219,9 @@ fn step_move(actor: &mut Actor, goal: Goal, label: &str, ctx: &mut TaskCtx) -> S
         m.progress = 0;
         return StepResult::Continue;
     }
+    m.stride = ctx.grid.step_ticks(next, m.ticks_per_tile);
     m.progress += 1;
-    if m.progress >= m.ticks_per_tile {
+    if m.progress >= m.stride {
         m.pos = next;
         m.path.pop_front();
         m.progress = 0;

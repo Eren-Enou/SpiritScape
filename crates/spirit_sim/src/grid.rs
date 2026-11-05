@@ -1,6 +1,7 @@
 //! Tile map, map parsing and breadth-first grid pathfinding.
 
-use std::collections::{BTreeMap, VecDeque};
+use std::cmp::Reverse;
+use std::collections::{BTreeMap, BinaryHeap, VecDeque};
 
 pub const BUILTIN_MAP: &str = include_str!("../../../data/maps/forest.txt");
 
@@ -58,11 +59,13 @@ pub enum Terrain {
     Water,
     Rock,
     Bridge,
+    /// Plank road: quicker to walk on, and nothing can be built on it.
+    Road,
 }
 
 impl Terrain {
     pub fn walkable(self) -> bool {
-        matches!(self, Terrain::Grass | Terrain::Bridge)
+        matches!(self, Terrain::Grass | Terrain::Bridge | Terrain::Road)
     }
 
     pub fn buildable(self) -> bool {
@@ -156,6 +159,11 @@ pub struct Grid {
     terrain: Vec<Terrain>,
     /// Tiles occupied by trees or buildings.
     occupied: Vec<bool>,
+    /// How long a road tile takes to cross, as a percentage of any other tile.
+    /// 0 until the first road is laid, and paths are plain shortest paths
+    /// until then.
+    #[serde(default)]
+    road_pct: u32,
 }
 
 impl Grid {
@@ -165,6 +173,7 @@ impl Grid {
             height: layout.height,
             terrain: layout.terrain.clone(),
             occupied: vec![false; layout.terrain.len()],
+            road_pct: 0,
         }
     }
 
@@ -200,6 +209,28 @@ impl Grid {
         }
     }
 
+    /// Lays road on open ground. Water, rock and bridges stay as they are, and
+    /// anything standing on a tile stays too, so a road runs around it.
+    pub fn pave(&mut self, p: TilePos, road_pct: u32) {
+        if !self.in_bounds(p) {
+            return;
+        }
+        let i = self.idx(p);
+        if self.terrain[i] == Terrain::Grass && !self.occupied[i] {
+            self.terrain[i] = Terrain::Road;
+            self.road_pct = road_pct;
+        }
+    }
+
+    /// Ticks to enter `p` for a walker who takes `ticks` on open ground.
+    pub fn step_ticks(&self, p: TilePos, ticks: u32) -> u32 {
+        if self.terrain(p) == Some(Terrain::Road) {
+            ((ticks * self.road_pct + 50) / 100).max(1)
+        } else {
+            ticks
+        }
+    }
+
     /// This grid on a larger map, for older saves. Everything already on the
     /// old map stays exactly where it was.
     pub fn grown(&self, layout: &MapLayout) -> Grid {
@@ -212,6 +243,7 @@ impl Grid {
                 bigger.occupied[to] = self.occupied[from];
             }
         }
+        bigger.road_pct = self.road_pct;
         bigger
     }
 
@@ -287,6 +319,9 @@ impl Grid {
         if goal(from) {
             return Some(Vec::new());
         }
+        if self.road_pct > 0 {
+            return self.quickest_path(from, goal);
+        }
         let mut prev: Vec<Option<TilePos>> = vec![None; self.terrain.len()];
         let mut seen = vec![false; self.terrain.len()];
         let mut queue = VecDeque::new();
@@ -316,6 +351,56 @@ impl Grid {
                     return Some(path);
                 }
                 queue.push_back(n);
+            }
+        }
+        None
+    }
+
+    /// The quickest route once roads exist, which can be longer in tiles than
+    /// the shortest one. Ties go to whichever was found first, so it repeats.
+    fn quickest_path(&self, from: TilePos, goal: impl Fn(TilePos) -> bool) -> Option<Vec<TilePos>> {
+        if !self.in_bounds(from) {
+            return None;
+        }
+        let mut best = vec![u32::MAX; self.terrain.len()];
+        let mut prev: Vec<Option<TilePos>> = vec![None; self.terrain.len()];
+        let mut open = BinaryHeap::new();
+        let mut found = 0u32;
+        best[self.idx(from)] = 0;
+        open.push(Reverse((0u32, found, from)));
+        while let Some(Reverse((cost, _, p))) = open.pop() {
+            if cost > best[self.idx(p)] {
+                continue;
+            }
+            if p != from && goal(p) {
+                let mut path = vec![p];
+                let mut cur = p;
+                while let Some(pp) = prev[self.idx(cur)] {
+                    if pp == from {
+                        break;
+                    }
+                    path.push(pp);
+                    cur = pp;
+                }
+                path.reverse();
+                return Some(path);
+            }
+            for n in p.neighbors4() {
+                if !self.is_walkable(n) {
+                    continue;
+                }
+                let step = if self.terrain[self.idx(n)] == Terrain::Road {
+                    self.road_pct
+                } else {
+                    100
+                };
+                let i = self.idx(n);
+                if cost + step < best[i] {
+                    best[i] = cost + step;
+                    prev[i] = Some(p);
+                    found += 1;
+                    open.push(Reverse((cost + step, found, n)));
+                }
             }
         }
         None

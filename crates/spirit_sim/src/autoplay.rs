@@ -148,6 +148,18 @@ impl Bot {
         let output = w.settlement.order.output;
         let holding = w.main_room_for(output) == 0 && bag.get(output) >= 14;
         if (bag.is_full() || holding) && logs < 2 {
+            // Planks with nowhere to go are what roads are for, as the storage
+            // advice says.
+            if w.main_room_for(output) == 0 && w.active_project().is_none() {
+                let road = w
+                    .plannable()
+                    .into_iter()
+                    .find(|k| !w.defs.building(*k).paves.is_empty());
+                if let Some(kind) = road {
+                    self.click(w, Command::QueueBuilding { kind, site: None });
+                    return;
+                }
+            }
             // With Main Storage keeping its room, surplus goes to another store.
             let keep_free = bag.total() + 2;
             let overflow = w
@@ -1089,6 +1101,63 @@ pub fn compare_expansion(warm_up: u64, minutes: u64) -> Vec<SteadyRun> {
     out
 }
 
+/// Every road on the map, laid at once, for measuring what they're worth.
+pub fn lay_roads(w: &mut World) {
+    let pct = w.defs.construction.road_pct;
+    let tiles: Vec<[i32; 2]> = w
+        .defs
+        .buildings
+        .iter()
+        .flat_map(|b| b.paves.iter().copied())
+        .collect();
+    for [x, y] in tiles {
+        w.grid.pave(crate::grid::TilePos::new(x, y), pct);
+    }
+}
+
+/// Seconds for the player to walk between two places.
+pub fn walk_seconds(roads: bool, from: crate::grid::TilePos, to: crate::grid::TilePos) -> f64 {
+    let mut w = World::from_scenario(crate::ScenarioKind::ExpandedCentral);
+    if roads {
+        lay_roads(&mut w);
+    }
+    w.player.actor.mover.pos = from;
+    w.apply(Command::PlayerInteract(to))
+        .expect("a walkable tile");
+    let start = w.tick;
+    while w.player.actor.pos() != to && w.tick < start + 6000 {
+        w.step();
+    }
+    (w.tick - start) as f64 / w.defs.ticks_per_second as f64
+}
+
+/// The same settlements with and without roads.
+pub fn compare_roads(warm_up: u64, minutes: u64) -> Vec<SteadyRun> {
+    use crate::ScenarioKind::{CentralProduction, ExpandedCentral, ExpandedRemote};
+    let mut out = Vec::new();
+    for (kind, name) in [
+        (CentralProduction, "Original, central"),
+        (ExpandedCentral, "Expanded, central"),
+        (ExpandedRemote, "Expanded, remote"),
+    ] {
+        out.push(steady_rate(
+            World::from_scenario(kind),
+            name,
+            warm_up,
+            minutes,
+        ));
+        let mut w = World::from_scenario(kind);
+        lay_roads(&mut w);
+        out.push(steady_rate(
+            w,
+            &format!("{name}, with roads"),
+            warm_up,
+            minutes,
+        ));
+    }
+    out
+}
+
 /// What a shared hauler does with and without job scoring.
 #[derive(Clone, Debug)]
 pub struct HaulingRun {
@@ -1210,6 +1279,8 @@ pub struct ExpansionRoute {
     pub seconds: u64,
     /// Where everything stood when the run ended.
     pub final_state: String,
+    /// Roads laid along the way.
+    pub roads: Vec<String>,
 }
 
 /// What everything is doing, for when a reference run can't finish.
@@ -1394,6 +1465,22 @@ pub fn play_to_expansion(profile: &str) -> Result<(World, ExpansionRoute), Strin
     }
     mark(&mut route, &w, "Workshop Annex finished");
 
+    // The rest of the surplus goes into the roads still to be laid.
+    let left: Vec<_> = (0..w.defs.buildings.len())
+        .map(|i| crate::defs::BuildingKindId(i as u16))
+        .filter(|k| {
+            !w.defs.building(*k).paves.is_empty() && !w.buildings.iter().any(|b| b.kind == *k)
+        })
+        .collect();
+    for kind in left {
+        w.apply(Command::QueueBuilding { kind, site: None })?;
+    }
+    let laid = |w: &World| w.active_project().is_none() && w.settlement.queue.is_empty();
+    if !bot.chop_until(&mut w, long, laid) {
+        return Err(format!("the roads were never laid: {}", stuck_report(&w)));
+    }
+    mark(&mut route, &w, "Roads laid");
+
     // Leave it alone and see what it does.
     bot.stop(&mut w);
     let target = w.main().storage.get(beams) + 200;
@@ -1413,6 +1500,12 @@ pub fn play_to_expansion(profile: &str) -> Result<(World, ExpansionRoute), Strin
         .consumed
         .iter()
         .map(|(r, n)| (w.defs.resource(*r).name.clone(), *n))
+        .collect();
+    route.roads = w
+        .buildings
+        .iter()
+        .filter(|b| b.is_complete() && !w.defs.building(b.kind).paves.is_empty())
+        .map(|b| b.name.clone())
         .collect();
     route.seconds = w.tick / tps;
     Ok((w, route))
