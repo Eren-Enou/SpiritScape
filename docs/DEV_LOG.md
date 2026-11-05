@@ -2,6 +2,18 @@
 
 The handoff between development runs. Newest first.
 
+## v0.12 Guided Player
+
+**Status:** on branch `v0.12-guided-player`, with its PR targeting `v0.11-fitted-panels`. Not merged.
+
+**Shipped:** `storage_fixes()` as the one source for the storage message, a guided reference player that knows only that list, the `guided_report` example, and a fix for the message staying silent while Main Storage refused planks.
+
+**Measured:** the guided player reaches the Forest Crossing at 1:46:54, against 1:57:22 for hand-written habits. It took 14 actions from the message.
+
+**Decided:** the old route stays as it is, so earlier numbers still compare.
+
+**Next:** rescue a walled-in builder from old saves, then what remote production is for, then physical input.
+
 ## v0.11 Fitted Panels
 
 **Status:** on branch `v0.11-fitted-panels`, with its PR targeting `v0.10-plank-roads`. Not merged.

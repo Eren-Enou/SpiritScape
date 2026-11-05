@@ -164,6 +164,12 @@ Fitted Panels add `--scenario panel_workshop`. See [docs/V0.11_FITTED_PANELS.md]
 cargo run -p spirit_sim --release --example panel_report
 ```
 
+To check that the game's own messages are enough, see [docs/V0.12_GUIDED_PLAYER.md](docs/V0.12_GUIDED_PLAYER.md).
+
+```bash
+cargo run -p spirit_sim --release --example guided_report
+```
+
 ## Tests
 
 ```bash
