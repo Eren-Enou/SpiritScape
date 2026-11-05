@@ -370,13 +370,12 @@ impl World {
         }
     }
 
-    /// Room for what the player brings. While a project or an order is waiting
-    /// on goods, their spare logs can't take the room those need. Otherwise
+    /// Room for what the player brings. While a project is waiting on
+    /// materials, their spare logs can't take the room it needs. Otherwise
     /// it's all theirs.
     pub(crate) fn player_room_for(&self, r: ResourceId) -> u32 {
-        let project = self.active_project().is_some_and(|p| !p.reserved);
-        let order = self.orders().iter().any(|o| self.deficit_of(o.output) > 0);
-        if project || order {
+        let waiting = self.active_project().is_some_and(|p| !p.reserved);
+        if waiting {
             self.haul_room_for(r)
         } else {
             self.main_room_for(r)

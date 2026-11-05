@@ -1315,13 +1315,30 @@ pub fn play_to_expansion(profile: &str) -> Result<(World, ExpansionRoute), Strin
     }
     mark(&mut route, &w, "Forest Crossing finished");
 
-    // Watch what it does, with the player still chopping.
+    // Main Storage is mostly surplus planks by now, so spend some the way the
+    // game suggests: an Annex at the outpost bench.
     let beams = w.defs.resource_id("beams").ok_or("no beams")?;
+    let annex = kind(&w, "workshop_annex")?;
+    let bench_id = w.outpost_report(site).workshop;
+    w.apply(Command::SetTrainingBench(bench_id))?;
+    w.apply(Command::QueueBuilding { kind: annex, site: None })?;
+    let built = |w: &World| {
+        w.buildings
+            .iter()
+            .any(|b| b.kind == annex && b.is_complete())
+    };
+    if !bot.chop_until(&mut w, long, built) {
+        return Err(format!("the annex was never finished: {}", stuck_report(&w)));
+    }
+    mark(&mut route, &w, "Workshop Annex finished");
+
+    // Leave it alone and see what it does.
+    bot.stop(&mut w);
     let target = w.main().storage.get(beams) + 200;
     w.apply(Command::SetOrderTarget { output: beams, target })?;
     let (home, cut) = (w.main().storage.get(beams), hardwood_cut(&w));
     route.observed_minutes = 15;
-    bot.chop_until(&mut w, route.observed_minutes * 60 * tps, |_| false);
+    w.run_ticks(route.observed_minutes * 60 * tps);
     route.beams_after = w.main().storage.get(beams).saturating_sub(home);
     route.final_state = stuck_report(&w);
     route.hardwood_after = hardwood_cut(&w) - cut;
