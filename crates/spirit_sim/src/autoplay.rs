@@ -41,6 +41,10 @@ pub struct Bot {
     pub storage_trips: u32,
     /// Acts on the game's advice when storage runs short.
     pub heeds_storage_advice: bool,
+    /// Knows nothing about storage beyond what the game's message offers.
+    pub guided: bool,
+    /// What it did because the message said so.
+    pub advice_taken: Vec<crate::advice::StorageFix>,
     /// Tick of the last time it acted on that advice.
     last_relief: u64,
 }
@@ -55,6 +59,8 @@ impl Bot {
             actions: 0,
             storage_trips: 0,
             heeds_storage_advice: false,
+            guided: false,
+            advice_taken: Vec::new(),
             last_relief: 0,
         }
     }
@@ -98,6 +104,10 @@ impl Bot {
             return;
         }
         self.last_relief = w.tick;
+        if self.guided {
+            self.take_advice(w);
+            return;
+        }
         let main = &w.main().storage;
         let target = w.settlement.order.target;
         if main.get(self.logs) >= main.get(w.settlement.order.output) && target < 120 {
@@ -110,6 +120,39 @@ impl Bot {
             let main = &w.main().storage;
             if def.cost.iter().all(|(r, n)| main.available(*r) >= *n) {
                 self.click(w, Command::RequestBuilding(kind));
+            }
+        }
+    }
+
+    /// The first thing the storage message offers that can be done right now.
+    /// Anything that's already been tried stays tried until it helps.
+    fn take_advice(&mut self, w: &mut World) {
+        use crate::advice::StorageFix as Fix;
+        let idle_builder = w.active_project().is_none();
+        for fix in w.storage_fixes() {
+            let target = w.settlement.order.target;
+            let cmd = match fix {
+                Fix::RaisePlankTarget if target < 120 => Command::SetProductionTarget(target + 40),
+                Fix::LowerPlankTarget if target > 10 => {
+                    Command::SetProductionTarget(target.saturating_sub(40).max(10))
+                }
+                Fix::MakeRecipe(r) => Command::SetPlayerRecipe(Some(r)),
+                Fix::PlanRoad(kind) | Fix::PlanRoom(kind) if idle_builder => {
+                    Command::QueueBuilding { kind, site: None }
+                }
+                Fix::OrderRoom(kind) if idle_builder => {
+                    let main = &w.main().storage;
+                    let cost = &w.defs.building(kind).cost;
+                    if !cost.iter().all(|(r, n)| main.available(*r) >= *n) {
+                        continue;
+                    }
+                    Command::RequestBuilding(kind)
+                }
+                _ => continue,
+            };
+            self.advice_taken.push(fix);
+            if self.click(w, cmd) {
+                return;
             }
         }
     }
@@ -148,6 +191,14 @@ impl Bot {
         let output = w.settlement.order.output;
         let holding = w.main_room_for(output) == 0 && bag.get(output) >= 14;
         if (bag.is_full() || holding) && logs < 2 {
+            // A guided player has only the message to go on, and it acts on
+            // that in `relieve_storage`.
+            if self.guided {
+                let main = w.main().pos;
+                self.storage_trips += 1;
+                self.click(w, Command::PlayerInteract(main));
+                return;
+            }
             // Planks with nowhere to go are what roads are for, as the storage
             // advice says.
             if w.main_room_for(output) == 0 && w.active_project().is_none() {
@@ -246,6 +297,10 @@ impl Bot {
 
     /// Finishes whatever's in the bag and stands still.
     pub fn stop(&mut self, w: &mut World) {
+        // A session on a chosen recipe would run until the planks ran out.
+        if self.guided {
+            let _ = w.apply(Command::PlayerStop);
+        }
         while !w.player.actor.queue.is_empty()
             && !matches!(w.player.actor.queue.front(), Some(Task::Chop { .. }))
         {
@@ -1367,6 +1422,8 @@ pub struct ExpansionRoute {
     pub final_state: String,
     /// Roads laid along the way.
     pub roads: Vec<String>,
+    /// Things done because the storage message offered them.
+    pub advice_taken: u32,
 }
 
 /// What everything is doing, for when a reference run can't finish.
@@ -1426,10 +1483,21 @@ fn stuck_report(w: &World) -> String {
 /// Plays from a new game to the crossing and watches the result. Nothing is
 /// granted: every level is earned, and every building is paid for.
 pub fn play_to_expansion(profile: &str) -> Result<(World, ExpansionRoute), String> {
+    play_route(profile, false)
+}
+
+/// The same route for a player who knows only what the game tells them: no
+/// stashing planks elsewhere and no fewer logs kept, unless a message says so.
+pub fn play_guided(profile: &str) -> Result<(World, ExpansionRoute), String> {
+    play_route(profile, true)
+}
+
+fn play_route(profile: &str, guided: bool) -> Result<(World, ExpansionRoute), String> {
     let (mut w, cycle) = play_cycle(profile, true)?;
     let mut route = ExpansionRoute::default();
     let mut bot = Bot::new(&w);
     bot.heeds_storage_advice = true;
+    bot.guided = guided;
     let tps = w.defs.ticks_per_second as u64;
     let long = 6 * 3600 * tps;
     for (m, t) in &cycle.milestones {
@@ -1448,7 +1516,9 @@ pub fn play_to_expansion(profile: &str) -> Result<(World, ExpansionRoute), Strin
     };
 
     // Advanced Woodcutting, and a spirit that keeps it.
-    w.apply(Command::SetObjectiveTarget(150))?;
+    if !guided {
+        w.apply(Command::SetObjectiveTarget(150))?;
+    }
     if !bot.run(&mut w, Goal::ChopTo(need), long) {
         return Err("never reached the top Woodcutting tier".into());
     }
@@ -1467,7 +1537,9 @@ pub fn play_to_expansion(profile: &str) -> Result<(World, ExpansionRoute), Strin
     let store = kind(&w, "outpost_storage")?;
     let at = crate::grid::TilePos::new;
     bot.chop_until(&mut w, long, |w| w.active_project().is_none());
-    w.apply(Command::SetObjectiveTarget(30))?;
+    if !guided {
+        w.apply(Command::SetObjectiveTarget(30))?;
+    }
     w.apply(Command::QueueBuilding {
         kind: store,
         site: Some(at(34, 4)),
@@ -1594,5 +1666,6 @@ pub fn play_to_expansion(profile: &str) -> Result<(World, ExpansionRoute), Strin
         .map(|b| b.name.clone())
         .collect();
     route.seconds = w.tick / tps;
+    route.advice_taken = bot.advice_taken.len() as u32;
     Ok((w, route))
 }
