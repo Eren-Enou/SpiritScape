@@ -115,6 +115,7 @@ enum UiAction {
     ToggleTrainingFirst,
     /// Stop what the player is doing.
     StopActivity,
+    LeaveLoad,
     ToggleAutoGather,
     /// Step through the recipes the player can use.
     CycleRecipe,
@@ -491,6 +492,7 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                     c,
                     &[
                         ("Stop (X)", UiAction::StopActivity),
+                        ("Leave your load", UiAction::LeaveLoad),
                         ("", UiAction::ToggleAutoGather),
                         ("", UiAction::CycleRecipe),
                     ],
@@ -1101,6 +1103,7 @@ fn on_button(
     match action {
         UiAction::SaveGame => sim.save_game(),
         UiAction::StopActivity => sim.command(Command::PlayerStop),
+        UiAction::LeaveLoad => sim.command(Command::LeaveLoad),
         UiAction::Plan(id) => {
             if let Some(kind) = sim.world.defs.building_kind_id(id) {
                 sim.command(Command::QueueBuilding { kind, site: None });
@@ -1446,6 +1449,7 @@ fn update_buttons(
             // A playthrough isn't a sandbox: nothing here throws it away.
             UiAction::Load(_) => !sim.is_journey() && scenario_buttons.0,
             UiAction::Restart | UiAction::ToggleScenarios => !sim.is_journey(),
+            UiAction::LeaveLoad => w.load_is_stuck(),
             UiAction::StopActivity => {
                 w.player.session.is_some() || !w.player.actor.queue.is_empty()
             }
@@ -1816,6 +1820,7 @@ fn header_lines(sim: &Sim) -> Vec<Line> {
         ScenarioKind::ExpandedCentral => "Expanded, central",
         ScenarioKind::ExpandedRemote => "Expanded, remote",
         ScenarioKind::ForestAccess => "Forest access",
+        ScenarioKind::NoRoomLeft => "No room left",
         ScenarioKind::QuarryStart => "Quarry",
         ScenarioKind::WalledIn => "Walled in",
         ScenarioKind::PanelWorkshop => "Panel workshop",

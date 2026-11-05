@@ -41,6 +41,9 @@ pub struct Ledger {
     pub consumed: BTreeMap<ResourceId, u64>,
     /// Resources used up as recipe inputs.
     pub processed: BTreeMap<ResourceId, u64>,
+    /// Resources the player left behind because nowhere could take them.
+    #[serde(default)]
+    pub left_behind: BTreeMap<ResourceId, u64>,
     /// Resources created as recipe outputs.
     pub crafted: BTreeMap<ResourceId, u64>,
     /// Completed batches of each recipe.
@@ -188,6 +191,8 @@ pub enum Command {
     SetTrainingFirst(bool),
     /// Stop what the player is doing, where they stand.
     PlayerStop,
+    /// Leave what's in the bag behind, when nowhere can take it.
+    LeaveLoad,
     /// Whether a gathering session moves on to another tree by itself.
     SetAutoGather(bool),
     /// Choose what to make at a bench, or the best available with `None`.
@@ -378,7 +383,8 @@ impl World {
                 get(&self.ledger.seeded) + get(&self.ledger.harvested) + get(&self.ledger.crafted);
             let accounted = self.resource_in_world(r)
                 + get(&self.ledger.consumed)
-                + get(&self.ledger.processed);
+                + get(&self.ledger.processed)
+                + get(&self.ledger.left_behind);
             if created != accounted {
                 return Err(format!(
                     "{}: seeded+harvested+crafted={created} but present+consumed+processed={accounted}",
@@ -648,6 +654,7 @@ impl World {
             Command::SetTrainingSupply(on) => Ok(self.set_training_supply(on)),
             Command::SetTrainingFirst(on) => Ok(self.set_training_first(on)),
             Command::PlayerStop => Ok(self.player_stop()),
+            Command::LeaveLoad => self.leave_load(),
             Command::SetAutoGather(on) => Ok(self.set_auto_gather(on)),
             Command::SetPlayerRecipe(r) => self.set_player_recipe(r),
             Command::SetTrainingMode(mode) => Ok(self.set_training_mode(mode)),

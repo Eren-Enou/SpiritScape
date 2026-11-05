@@ -279,6 +279,35 @@ impl World {
         "Stopped".into()
     }
 
+    /// Whether Main Storage won't take anything the player is carrying.
+    pub fn load_is_stuck(&self) -> bool {
+        let bag = self.player.actor.inventory.items();
+        !bag.is_empty() && bag.keys().all(|r| self.player_room_for(*r) == 0)
+    }
+
+    /// The last resort when storage won't take a load: it's left where it is,
+    /// and it's gone. Refused while there's anywhere to put it.
+    pub(crate) fn leave_load(&mut self) -> Result<String, String> {
+        if !self.load_is_stuck() {
+            return Err("Main Storage can still take that".into());
+        }
+        let items: Vec<(ResourceId, u32)> = self
+            .player
+            .actor
+            .inventory
+            .items()
+            .iter()
+            .map(|(r, n)| (*r, *n))
+            .collect();
+        for (r, n) in items {
+            self.player.actor.inventory.remove(r, n);
+            *self.ledger.left_behind.entry(r).or_default() += n as u64;
+        }
+        let msg = "You left your load behind".to_string();
+        self.events.push(self.tick, EventKind::Player, msg.clone());
+        Ok(msg)
+    }
+
     pub(crate) fn set_auto_gather(&mut self, on: bool) -> String {
         self.player.auto_gather = on;
         let msg = if on {

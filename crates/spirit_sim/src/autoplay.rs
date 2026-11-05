@@ -45,6 +45,8 @@ pub struct Bot {
     pub guided: bool,
     /// What it did because the message said so.
     pub advice_taken: Vec<crate::advice::StorageFix>,
+    /// The skill it gathers with, when that isn't Woodcutting.
+    pub gathers: Option<SkillId>,
     /// Tick of the last time it acted on that advice.
     last_relief: u64,
 }
@@ -61,6 +63,7 @@ impl Bot {
             heeds_storage_advice: false,
             guided: false,
             advice_taken: Vec::new(),
+            gathers: None,
             last_relief: 0,
         }
     }
@@ -77,12 +80,13 @@ impl Bot {
         w.trees
             .iter()
             .filter(|t| t.is_grown() && w.player_can_cut(t.kind))
-            .filter(|t| w.defs.tree(t.kind).skill == self.wc)
+            .filter(|t| w.defs.tree(t.kind).skill == self.gathers.unwrap_or(self.wc))
             .filter_map(|t| {
                 let walk = w.grid.approach_distance(&field, t.pos)?;
                 let xp = w.defs.tree(t.kind).xp_per_log;
                 // Crossing the river for a better tree isn't worth it.
-                (walk <= 16).then_some((walk as i64 * 2 - xp as i64 / 15 * 6, t.id))
+                let reach = if self.gathers.is_some() { 40 } else { 16 };
+                (walk <= reach).then_some((walk as i64 * 2 - xp as i64 / 15 * 6, t.id))
             })
             .min()
             .map(|(_, id)| id)
@@ -141,6 +145,7 @@ impl Bot {
                 Fix::PlanRoad(kind) | Fix::PlanRoom(kind) if idle_builder => {
                     Command::QueueBuilding { kind, site: None }
                 }
+                Fix::LeaveLoad if w.player.actor.inventory.is_full() => Command::LeaveLoad,
                 Fix::OrderRoom(kind) if idle_builder => {
                     let main = &w.main().storage;
                     let cost = &w.defs.building(kind).cost;
@@ -260,7 +265,7 @@ impl Bot {
 
     fn goal_met(&self, w: &World, goal: Goal) -> bool {
         match goal {
-            Goal::ChopTo(xp) => w.player.xp(self.wc) >= xp,
+            Goal::ChopTo(xp) => w.player.xp(self.gathers.unwrap_or(self.wc)) >= xp,
             Goal::SawTo(xp) => w.player.xp(self.ww) >= xp,
             Goal::Chop => false,
         }
@@ -1293,6 +1298,141 @@ pub fn stone_time(alone: bool) -> Option<u64> {
         w.step();
     }
     None
+}
+
+/// When each long-term goal was met in one long game, and how it ended.
+#[derive(Clone, Debug, Default)]
+pub struct AllGoals {
+    /// Each goal met, in order, with the second it was noticed.
+    pub met: Vec<(String, u64)>,
+    pub missed: Vec<String>,
+    pub seconds: u64,
+    pub final_state: String,
+}
+
+/// Plans whatever can be paid for that a goal still needs.
+fn buy_for_goals(w: &mut World) {
+    if w.active_project().is_some() || !w.settlement.queue.is_empty() {
+        return;
+    }
+    let wanted: Vec<String> = w
+        .defs
+        .ambitions
+        .iter()
+        .flat_map(|a| a.built.iter().cloned())
+        .collect();
+    for id in wanted {
+        let Some(kind) = w.defs.building_kind_id(&id) else {
+            continue;
+        };
+        // Room is worth buying again once the store is getting full.
+        let more_room = w.defs.building(kind).capacity_bonus > 0
+            && w.main().storage.free() < w.main().storage.capacity / 4;
+        let built = w
+            .buildings
+            .iter()
+            .any(|b| b.kind == kind && b.is_complete());
+        if (built && !more_room) || !w.plannable().contains(&kind) {
+            continue;
+        }
+        let main = &w.main().storage;
+        let def = w.defs.building(kind);
+        if def.cost.iter().all(|c| main.available(c.0) >= c.1) {
+            let _ = w.apply(Command::QueueBuilding { kind, site: None });
+            return;
+        }
+    }
+}
+
+/// The guided game, carried on until every long-term goal is met or `hours`
+/// run out. It cuts stone, makes panels when there's plenty of planks, buys
+/// what the goals name, and trains both wood skills to the top.
+pub fn play_all_goals(hours: u64) -> Result<(World, AllGoals), String> {
+    let (mut w, _) = play_guided("normal")?;
+    let mut bot = Bot::new(&w);
+    bot.heeds_storage_advice = true;
+    bot.guided = true;
+    let tps = w.defs.ticks_per_second as u64;
+    let end = w.tick + hours * 3600 * tps;
+    let table = w.defs.xp_table.clone();
+    let top = table.xp_for_level(20);
+    let quarrying = w.defs.skill_id("quarrying").ok_or("no quarrying")?;
+    let plank = w.defs.resource_id("planks").ok_or("no planks")?;
+    let recipe = w
+        .defs
+        .recipes
+        .iter()
+        .position(|r| r.id == "fitted_panels")
+        .map(|i| crate::defs::RecipeId(i as u16))
+        .ok_or("no recipe")?;
+    let mut out = AllGoals::default();
+    let note = |w: &World, out: &mut AllGoals| {
+        for a in w.ambitions().into_iter().filter(|a| a.done) {
+            if !out.met.iter().any(|m| m.0 == a.title) {
+                out.met.push((a.title, w.tick / tps));
+            }
+        }
+    };
+    note(&w, &mut out);
+
+    // Stone, by hand, up to the level the goal names.
+    bot.stop(&mut w);
+    w.apply(Command::SetPlayerRecipe(None))?;
+    bot.gathers = Some(quarrying);
+    let enough = table.xp_for_level(5);
+    while w.player.xp(quarrying) < enough && w.tick < end {
+        bot.run(&mut w, Goal::ChopTo(enough), 60 * tps);
+        buy_for_goals(&mut w);
+        note(&w, &mut out);
+    }
+    bot.stop(&mut w);
+    bot.gathers = None;
+    let bench = w.stations().next().map(|b| b.id);
+    w.apply(Command::SetTrainingBench(bench))?;
+    w.apply(Command::SetTrainingMode(TrainingMode::Relaxed))?;
+    w.apply(Command::SetObjectiveTarget(150))?;
+
+    // Woodworking to the top, on panels whenever there are planks to spare.
+    while w.player.xp(bot.ww) < top && w.tick < end {
+        let open = w
+            .recipe_options()
+            .iter()
+            .any(|o| o.id == recipe && o.unlocked);
+        let spare = w.main().storage.available(plank) >= 30;
+        let want = (open && spare).then_some(recipe);
+        if w.player.recipe != want {
+            bot.stop(&mut w);
+            w.apply(Command::SetPlayerRecipe(want))?;
+        }
+        bot.run(&mut w, Goal::SawTo(top), 60 * tps);
+        buy_for_goals(&mut w);
+        note(&w, &mut out);
+    }
+    bot.stop(&mut w);
+    w.apply(Command::SetPlayerRecipe(None))?;
+
+    // And Woodcutting.
+    while w.player.xp(bot.wc) < top && w.tick < end {
+        bot.run(&mut w, Goal::ChopTo(top), 60 * tps);
+        buy_for_goals(&mut w);
+        note(&w, &mut out);
+    }
+    note(&w, &mut out);
+    out.missed = w
+        .ambitions()
+        .into_iter()
+        .filter(|a| !a.done)
+        .map(|a| a.title)
+        .collect();
+    out.seconds = w.tick / tps;
+    out.final_state = format!(
+        "Woodworking XP {}, Woodcutting XP {}
+{}",
+        w.player.xp(bot.ww),
+        w.player.xp(bot.wc),
+        stuck_report(&w)
+    );
+    Ok((w, out))
 }
 
 /// Every road on the map, laid at once, for measuring what they're worth.

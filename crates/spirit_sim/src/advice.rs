@@ -44,6 +44,8 @@ pub enum StorageFix {
     OrderRoom(BuildingKindId),
     /// Plan more room in the Projects tab.
     PlanRoom(BuildingKindId),
+    /// The last resort: leave what's in the bag behind.
+    LeaveLoad,
 }
 
 impl World {
@@ -113,6 +115,9 @@ impl World {
                 }
             }
         }
+        if self.load_is_stuck() {
+            fixes.push(StorageFix::LeaveLoad);
+        }
         fixes
     }
 
@@ -145,6 +150,9 @@ impl World {
                     "order a {} (+{} room) in Production (P)",
                     d.name, d.capacity_bonus
                 )
+            }
+            StorageFix::LeaveLoad => {
+                "leave your load behind with the button under your bag, which loses it".to_string()
             }
             StorageFix::PlanRoom(k) => {
                 let d = self.defs.building(k);
