@@ -1,0 +1,10 @@
+# UI test of a spirit's story:
+#   cargo run --release -- --scenario quarry_start --save-dir target/ui_saves23 --script scripts/ui_stories.txt --capture target/ui_stories
+1.5 key O
+2.0 expect THEIR STORY
+2.1 expect It was here before you
+2.2 shot 01_founder
+2.4 key O
+2.6 key R
+3.0 press Quarrying
+3.4 exit

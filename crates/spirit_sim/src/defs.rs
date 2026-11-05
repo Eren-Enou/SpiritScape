@@ -391,6 +391,10 @@ pub struct JourneyRules {
 pub struct GameDefs {
     /// Long-term goals, in the order they're suggested.
     pub ambitions: Vec<crate::ambitions::AmbitionDef>,
+    /// What spirits made by Soul Separation can be like.
+    pub traits: Vec<crate::stories::TraitDef>,
+    /// Milestones in a spirit's working life.
+    pub deeds: Vec<crate::stories::DeedDef>,
     /// The progression profile these definitions were resolved with.
     pub profile: ProfileInfo,
     /// Every profile in the data file.
@@ -431,6 +435,10 @@ struct RawDefs {
     journey: JourneyRules,
     #[serde(default)]
     ambitions: Vec<crate::ambitions::AmbitionDef>,
+    #[serde(default)]
+    traits: Vec<crate::stories::TraitDef>,
+    #[serde(default)]
+    deeds: Vec<crate::stories::DeedDef>,
     resources: Vec<ResourceDef>,
     skills: Vec<SkillDef>,
     tree_types: Vec<RawTreeType>,
@@ -1040,6 +1048,8 @@ impl GameDefs {
 
         Ok(GameDefs {
             ambitions: raw.ambitions,
+            traits: raw.traits,
+            deeds: raw.deeds,
             profile: ProfileInfo {
                 id: chosen.id,
                 title: chosen.title,

@@ -11,7 +11,7 @@ git fetch origin
 ```
 
 ```bash
-git checkout v0.22-caravan-finds
+git checkout v0.23-spirit-stories
 ```
 
 Press `F6` at any time to write a report of your session. Note the time whenever something surprises you.
@@ -92,6 +92,16 @@ cargo run --release -- --scenario caravan_yard
 
 - [ ] Did a caravan feel like a choice, or a chore?
 - [ ] Did what it brought back feel like a reward?
+
+## 8. A spirit of your own (5 minutes)
+
+```bash
+cargo run --release -- --scenario quarry_start
+```
+
+Make a spirit from the Soul tab (`R`), then look at it in the Spirits tab (`O`).
+
+- [ ] Did it feel like someone, or like a stat line?
 
 ## Four decisions only you can make
 

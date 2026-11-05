@@ -209,6 +209,7 @@ struct GoalRoot;
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
 enum Card {
     Ambitions,
+    SpiritStory,
     Header,
     Player,
     Soul,
@@ -705,6 +706,7 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
             });
 
             tab_panel(p, Tab::Spirits, |p| {
+                card(p, "THEIR STORY", |c| body(c, Card::SpiritStory));
                 card(p, "INSTRUCTIONS", |c| {
                     button_row(
                         c,
@@ -1771,6 +1773,7 @@ fn update_cards(
             Card::ChainTime => chain_time_lines(&sim.world),
             Card::Goal => goal_lines(&sim.world),
             Card::Ambitions => ambition_lines(&sim.world),
+            Card::SpiritStory => story_lines(&sim),
             Card::Menu => menu_lines(&sim),
             Card::Skills => skills_lines(&sim.world),
             Card::Workforce => workforce_lines(&sim.world),
@@ -2392,6 +2395,17 @@ fn goal_lines(w: &World) -> Vec<Line> {
             muted(format!("{} / {want} {label}", have.min(want))),
         ]);
     }
+    lines
+}
+
+/// The selected spirit's life so far.
+fn story_lines(sim: &Sim) -> Vec<Line> {
+    let w = &sim.world;
+    let Some(s) = w.spirits.get(sim.selected_spirit) else {
+        return vec![vec![muted("No spirits yet.")]];
+    };
+    let mut lines = vec![vec![text(w.spirit_title(s))]];
+    lines.extend(w.spirit_story(s).into_iter().map(|l| vec![muted(l)]));
     lines
 }
 

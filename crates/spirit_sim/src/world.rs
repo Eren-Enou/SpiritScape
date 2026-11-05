@@ -19,7 +19,7 @@ use crate::training::{TrainingMode, TrainingSupport};
 use std::collections::BTreeMap;
 use std::hash::{Hash, Hasher};
 
-const SPIRIT_NAMES: &[&str] = &[
+pub const SPIRIT_NAMES: &[&str] = &[
     "Oakroot",
     "Mossbell",
     "Ashwhisper",
@@ -28,6 +28,22 @@ const SPIRIT_NAMES: &[&str] = &[
     "Emberleaf",
     "Thistledown",
     "Willowmere",
+    "Hazelhush",
+    "Rowanrest",
+    "Bramblewick",
+    "Sedgewhisper",
+    "Larchling",
+    "Dewfall",
+    "Hollowcap",
+    "Yarrowsong",
+    "Pinewake",
+    "Lichenlight",
+    "Alderhum",
+    "Tansybrook",
+    "Quillfern",
+    "Marrowmoss",
+    "Sorrelshade",
+    "Elderdrift",
 ];
 
 /// Running totals used to verify conservation of resources and XP.
@@ -1004,6 +1020,7 @@ impl World {
         }
         let pos = self.player.actor.pos();
         let id = self.add_spirit(role, xp, pos);
+        self.begin_story(id, xp);
         let s = &self.spirits[id];
         let mut msg = format!(
             "Soul Separation: sacrificed {xp} {skill_name} XP (level {} -> {}). {} awakens as a {} at permanent level {}",
@@ -1089,6 +1106,7 @@ impl World {
         self.update_journey();
         if self.tick.is_multiple_of(SNAPSHOT_TICKS) {
             self.update_ambitions();
+            self.update_deeds();
         }
     }
 

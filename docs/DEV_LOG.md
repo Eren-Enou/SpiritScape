@@ -2,6 +2,16 @@
 
 The handoff between development runs. Newest first.
 
+## v0.23 Spirit Stories
+
+**Status:** on branch `v0.23-spirit-stories`, with its PR targeting `v0.22-caravan-finds`. Not merged.
+
+**Shipped:** traits, deeds, titles, a Their Story card, and 24 spirit names.
+
+**Decided:** traits can't be chosen, and only made spirits have them.
+
+**Next:** a third skill and a longer chain joining wood and stone. Then a new region, seasons, events and an ending.
+
 ## v0.22 Caravan Finds
 
 **Status:** on branch `v0.22-caravan-finds`, with its PR targeting `v0.21-trade-caravans`. Not merged.
