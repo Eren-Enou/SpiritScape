@@ -719,12 +719,24 @@ impl World {
         let site = p.site;
         let benefit = def.benefit.clone();
         let name = def.name.clone();
+        let plants = def.plants.clone();
         let notice = if repeatable {
-            Some(format!(
-                "{name} sent. That's {} so far.",
-                self.settlement.caravans + 1
-            ))
-        } else if !opens.is_empty() || !paves.is_empty() || slot_bonus > 0 || carry_bonus > 0 {
+            let sent = self.settlement.caravans + 1;
+            let find = self
+                .defs
+                .buildings
+                .iter()
+                .find(|b| b.needs_caravans == sent);
+            Some(match find {
+                Some(b) => format!("{name} sent, and it brought back: {}", b.caravan_find),
+                None => format!("{name} sent. That's {sent} so far."),
+            })
+        } else if !opens.is_empty()
+            || !paves.is_empty()
+            || !plants.is_empty()
+            || slot_bonus > 0
+            || carry_bonus > 0
+        {
             Some(format!("{name} complete. {benefit}"))
         } else if is_station {
             Some(format!(
@@ -758,6 +770,16 @@ impl World {
             self.settlement.caravans += 1;
             self.grid.set_occupied(site, false);
             self.buildings[building].state = BuildingState::Removed;
+        }
+        for (kind, [x, y]) in plants {
+            // Anything built there since stays, and that one isn't planted.
+            let at = TilePos::new(x, y);
+            if self.grid.is_buildable(at) {
+                let id = self.trees.len();
+                self.trees
+                    .push(crate::scenario::new_tree(&self.defs, kind, at, id));
+                self.grid.set_occupied(at, true);
+            }
         }
         if carry_bonus > 0 {
             self.settlement.carry_bonus += carry_bonus;

@@ -145,3 +145,110 @@ fn a_caravan_can_be_called_off_before_it_is_loaded() {
     assert_eq!(w.settlement.caravans, 0);
     send(&mut w);
 }
+
+fn plan_named(w: &mut World, id: &str) -> Result<String, String> {
+    let kind = w.defs.building_kind_id(id).unwrap();
+    w.apply(Command::QueueBuilding { kind, site: None })
+}
+
+fn stock(w: &mut World, id: &str, n: u32) {
+    let r = w.defs.resource_id(id).unwrap();
+    let main = w.main_storage;
+    w.buildings[main].storage.capacity = 750;
+    let put = w.buildings[main].storage.deposit(r, n);
+    *w.ledger.seeded.entry(r).or_default() += put as u64;
+}
+
+#[test]
+fn a_find_stays_shut_until_a_caravan_brings_it() {
+    let mut w = world();
+    let e = plan_named(&mut w, "ironwood_nursery").unwrap_err();
+    assert!(e.contains("Trade Caravan"), "{e}");
+    let nursery = w.defs.building_kind_id("ironwood_nursery").unwrap();
+    assert!(!w.plannable().contains(&nursery));
+}
+
+#[test]
+fn the_first_caravan_brings_back_saplings() {
+    let mut w = world();
+    send(&mut w);
+    assert!(run_until(&mut w, 6000, |w| w.settlement.caravans == 1));
+    w.step();
+    assert!(w.notices.contains("Ironwood saplings"));
+    let nursery = w.defs.building_kind_id("ironwood_nursery").unwrap();
+    assert!(w.plannable().contains(&nursery));
+    let quarry = w.defs.building_kind_id("quarry_extension").unwrap();
+    assert!(!w.plannable().contains(&quarry), "that takes two");
+}
+
+#[test]
+fn a_nursery_plants_real_trees_that_can_be_cut() {
+    let mut w = world();
+    w.settlement.caravans = 1;
+    stock(&mut w, "planks", 40);
+    let count = w.trees.len();
+    plan_named(&mut w, "ironwood_nursery").unwrap();
+    let kind = w.defs.building_kind_id("ironwood_nursery").unwrap();
+    assert!(run_until(&mut w, 6000, |w| w
+        .buildings
+        .iter()
+        .any(|b| b.kind == kind && b.is_complete())));
+    assert_eq!(w.trees.len(), count + 3);
+    let t = w.trees.last().unwrap();
+    assert_eq!(w.defs.tree(t.kind).id, "ironwood");
+    assert_eq!(t.site, w.defs.site_id("starting_grove"));
+    assert!(w.grid.is_occupied(t.pos));
+}
+
+#[test]
+fn a_tile_built_on_since_is_left_alone() {
+    let mut w = world();
+    w.settlement.caravans = 1;
+    stock(&mut w, "planks", 40);
+    let blocked = spirit_sim::grid::TilePos::new(8, 8);
+    w.grid.set_occupied(blocked, true);
+    let count = w.trees.len();
+    plan_named(&mut w, "ironwood_nursery").unwrap();
+    let kind = w.defs.building_kind_id("ironwood_nursery").unwrap();
+    assert!(run_until(&mut w, 6000, |w| w
+        .buildings
+        .iter()
+        .any(|b| b.kind == kind && b.is_complete())));
+    assert_eq!(w.trees.len(), count + 2);
+}
+
+#[test]
+fn planted_trees_survive_saving_and_continue_identically() {
+    let mut w = world();
+    w.settlement.caravans = 1;
+    stock(&mut w, "planks", 40);
+    plan_named(&mut w, "ironwood_nursery").unwrap();
+    w.run_ticks(2500);
+    let (mut loaded, _) = decode(&encode(&w, "caravan_yard")).unwrap();
+    assert_eq!(loaded.trees.len(), w.trees.len());
+    w.run_ticks(600);
+    loaded.run_ticks(600);
+    assert_eq!(w.state_hash(), loaded.state_hash());
+}
+
+#[test]
+fn every_planted_tile_is_open_ground_on_the_map() {
+    let w = World::from_scenario(ScenarioKind::NewGame);
+    for b in w.defs.buildings.iter() {
+        for (_, [x, y]) in &b.plants {
+            assert!(
+                w.grid.is_buildable(spirit_sim::grid::TilePos::new(*x, *y)),
+                "{} at {x},{y}",
+                b.id
+            );
+        }
+    }
+}
+
+#[test]
+fn every_find_is_described() {
+    let w = world();
+    for b in w.defs.buildings.iter().filter(|b| b.needs_caravans > 0) {
+        assert!(b.caravan_find.len() > 10, "{}", b.id);
+    }
+}

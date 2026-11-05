@@ -11,7 +11,7 @@ git fetch origin
 ```
 
 ```bash
-git checkout v0.21-trade-caravans
+git checkout v0.22-caravan-finds
 ```
 
 Press `F6` at any time to write a report of your session. Note the time whenever something surprises you.
@@ -91,6 +91,7 @@ cargo run --release -- --scenario caravan_yard
 ```
 
 - [ ] Did a caravan feel like a choice, or a chore?
+- [ ] Did what it brought back feel like a reward?
 
 ## Four decisions only you can make
 

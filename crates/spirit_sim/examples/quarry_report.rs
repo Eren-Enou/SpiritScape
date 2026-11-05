@@ -4,7 +4,7 @@
 //!
 //! The scenario's rates are for development, so times here aren't a pace.
 
-use spirit_sim::autoplay::{stone_time, walk_across};
+use spirit_sim::autoplay::{compare_nursery, stone_time, walk_across};
 
 fn clock(t: Option<u64>) -> String {
     t.map_or("not within the run".into(), |s| {
@@ -24,4 +24,12 @@ fn main() {
     println!("|---|---|");
     println!("| By the bridge | {:.1} |", walk_across(false));
     println!("| By the causeway | {:.1} |", walk_across(true));
+    println!("\n| Settlement | Hardwood/min | Beams home/min | Hauler walking |");
+    println!("|---|---|---|---|");
+    for r in compare_nursery(15, 30) {
+        println!(
+            "| {} | {:.1} | {:.1} | {}% |",
+            r.name, r.hardwood_per_min, r.beams_per_min, r.hauler_walking_pct
+        );
+    }
 }

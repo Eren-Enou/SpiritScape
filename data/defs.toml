@@ -132,6 +132,12 @@ hint = "Plan a Trade Caravan in Projects (B) whenever goods are piling up."
 caravans = 5
 
 [[ambitions]]
+id = "nursery"
+title = "Grow Ironwood near home"
+hint = "A Trade Caravan brings back saplings. Then plan an Ironwood Nursery in Projects (B)."
+built = ["ironwood_nursery"]
+
+[[ambitions]]
 id = "master_wood"
 title = "Master Woodworking"
 hint = "Reach Woodworking level 20. It counts even if you give the XP to a spirit later."
@@ -851,6 +857,58 @@ build_seconds_per_level = 0.5
 min_build_seconds = 5.0
 color = [0.70, 0.52, 0.34]
 benefit = "Sends surplus logs and panels away to trade, which makes room and adds to your settlement's renown."
+
+# What caravans bring back. `needs_caravans` keeps a building off the plan
+# until that many have gone, and `caravan_find` is what the player is told.
+# `plants` adds real trees or outcrops to the map when it's finished.
+[[buildings]]
+id = "ironwood_nursery"
+name = "Ironwood Nursery"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+needs_caravans = 1
+caravan_find = "Ironwood saplings. Plan an Ironwood Nursery to grow them near home."
+plants = [
+    { tree = "ironwood", at = [8, 8] },
+    { tree = "ironwood", at = [15, 10] },
+    { tree = "ironwood", at = [16, 11] },
+]
+scales_goods = true
+cost = [
+    { resource = "logs", amount = 20 },
+    { resource = "planks", amount = 40 },
+]
+build_seconds = 25.0
+build_seconds_per_level = 0.5
+min_build_seconds = 10.0
+color = [0.45, 0.55, 0.35]
+benefit = "Three Ironwood trees in the Starting Grove, a short walk from home."
+
+[[buildings]]
+id = "quarry_extension"
+name = "Quarry Extension"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+needs_caravans = 2
+caravan_find = "A mason's survey of the South Quarry. Plan a Quarry Extension to open more of it."
+plants = [
+    { tree = "stone_outcrop", at = [7, 24] },
+    { tree = "stone_outcrop", at = [11, 26] },
+    { tree = "stone_outcrop", at = [6, 23] },
+]
+cost = [
+    { resource = "logs", amount = 30 },
+    { resource = "stone", amount = 20 },
+]
+build_seconds = 25.0
+build_seconds_per_level = 0.5
+min_build_seconds = 10.0
+color = [0.60, 0.60, 0.62]
+benefit = "Three more Stone Outcrops in the South Quarry."
 
 [objective]
 # "Maintain <target> <resource> in the main settlement storage."

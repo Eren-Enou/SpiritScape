@@ -362,7 +362,8 @@ fn redraw_changed_land(mut sim: ResMut<Sim>) {
         .iter()
         .filter(|b| {
             let def = w.defs.building(b.kind);
-            b.is_complete() && !(def.opens.is_empty() && def.paves.is_empty())
+            b.is_complete()
+                && !(def.opens.is_empty() && def.paves.is_empty() && def.plants.is_empty())
         })
         .count();
     if open != sim.crossings_drawn {

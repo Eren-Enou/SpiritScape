@@ -303,6 +303,12 @@ pub struct BuildingDef {
     pub carry_bonus: u32,
     /// Leaves when it's finished, so it can be built again and again.
     pub repeatable: bool,
+    /// Trade Caravans that must have gone before this can be planned.
+    pub needs_caravans: u32,
+    /// What the caravan that opens this brings back, in words.
+    pub caravan_find: String,
+    /// Trees or outcrops added to the map when this is finished.
+    pub plants: Vec<(TreeKindId, [i32; 2])>,
     /// Built on the player's request.
     pub manual: bool,
     /// Room for materials set aside for the player's training at a station.
@@ -530,6 +536,12 @@ struct RawLogistics {
     scored_carrying: bool,
 }
 
+#[derive(Deserialize)]
+struct RawPlant {
+    tree: String,
+    at: [i32; 2],
+}
+
 /// Every tile along a road's corners.
 fn road_tiles(corners: &[[i32; 2]]) -> Result<Vec<[i32; 2]>, String> {
     let mut tiles: Vec<[i32; 2]> = corners.iter().take(1).copied().collect();
@@ -662,6 +674,12 @@ struct RawBuilding {
     carry_bonus: u32,
     #[serde(default)]
     repeatable: bool,
+    #[serde(default)]
+    needs_caravans: u32,
+    #[serde(default)]
+    caravan_find: String,
+    #[serde(default)]
+    plants: Vec<RawPlant>,
     #[serde(default)]
     access_site: Option<[i32; 2]>,
     #[serde(default)]
@@ -912,6 +930,17 @@ impl GameDefs {
                 capacity_bonus: b.capacity_bonus,
                 carry_bonus: b.carry_bonus,
                 repeatable: b.repeatable,
+                needs_caravans: b.needs_caravans,
+                caravan_find: b.caravan_find,
+                plants: b
+                    .plants
+                    .iter()
+                    .map(|p| {
+                        let at = trees.iter().position(|t| t.id == p.tree);
+                        at.map(|i| (TreeKindId(i as u16), p.at))
+                            .ok_or_else(|| format!("{:?} plants unknown {:?}", b.id, p.tree))
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
                 manual: b.manual,
                 training_buffer: b.training_buffer,
                 training_cache: b.training_cache,

@@ -2,6 +2,16 @@
 
 The handoff between development runs. Newest first.
 
+## v0.22 Caravan Finds
+
+**Status:** on branch `v0.22-caravan-finds`, with its PR targeting `v0.21-trade-caravans`. Not merged.
+
+**Shipped:** caravans that open buildings, `plants` for adding trees to the map, the Ironwood Nursery, the Quarry Extension and a 14th goal.
+
+**Measured:** Hardwood 15.0 to 18.1 a minute for gatherers free to roam. A long game now leaves behind 476 units.
+
+**Next:** spirits as characters.
+
 ## v0.21 Trade Caravans
 
 **Status:** on branch `v0.21-trade-caravans`, with its PR targeting `v0.20-playtest-ready`. Not merged.

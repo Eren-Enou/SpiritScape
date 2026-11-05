@@ -1337,12 +1337,9 @@ fn buy_for_goals(w: &mut World) {
         if (built && !more_room) || !w.plannable().contains(&kind) {
             continue;
         }
-        let main = &w.main().storage;
-        let def = w.defs.building(kind);
-        if def.cost.iter().all(|c| main.available(c.0) >= c.1) {
-            let _ = w.apply(Command::QueueBuilding { kind, site: None });
-            return;
-        }
+        // A plan creates its own demand, so it needn't be affordable yet.
+        let _ = w.apply(Command::QueueBuilding { kind, site: None });
+        return;
     }
 }
 
@@ -1435,6 +1432,36 @@ pub fn play_all_goals(hours: u64) -> Result<(World, AllGoals), String> {
         stuck_report(&w)
     );
     Ok((w, out))
+}
+
+/// A settlement with and without the nursery's trees, in steady running.
+pub fn compare_nursery(warm_up: u64, minutes: u64) -> Vec<SteadyRun> {
+    use crate::ScenarioKind::ExpandedCentral;
+    // Spirits posted to Old Growth would never see trees near home.
+    let unposted = || {
+        let mut w = World::from_scenario(ExpandedCentral);
+        for s in &mut w.spirits {
+            s.policy.site = None;
+        }
+        w
+    };
+    let mut planted = unposted();
+    let kind = planted
+        .defs
+        .building_kind_id("ironwood_nursery")
+        .expect("nursery");
+    for (tree, [x, y]) in planted.defs.building(kind).plants.clone() {
+        let at = crate::grid::TilePos::new(x, y);
+        let id = planted.trees.len();
+        planted
+            .trees
+            .push(crate::scenario::new_tree(&planted.defs, tree, at, id));
+        planted.grid.set_occupied(at, true);
+    }
+    vec![
+        steady_rate(unposted(), "Expanded, central", warm_up, minutes),
+        steady_rate(planted, "With the nursery", warm_up, minutes),
+    ]
 }
 
 /// Every road on the map, laid at once, for measuring what they're worth.
