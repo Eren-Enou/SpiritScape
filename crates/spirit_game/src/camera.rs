@@ -102,6 +102,10 @@ fn keyboard_movement(
         });
     }
 
+    if keys.just_pressed(KeyCode::KeyX) {
+        sim.command(Command::PlayerStop);
+    }
+
     if keys.just_pressed(KeyCode::KeyE) {
         let w = &sim.world;
         let pos = w.player.actor.pos();

@@ -1,0 +1,65 @@
+# UI test of continuous gathering, the Now card, training modes, details and
+# the play report. Exits with an error if anything expected is missing:
+#   cargo run --release -- --scenario skilling_session --save-dir target/ui_saves3 --script scripts/ui_skilling.txt --capture target/ui_skilling
+1.5 expect NOW
+1.6 expect Idle
+1.7 expect Next tree: AUTO
+1.8 expect SETTLEMENT
+1.9 shot 01_start
+2.0 tile 9 9              # one click on a tree
+3.2 expect Chopping Tree
+3.3 press 4x
+6.0 expect XP/min
+6.1 expect moves on when it's finished
+6.2 shot 02_chopping
+6.4 press 1x
+6.7 press Stop (X)
+7.1 expect Idle
+7.2 expect Stopped
+7.3 shot 03_stopped
+7.5 press Next tree: AUTO
+7.9 expect Next tree: I'LL CLICK
+8.0 press Next tree: I'LL CLICK
+8.4 expect Next tree: AUTO
+8.6 tile 15 9
+8.7 tile 12 12
+9.5 key X
+10.0 expect Idle
+10.2 key V
+10.6 expect Details: ON
+10.7 expect SETTLEMENT PLANNER
+10.8 shot 04_details
+11.0 key V
+11.4 expect Details: OFF
+11.5 key T
+12.0 expect HOW YOU TRAIN
+12.1 expect WHAT YOU MAKE AT THE BENCH
+12.2 expect Rough Planks
+12.3 press Relaxed
+12.7 expect Spirits bring logs
+12.8 expect Relaxed training
+12.9 shot 05_relaxed
+13.0 press Optimized
+13.4 expect Spirits serve your training first
+13.5 expect A Log Rack at the bench
+13.6 shot 06_optimized
+13.8 press Manual
+14.2 expect You fetch and carry
+14.3 press Precise Planks (Lv 5)*
+14.7 key R
+15.1 expect Give
+15.2 expect SOUL SEPARATION
+15.3 shot 07_soul_tab
+15.5 key F6
+15.9 expect Play report written
+16.0 key T
+16.4 key T
+16.8 tile 12 12           # start again, then save while chopping
+18.0 press Save
+18.4 expect Game saved
+18.6 key F9
+19.2 expect Game loaded
+19.3 expect Chopping
+19.4 shot 08_resumed
+19.8 press Stop (X)
+20.2 exit

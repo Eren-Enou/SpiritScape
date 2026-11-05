@@ -17,6 +17,7 @@
 8.7 shot 04_sawed
 9.0 tile 5 14             # store the planks
 10.0 press 1x
+10.3 key R
 10.5 press Woodworking
 10.8 press All
 11.2 expect You lose

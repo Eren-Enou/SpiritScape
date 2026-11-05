@@ -18,6 +18,8 @@ use spirit_sim::entities::ProjectState;
 use spirit_sim::events::EventKind;
 use spirit_sim::metrics::{Bottleneck, TimeUse};
 use spirit_sim::production::{ProductionBottleneck, WorkshopStatus};
+use spirit_sim::session::ActivityState;
+use spirit_sim::training::TrainingMode;
 use spirit_sim::{Command, ScenarioKind, World};
 
 const PANEL_BG: Color = Color::srgba(0.06, 0.07, 0.09, 0.96);
@@ -27,8 +29,6 @@ const BUTTON_ACTIVE: Color = Color::srgb(0.25, 0.45, 0.30);
 const HEADING: Color = Color::srgb(0.95, 0.85, 0.55);
 const XP: Color = Color::srgb(0.70, 0.55, 1.0);
 const LOG_LINES: usize = 11;
-/// Width of the main bars in the panel.
-const BAR: f32 = 220.0;
 /// Gatherer time needed before the panel names a bottleneck.
 const MIN_MEASURE_SECS: u64 = 20;
 /// Worker assignment buttons in the Production tab.
@@ -109,6 +109,21 @@ enum UiAction {
     ToggleCollect,
     ToggleSupply,
     ToggleTrainingFirst,
+    /// Stop what the player is doing.
+    StopActivity,
+    ToggleAutoGather,
+    /// Step through the recipes the player can use.
+    CycleRecipe,
+    /// Make the best recipe available.
+    RecipeAuto,
+    /// Choose the nth recipe at the bench.
+    ChooseRecipe(usize),
+    SetMode(TrainingMode),
+    /// Show or hide the detail cards.
+    ToggleDetails,
+    /// Show or hide the development scenario buttons.
+    ToggleScenarios,
+    WriteReport,
 }
 
 /// Which half of the lower right panel is shown.
@@ -120,11 +135,28 @@ enum Tab {
     Progress,
     Training,
     Spirits,
+    Soul,
 }
 
 /// Show routine spirit events in the log too.
 #[derive(Resource)]
 struct AllEvents(bool);
+
+/// Show the cards meant for tuning and diagnosis, not everyday play.
+#[derive(Resource)]
+struct Details(bool);
+
+/// Show the buttons that load development scenarios.
+#[derive(Resource)]
+struct ScenarioButtons(bool);
+
+/// A card shown only with details on.
+#[derive(Component)]
+struct DetailCard;
+
+/// Summary cards that make way for the tall Soul and Training tabs.
+#[derive(Component)]
+struct OverviewCard;
 
 /// Development flags: open a tab at start (`--gathering`, `--production`).
 #[derive(Resource)]
@@ -175,6 +207,11 @@ enum Card {
     Orders,
     Stations,
     SpiritOrders,
+    Activity,
+    Glance,
+    Recipes,
+    TrainingPlan,
+    PlayReport,
 }
 
 /// Clipping box that holds the event log lines.
@@ -192,6 +229,8 @@ impl Plugin for UiPlugin {
         app.insert_resource(UiVisible(true))
             .insert_resource(Tab::Settlement)
             .insert_resource(AllEvents(false))
+            .insert_resource(Details(false))
+            .insert_resource(ScenarioButtons(false))
             .add_systems(Startup, build_ui)
             .add_systems(
                 Update,
@@ -202,6 +241,7 @@ impl Plugin for UiPlugin {
                     update_buttons,
                     toggle_panels,
                     show_tab,
+                    show_details,
                     update_banner,
                     scroll_panel,
                     update_menu,
@@ -236,6 +276,23 @@ fn card(
         }
         content(c);
     });
+}
+
+/// A card for tuning and diagnosis, hidden until details are on.
+fn detail_card(
+    p: &mut ChildSpawnerCommands,
+    title: &str,
+    content: impl FnOnce(&mut ChildSpawnerCommands),
+) {
+    p.spawn((
+        DetailCard,
+        Node {
+            flex_direction: FlexDirection::Column,
+            display: Display::None,
+            ..default()
+        },
+    ))
+    .with_children(|c| card(c, title, content));
 }
 
 fn body(p: &mut ChildSpawnerCommands, kind: Card) {
@@ -305,6 +362,13 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
         .collect();
     let soul_buttons: Vec<(&str, UiAction)> =
         soul_skills.iter().map(|(n, a)| (n.as_str(), *a)).collect();
+    let recipe_count = sim.world.recipe_options().len();
+    let mut recipe_buttons = vec![("Best available", UiAction::RecipeAuto)];
+    recipe_buttons.extend((0..recipe_count).map(|i| ("", UiAction::ChooseRecipe(i))));
+    let mode_buttons: Vec<(&str, UiAction)> = TrainingMode::ALL
+        .into_iter()
+        .map(|m| (m.label(), UiAction::SetMode(m)))
+        .collect();
     commands
         .spawn((
             Node {
@@ -338,6 +402,7 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                     ("Restart", UiAction::Restart),
                     ("Save", UiAction::SaveGame),
                     ("Menu", UiAction::OpenMenu),
+                    ("Scenarios", UiAction::ToggleScenarios),
                 ],
             );
             button_row(
@@ -381,8 +446,23 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                         "Retraining",
                         UiAction::Load(ScenarioKind::SupportedRetraining),
                     ),
+                    ("Skilling", UiAction::Load(ScenarioKind::SkillingSession)),
+                    ("Recipes", UiAction::Load(ScenarioKind::WorkshopRecipes)),
+                    ("Full storage", UiAction::Load(ScenarioKind::FullStorage)),
                 ],
             );
+
+            card(p, "NOW", |c| {
+                body(c, Card::Activity);
+                button_row(
+                    c,
+                    &[
+                        ("Stop (X)", UiAction::StopActivity),
+                        ("", UiAction::ToggleAutoGather),
+                        ("", UiAction::CycleRecipe),
+                    ],
+                );
+            });
 
             p.spawn((
                 GoalRoot,
@@ -393,25 +473,17 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
             ))
             .with_children(|g| card(g, "WHAT'S NEXT", |c| body(c, Card::Goal)));
 
-            card(p, "YOU", |c| body(c, Card::Player));
-
-            card(p, "SOUL SEPARATION", |c| {
-                button_row(c, &soul_buttons);
-                body(c, Card::Soul);
-                let options: Vec<_> = (0..SOUL_OPTIONS)
-                    .map(|i| ("", UiAction::SoulOption(i)))
-                    .collect();
-                button_row(c, &options);
-                button_row(
-                    c,
-                    &[
-                        ("-100", UiAction::SoulAdjust(-100)),
-                        ("+100", UiAction::SoulAdjust(100)),
-                        ("Half", UiAction::SoulHalf),
-                        ("All", UiAction::SoulAll),
-                    ],
-                );
-                button_row(c, &[("Separate Soul", UiAction::SoulSeparate)]);
+            p.spawn((
+                OverviewCard,
+                Node {
+                    flex_direction: FlexDirection::Column,
+                    row_gap: Val::Px(6.0),
+                    ..default()
+                },
+            ))
+            .with_children(|o| {
+                card(o, "YOU", |c| body(c, Card::Player));
+                card(o, "SETTLEMENT", |c| body(c, Card::Glance));
             });
 
             button_row(
@@ -423,8 +495,31 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                     ("Progress (J)", UiAction::ShowTab(Tab::Progress)),
                     ("Training (T)", UiAction::ShowTab(Tab::Training)),
                     ("Spirits (O)", UiAction::ShowTab(Tab::Spirits)),
+                    ("Soul (R)", UiAction::ShowTab(Tab::Soul)),
+                    ("", UiAction::ToggleDetails),
                 ],
             );
+
+            tab_panel(p, Tab::Soul, |p| {
+                card(p, "SOUL SEPARATION", |c| {
+                    button_row(c, &soul_buttons);
+                    body(c, Card::Soul);
+                    let options: Vec<_> = (0..SOUL_OPTIONS)
+                        .map(|i| ("", UiAction::SoulOption(i)))
+                        .collect();
+                    button_row(c, &options);
+                    button_row(
+                        c,
+                        &[
+                            ("-100", UiAction::SoulAdjust(-100)),
+                            ("+100", UiAction::SoulAdjust(100)),
+                            ("Half", UiAction::SoulHalf),
+                            ("All", UiAction::SoulAll),
+                        ],
+                    );
+                    button_row(c, &[("Separate Soul", UiAction::SoulSeparate)]);
+                });
+            });
 
             tab_panel(p, Tab::Settlement, |p| {
                 card(p, "STOCK", |c| {
@@ -439,7 +534,7 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                     );
                 });
                 card(p, "SPIRITS", |c| body(c, Card::Spirits));
-                card(p, "SETTLEMENT PLANNER", |c| body(c, Card::Planner));
+                detail_card(p, "SETTLEMENT PLANNER", |c| body(c, Card::Planner));
             });
 
             tab_panel(p, Tab::Gathering, |p| {
@@ -450,7 +545,7 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                         button_row(c, &[("", UiAction::ToggleSite(i))]);
                     });
                 }
-                card(p, "WHERE GATHERERS' TIME GOES (LAST 2 MIN)", |c| {
+                detail_card(p, "WHERE GATHERERS' TIME GOES (LAST 2 MIN)", |c| {
                     body(c, Card::TimeUse)
                 });
             });
@@ -492,7 +587,7 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                     button_row(c, &workers);
                     button_row(c, &[("", UiAction::OrderBuilding)]);
                 });
-                card(p, "WHERE THE CHAIN'S TIME GOES (LAST 2 MIN)", |c| {
+                detail_card(p, "WHERE THE CHAIN'S TIME GOES (LAST 2 MIN)", |c| {
                     body(c, Card::ChainTime)
                 });
             });
@@ -504,6 +599,10 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                     body(c, Card::Improvements)
                 });
                 card(p, "RECENTLY", |c| body(c, Card::Recent));
+                detail_card(p, "PLAY REPORT", |c| {
+                    body(c, Card::PlayReport);
+                    button_row(c, &[("Write report file (F6)", UiAction::WriteReport)]);
+                });
             });
 
             tab_panel(p, Tab::Spirits, |p| {
@@ -529,6 +628,14 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
             });
 
             tab_panel(p, Tab::Training, |p| {
+                card(p, "HOW YOU TRAIN", |c| {
+                    button_row(c, &mode_buttons);
+                    body(c, Card::TrainingPlan);
+                });
+                card(p, "WHAT YOU MAKE AT THE BENCH", |c| {
+                    button_row(c, &recipe_buttons);
+                    body(c, Card::Recipes);
+                });
                 card(p, "SPIRIT-SUPPORTED TRAINING", |c| {
                     body(c, Card::TrainingStatus);
                     button_row(c, &area_buttons);
@@ -544,7 +651,7 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                         ],
                     );
                 });
-                card(p, "WHERE YOUR TIME GOES (WHOLE GAME)", |c| {
+                detail_card(p, "WHERE YOUR TIME GOES (WHOLE GAME)", |c| {
                     body(c, Card::PlayerTime)
                 });
             });
@@ -699,7 +806,8 @@ fn tab_panel(
 fn show_tab(
     keys: Res<ButtonInput<KeyCode>>,
     mut tab: ResMut<Tab>,
-    mut panels: Query<(&TabPanel, &mut Node)>,
+    mut panels: Query<(&TabPanel, &mut Node), Without<OverviewCard>>,
+    mut overview: Query<&mut Node, With<OverviewCard>>,
 ) {
     if keys.just_pressed(KeyCode::KeyG) {
         *tab = match *tab {
@@ -731,12 +839,45 @@ fn show_tab(
             _ => Tab::Spirits,
         };
     }
+    if keys.just_pressed(KeyCode::KeyR) {
+        *tab = match *tab {
+            Tab::Soul => Tab::Settlement,
+            _ => Tab::Soul,
+        };
+    }
+    let tall = matches!(*tab, Tab::Soul | Tab::Training);
+    let display = if tall { Display::None } else { Display::Flex };
+    for mut node in &mut overview {
+        if node.display != display {
+            node.display = display;
+        }
+    }
     for (panel, mut node) in &mut panels {
         let display = if panel.0 == *tab {
             Display::Flex
         } else {
             Display::None
         };
+        if node.display != display {
+            node.display = display;
+        }
+    }
+}
+
+fn show_details(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut details: ResMut<Details>,
+    mut cards: Query<&mut Node, With<DetailCard>>,
+) {
+    if keys.just_pressed(KeyCode::KeyV) {
+        details.0 = !details.0;
+    }
+    let display = if details.0 {
+        Display::Flex
+    } else {
+        Display::None
+    };
+    for mut node in &mut cards {
         if node.display != display {
             node.display = display;
         }
@@ -834,6 +975,8 @@ fn on_button(
     mut sim: ResMut<Sim>,
     mut tab: ResMut<Tab>,
     mut all_events: ResMut<AllEvents>,
+    mut details: ResMut<Details>,
+    mut scenario_buttons: ResMut<ScenarioButtons>,
 ) {
     let Ok(&action) = actions.get(ev.entity) else {
         return;
@@ -847,6 +990,44 @@ fn on_button(
     }
     match action {
         UiAction::SaveGame => sim.save_game(),
+        UiAction::StopActivity => sim.command(Command::PlayerStop),
+        UiAction::ToggleAutoGather => {
+            let on = !sim.world.player.auto_gather;
+            sim.command(Command::SetAutoGather(on));
+        }
+        UiAction::CycleRecipe => {
+            let usable: Vec<_> = sim
+                .world
+                .recipe_options()
+                .into_iter()
+                .filter(|o| o.unlocked)
+                .map(|o| o.id)
+                .collect();
+            let at = sim
+                .world
+                .player
+                .recipe
+                .and_then(|r| usable.iter().position(|u| *u == r));
+            let next = match at {
+                None => usable.first().copied(),
+                Some(i) => usable.get(i + 1).copied(),
+            };
+            sim.command(Command::SetPlayerRecipe(next));
+        }
+        UiAction::RecipeAuto => sim.command(Command::SetPlayerRecipe(None)),
+        UiAction::ChooseRecipe(i) => {
+            if let Some(o) = sim.world.recipe_options().get(i) {
+                let id = o.id;
+                sim.command(Command::SetPlayerRecipe(Some(id)));
+            }
+        }
+        UiAction::SetMode(mode) => {
+            sim.command(Command::SetTrainingMode(mode));
+            sim.message = format!("{} training", mode.label());
+        }
+        UiAction::ToggleDetails => details.0 = !details.0,
+        UiAction::ToggleScenarios => scenario_buttons.0 = !scenario_buttons.0,
+        UiAction::WriteReport => sim.write_report(),
         UiAction::ExtraTarget(i, d) => {
             if let Some(o) = sim.world.settlement.extra_orders.get(i) {
                 let output = o.output;
@@ -1061,11 +1242,14 @@ fn update_buttons(
     sim: Res<Sim>,
     tab: Res<Tab>,
     all_events: Res<AllEvents>,
+    details: Res<Details>,
+    scenario_buttons: Res<ScenarioButtons>,
     mut buttons: Query<(&UiAction, &mut BackgroundColor, &mut Node), With<Button>>,
     mut labels: Query<(&UiAction, &mut Text)>,
 ) {
     let w = &sim.world;
     let options = w.soul_options(sim.soul_skill);
+    let recipes = w.recipe_options();
     let has_save = sim.store.any_files();
     let selected = w.spirits.get(sim.selected_spirit);
     let selected_role = selected.map(|s| w.defs.role(s.role));
@@ -1079,7 +1263,13 @@ fn update_buttons(
             UiAction::ToggleWorker(n) => w.crafters().nth(*n).is_some(),
             UiAction::SoulOption(i) => *i < options.len(),
             // A playthrough isn't a sandbox: nothing here throws it away.
-            UiAction::Load(_) | UiAction::Restart => !sim.is_journey(),
+            UiAction::Load(_) => !sim.is_journey() && scenario_buttons.0,
+            UiAction::Restart | UiAction::ToggleScenarios => !sim.is_journey(),
+            UiAction::StopActivity => {
+                w.player.session.is_some() || !w.player.actor.queue.is_empty()
+            }
+            UiAction::CycleRecipe => bench_session(w) || w.player.recipe.is_some(),
+            UiAction::ToggleAutoGather => !bench_session(w),
             UiAction::MenuContinue => has_save,
             UiAction::MenuBack => sim.started,
             UiAction::BuildCache => !cache_built,
@@ -1120,6 +1310,12 @@ fn update_buttons(
                 .get(*i)
                 .is_some_and(|o| o.priority > 0),
             UiAction::ToggleAdvanced => selected.is_some_and(|s| s.policy.prefer_advanced),
+            UiAction::ToggleAutoGather => w.player.auto_gather,
+            UiAction::RecipeAuto => w.player.recipe.is_none(),
+            UiAction::ChooseRecipe(i) => recipes.get(*i).is_some_and(|o| o.selected),
+            UiAction::SetMode(m) => w.training_mode() == *m,
+            UiAction::ToggleDetails => details.0,
+            UiAction::ToggleScenarios => scenario_buttons.0,
             _ => false,
         };
         let color = if active { BUTTON_ACTIVE } else { BUTTON_BG };
@@ -1264,6 +1460,22 @@ fn update_buttons(
                     "Haulers: production first".into()
                 }
             }
+            UiAction::ToggleAutoGather => {
+                let on = w.player.auto_gather;
+                format!("Next tree: {}", if on { "AUTO" } else { "I'LL CLICK" })
+            }
+            UiAction::CycleRecipe => match w.player.recipe {
+                Some(r) => format!("Making: {}", w.defs.recipe(r).name),
+                None => "Making: best available".into(),
+            },
+            UiAction::ChooseRecipe(i) => match recipes.get(*i) {
+                Some(o) if o.unlocked => o.name.clone(),
+                Some(o) => format!("{} (Lv {})", o.name, o.level_required),
+                None => continue,
+            },
+            UiAction::ToggleDetails => {
+                format!("Details: {}", if details.0 { "ON" } else { "OFF" })
+            }
             _ => continue,
         };
         if text.0 != content {
@@ -1302,6 +1514,11 @@ fn update_cards(
             Card::Orders => order_lines(&sim.world),
             Card::Stations => station_lines(&sim.world),
             Card::SpiritOrders => spirit_order_lines(&sim),
+            Card::Activity => activity_lines(&sim),
+            Card::Glance => glance_lines(&sim.world),
+            Card::Recipes => recipe_lines(&sim.world),
+            Card::TrainingPlan => training_plan_lines(&sim.world),
+            Card::PlayReport => report_lines(&sim.world),
         };
         if rendered.changed(&lines) {
             cards::rebuild(&mut commands, entity, &lines);
@@ -1345,7 +1562,7 @@ fn header_lines(sim: &Sim) -> Vec<Line> {
             speed,
         ],
         vec![muted(
-            "WASD/click move  E use  C map  H hide  F5 save  F9 load",
+            "WASD/click move  E use  X stop  C map  H hide  V details",
         )],
     ]
 }
@@ -1383,32 +1600,34 @@ fn unlock_chips(w: &World, skill: SkillId, level: u32) -> Vec<Item> {
         .collect()
 }
 
-/// Name, level, XP bar and unlocks of one skill.
+/// Name, level, XP bar and what's next in one skill.
 fn skill_lines(w: &World, skill: SkillId) -> Vec<Line> {
     let xp = w.player.xp(skill);
     let level = w.player.level(skill, &w.defs.xp_table);
     let (progress, next) = level_progress(w, xp);
     let h = w.player.history(skill);
-    let mut lines = vec![
-        vec![
-            big(w.defs.skill(skill).name.clone(), TEXT),
-            Item::Spacer,
-            big(format!("Lv {level}"), GOLD),
-        ],
-        vec![
-            bar(progress, XP, BAR + 60.0),
-            muted(match next {
-                Some(n) => format!("{xp} / {n} XP"),
-                None => format!("{xp} XP (max)"),
-            }),
-        ],
-        unlock_chips(w, skill, level),
-    ];
+    let mut lines = vec![vec![
+        text(w.defs.skill(skill).name.clone()),
+        big(format!("Lv {level}"), GOLD),
+        bar(progress, XP, 130.0),
+        Item::Spacer,
+        muted(match next {
+            Some(n) => format!("{xp} / {n}"),
+            None => format!("{xp} (max)"),
+        }),
+    ]];
+    let mut note = Vec::new();
+    if let Some((name, required)) = next_unlock(w, skill, level) {
+        note.push(format!("Next: {name} - Lv {required}"));
+    }
     if h.spirits_created > 0 {
-        lines.push(vec![muted(format!(
-            "Best ever Lv {}  |  {} XP given to {} spirit(s)",
-            h.highest_level, h.xp_sacrificed, h.spirits_created
-        ))]);
+        note.push(format!(
+            "Best ever Lv {}, {} XP given",
+            h.highest_level, h.xp_sacrificed
+        ));
+    }
+    if !note.is_empty() {
+        lines.push(vec![muted(note.join("  |  "))]);
     }
     lines
 }
@@ -1419,6 +1638,49 @@ fn player_lines(sim: &Sim) -> Vec<Line> {
     for skill in soul_skills(w) {
         lines.extend(skill_lines(w, skill));
     }
+    lines
+}
+
+/// The player is working at a bench.
+fn bench_session(w: &World) -> bool {
+    use spirit_sim::session::SessionKind;
+    let session = w.player.session.as_ref();
+    session.is_some_and(|s| matches!(s.kind, SessionKind::Crafting { .. }))
+}
+
+fn clock(seconds: u64) -> String {
+    format!("{:02}:{:02}", seconds / 60, seconds % 60)
+}
+
+fn activity_lines(sim: &Sim) -> Vec<Line> {
+    let w = &sim.world;
+    let r = w.activity_report();
+    let (word, color) = match r.state {
+        ActivityState::Idle => ("idle", MUTED),
+        ActivityState::Working => ("working", GOOD),
+        ActivityState::Waiting => ("waiting", WARN),
+        ActivityState::Blocked => ("stopped", BAD),
+    };
+    let repeats_title = sim.message == r.title;
+    let verb = if bench_session(w) { "made" } else { "cut" };
+    let mut lines = vec![vec![big(r.title, TEXT), Item::Spacer, chip(word, color)]];
+    if let Some(p) = r.progress {
+        lines.push(vec![text(format!(
+            "{} {verb}  |  {} XP  |  {}  |  {} XP/min",
+            p.units,
+            p.xp,
+            clock(p.seconds),
+            p.xp_per_min
+        ))]);
+    }
+    if let Some(d) = r.detail {
+        let c = if r.state == ActivityState::Blocked {
+            WARN
+        } else {
+            MUTED
+        };
+        lines.push(vec![colored(d, c)]);
+    }
     let inv = &w.player.actor.inventory;
     lines.push(vec![
         muted("Bag"),
@@ -1428,16 +1690,104 @@ fn player_lines(sim: &Sim) -> Vec<Line> {
         } else {
             w.defs.describe_amounts(inv.items())
         }),
-        Item::Spacer,
-        text(w.player.activity.clone()),
     ]);
-    let message = if sim.message.is_empty() {
-        " ".to_string()
-    } else {
-        sim.message.clone()
-    };
-    lines.push(vec![colored(message, INFO)]);
+    if !sim.message.is_empty() && !repeats_title {
+        lines.push(vec![colored(sim.message.clone(), INFO)]);
+    }
     lines
+}
+
+fn glance_lines(w: &World) -> Vec<Line> {
+    let g = w.settlement_glance();
+    let main = &w.main().storage;
+    let mut lines = Vec::new();
+    if w.spirits.is_empty() {
+        lines.push(vec![muted("No spirits yet.")]);
+    } else {
+        lines.push(vec![
+            Item::Dot(Status::Chopping.color()),
+            muted(format!("{} working", g.working)),
+            Item::Dot(Status::Waiting.color()),
+            muted(format!("{} waiting", g.waiting)),
+            Item::Dot(BAD),
+            muted(format!("{} blocked", g.blocked)),
+            Item::Dot(Status::Idle.color()),
+            muted(format!("{} idle", g.idle)),
+        ]);
+    }
+    lines.push(vec![
+        text("Production"),
+        colored(g.production, if g.production_ok { GOOD } else { WARN }),
+        Item::Spacer,
+        muted(format!("Storage {} / {}", main.total(), main.capacity)),
+    ]);
+    if let Some(a) = g.attention {
+        lines.push(vec![colored(a, WARN)]);
+    }
+    lines
+}
+
+fn recipe_lines(w: &World) -> Vec<Line> {
+    let options = w.recipe_options();
+    if options.is_empty() {
+        return vec![vec![muted("No workshop yet.")]];
+    }
+    let mut lines = Vec::new();
+    for o in options {
+        let color = if o.selected { GOLD } else { TEXT };
+        let state = if !o.unlocked {
+            chip(format!("Lv {}", o.level_required), MUTED)
+        } else if let Some(m) = &o.missing {
+            chip(format!("have {m}"), WARN)
+        } else {
+            chip("ready", GOOD)
+        };
+        lines.push(vec![colored(o.name, color), Item::Spacer, state]);
+        lines.push(vec![muted(format!(
+            "     {} -> {}, {} XP  ({} XP/min, {} made/min)",
+            o.inputs, o.output, o.xp, o.xp_per_min, o.output_per_min
+        ))]);
+    }
+    if let Some(b) = w.station() {
+        let slots = w.defs.building(b.kind).slots;
+        lines.push(vec![muted(format!(
+            "{}: {} of {slots} places in use",
+            b.name,
+            w.slots_used(b.id)
+        ))]);
+    }
+    lines
+}
+
+fn training_plan_lines(w: &World) -> Vec<Line> {
+    let p = w.training_plan();
+    let mut lines = vec![
+        vec![text(p.mode.trade())],
+        vec![colored(p.limit, INFO)],
+        vec![muted(format!(
+            "You use {} logs/min  |  gatherers bring {}/min  |  {} spare",
+            p.use_per_min, p.gathered_per_min, p.spare
+        ))],
+    ];
+    if p.mode == TrainingMode::Optimized {
+        for (name, done) in p.checks {
+            let mark = if done {
+                chip("done", GOOD)
+            } else {
+                chip("missing", WARN)
+            };
+            lines.push(vec![muted(name), Item::Spacer, mark]);
+        }
+    }
+    lines
+}
+
+fn report_lines(w: &World) -> Vec<Line> {
+    w.play_report()
+        .lines()
+        .filter(|l| !l.is_empty())
+        .map(|l| vec![muted(l.to_string())])
+        .collect()
 }
 
 fn soul_lines(sim: &Sim) -> Vec<Line> {
@@ -1677,6 +2027,7 @@ fn skills_lines(w: &World) -> Vec<Line> {
             line.push(colored(format!("{} XP given", h.xp_sacrificed), XP));
         }
         lines.push(line);
+        lines.push(unlock_chips(w, skill, level));
         if let Some((name, required)) = next_unlock(w, skill, level) {
             let left = table
                 .xp_for_level(required)

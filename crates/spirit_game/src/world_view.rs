@@ -911,6 +911,11 @@ fn draw_overlays(sim: Res<Sim>, mut gizmos: Gizmos) {
             );
         }
     }
+    // What the player's session is working on, so it's easy to follow.
+    if let Some(p) = w.session_target() {
+        tile_square(&mut gizmos, p, 0.5, 0.06, Color::srgb(1.0, 0.85, 0.3));
+        tile_square(&mut gizmos, p, 0.56, 0.06, Color::srgb(1.0, 0.85, 0.3));
+    }
     for p in w.projects.iter().filter(|p| p.is_active()) {
         let color = if p.blocked.is_some() {
             Color::srgb(1.0, 0.3, 0.2)

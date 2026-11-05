@@ -40,8 +40,7 @@
 17.2 expect Game loaded
 17.4 key T
 17.9 expect Train at Starting Grove
-18.0 key J
-18.5 scroll 1380 400 30
+18.0 key R
 19.0 press Half
 19.3 expect Compare
 19.4 expect For the settlement
