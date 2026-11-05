@@ -251,12 +251,18 @@ long_trip_batches = 4
 long_trip_load_pct = 50
 # Goods this close to a pickup can join the same trip home.
 batch_tiles = 6
+# Haulers choose between carrying jobs by load, distance and urgency.
+scored_carrying = true
 
 [construction]
 # Buildings that can wait on the plan at once.
 queue_limit = 4
 # A Workshop Annex works with a bench this many tiles away.
 annex_reach = 3
+# Room in Main Storage kept for raw materials. Without it, the hundreds of
+# planks made training Woodworking can fill the store, and then no logs can
+# come in for the buildings that would use them up.
+raw_room = 100
 
 [gathering]
 # Window for measured throughput and time-use shares.
@@ -491,6 +497,9 @@ access_site = [48, 4]
 opens = [[48, 4], [49, 4]]
 unlocks_site = "hollow_grove"
 requires = ["outpost_storage"]
+# In a real game, training Woodworking leaves hundreds of planks. These are the
+# things worth spending them on, so they cost more there.
+scales_goods = true
 cost = [
     { resource = "logs", amount = 30 },
     { resource = "planks", amount = 40 },
@@ -514,6 +523,7 @@ manual = true
 max_count = 3
 slot_bonus = 1
 requires = ["workshop"]
+scales_goods = true
 cost = [
     { resource = "logs", amount = 10 },
     { resource = "planks", amount = 30 },

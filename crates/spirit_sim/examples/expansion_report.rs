@@ -79,6 +79,9 @@ fn main() {
             let spent: Vec<String> = r.consumed.iter().map(|(n, c)| format!("{c} {n}")).collect();
             println!("Construction used {}.\n", spent.join(", "));
             println!("```text\n{}```", r.report);
+            if std::env::args().any(|a| a == "--state") {
+                println!("\n```text\n{}\n```", r.final_state);
+            }
         }
         Err(e) => println!("FAILED: {e}"),
     }

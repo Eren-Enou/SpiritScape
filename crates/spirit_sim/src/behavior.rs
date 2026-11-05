@@ -1,10 +1,8 @@
 //! Spirit decision making: evaluate prioritized job rules against the world
 //! and expand the chosen job into a task queue.
 
-use crate::defs::{Condition, DeliverPolicy, JobKind, ResourceId, SiteId, TreeKindId};
-use crate::entities::{
-    Activity, Building, BuildingId, Focus, ProjectState, Spirit, SpiritId, Tree, TreeId,
-};
+use crate::defs::{Condition, DeliverPolicy, JobKind, ResourceId, RoleDef, SiteId, TreeKindId};
+use crate::entities::{Activity, Building, BuildingId, Focus, Spirit, SpiritId, Tree, TreeId};
 use crate::events::EventKind;
 use crate::metrics::WaitKind;
 use crate::tasks::{Goal, Task};
@@ -21,7 +19,24 @@ pub(crate) struct JobPlan {
     pub(crate) gather: Option<(SiteId, TreeKindId)>,
     /// Stock set aside for this trip when the job starts.
     pub(crate) reserve: Option<(BuildingId, ResourceId, u32)>,
+    /// What a carrying trip moves, for comparing it with others.
+    pub(crate) carry: Option<Carry>,
 }
+
+/// A carrying trip, as far as choosing between trips goes.
+#[derive(Clone, Copy)]
+pub(crate) struct Carry {
+    pub(crate) pickup: BuildingId,
+    pub(crate) drop: BuildingId,
+    pub(crate) amount: u32,
+    /// Something is stopped until this arrives.
+    pub(crate) urgent: bool,
+}
+
+/// Tiles added to every trip for the time spent loading and unloading.
+const TRIP_OVERHEAD_TILES: u32 = 4;
+/// How much more an urgent trip counts than a routine one.
+const URGENT_WEIGHT: u32 = 3;
 
 /// Why a job can't be planned right now.
 pub(crate) struct Blocked {
@@ -157,14 +172,29 @@ impl World {
         let mut blocked: Option<Blocked> = None;
 
         let focus = self.spirits[sid].policy.focus;
+        let compare = self.defs.logistics.scored_carrying
+            && [JobKind::Collect, JobKind::Supply, JobKind::Haul]
+                .iter()
+                .all(|j| role.has_job(*j));
+        let mut compared = false;
         for rule in &role.jobs {
             if !focus.allows(rule.job) || !self.condition_holds(sid, rule.when) {
                 continue;
             }
-            match self.plan_job(sid, rule.job) {
-                Ok(plan) => {
-                    let why = self.condition_reason(sid, rule.when);
-                    self.install(sid, rule.job, plan, &previous, &why);
+            let carrying = is_carrying(rule.job);
+            if compare && carrying && compared {
+                continue;
+            }
+            let chosen = if compare && carrying {
+                compared = true;
+                self.best_carry(sid, &role)
+            } else {
+                self.plan_job(sid, rule.job).map(|p| (rule.job, rule.when, p))
+            };
+            match chosen {
+                Ok((job, when, plan)) => {
+                    let why = self.condition_reason(sid, when);
+                    self.install(sid, job, plan, &previous, &why);
                     return;
                 }
                 Err(reason) => {
@@ -206,8 +236,101 @@ impl World {
         self.spirits[sid].activity = activity;
     }
 
+    /// The carrying job worth most right now: units moved for each tile
+    /// walked, including the walk to the pickup, weighted by the job's priority
+    /// and whether something is waiting on it. A short trip that's on the way
+    /// beats a long one for a few units, and an urgent long one beats both.
+    fn best_carry(
+        &self,
+        sid: SpiritId,
+        role: &RoleDef,
+    ) -> Result<(JobKind, Condition, JobPlan), Blocked> {
+        let field = self.grid.distance_field(&[self.spirits[sid].actor.pos()]);
+        let mut best: Option<(u64, JobKind, Condition, JobPlan)> = None;
+        let mut blocked = None;
+        let focus = self.spirits[sid].policy.focus;
+        for rule in role.jobs.iter().filter(|r| is_carrying(r.job)) {
+            if !focus.allows(rule.job) || !self.condition_holds(sid, rule.when) {
+                continue;
+            }
+            match self.plan_job(sid, rule.job) {
+                Ok(plan) => {
+                    let score = plan.carry.map_or(0, |c| {
+                        let pickup = self.buildings[c.pickup].pos;
+                        let to_pickup = self.grid.approach_distance(&field, pickup).unwrap_or(0);
+                        let trip = self.walk_between(c.pickup, c.drop).unwrap_or(0);
+                        let walk = (to_pickup + trip + TRIP_OVERHEAD_TILES) as u64;
+                        let weight = rule.priority as u64
+                            * if c.urgent { URGENT_WEIGHT as u64 } else { 1 };
+                        c.amount as u64 * weight * 1000 / walk
+                    });
+                    if best.as_ref().is_none_or(|b| score > b.0) {
+                        best = Some((score, rule.job, rule.when, plan));
+                    }
+                }
+                Err(e) => {
+                    blocked.get_or_insert(e);
+                }
+            }
+        }
+        match best {
+            Some((_, job, when, plan)) => Ok((job, when, plan)),
+            None => Err(blocked.unwrap_or_else(|| "Nothing to carry".into())),
+        }
+    }
+
+    /// Goods close to a pickup that can ride along on the same trip home. The
+    /// spirit has already walked out here, so taking them costs almost nothing.
+    fn ride_along(
+        &self,
+        sid: SpiritId,
+        from: &Building,
+        mut room: u32,
+    ) -> Vec<Task> {
+        let s = &self.spirits[sid];
+        let reach = self.defs.logistics.batch_tiles;
+        let near = self
+            .stations()
+            .chain(self.outposts())
+            .filter(|b| b.id != from.id && self.serves(s, b))
+            .filter(|b| b.pos.manhattan(from.pos) <= reach);
+        let mut tasks = Vec::new();
+        for b in near {
+            if room == 0 {
+                break;
+            }
+            let load = if self.defs.building(b.kind).is_station {
+                self.orders()
+                    .iter()
+                    .map(|o| (o.output, b.storage.available(o.output)))
+                    .filter(|(_, n)| *n > 0)
+                    .max_by_key(|(r, n)| (*n, std::cmp::Reverse(*r)))
+            } else {
+                self.surplus_at(b)
+            };
+            if let Some((resource, n)) = load {
+                let amount = n.min(room).min(self.main_room_for(resource));
+                if amount == 0 {
+                    continue;
+                }
+                room -= amount;
+                tasks.push(Task::Move {
+                    goal: Goal::Adjacent(b.pos),
+                    label: b.name.clone(),
+                });
+                tasks.push(Task::Withdraw {
+                    building: b.id,
+                    resource,
+                    amount,
+                    reserved: false,
+                });
+            }
+        }
+        tasks
+    }
+
     /// Whether this spirit's level allows a recipe for `output`.
-    fn can_make(&self, s: &Spirit, output: ResourceId) -> bool {
+    pub(crate) fn can_make(&self, s: &Spirit, output: ResourceId) -> bool {
         self.defs
             .recipes
             .iter()
@@ -631,12 +754,33 @@ impl World {
             .ok_or_else(|| "Nothing to carry home".to_string())?;
         let source = &self.buildings[source];
         let main = self.main();
-        if main.storage.free() == 0 {
-            return Err(Blocked::new(WaitKind::Storage, "Main Storage is full"));
+        let space = self.haul_room_for(resource);
+        if space == 0 {
+            return Err(Blocked::new(
+                WaitKind::Storage,
+                "Main Storage is keeping its room for what's needed",
+            ));
         }
-        let amount = amount
-            .min(s.actor.inventory.free())
-            .min(main.storage.free());
+        let amount = amount.min(s.actor.inventory.free()).min(space);
+        let room = s.actor.inventory.free().min(space) - amount;
+        let mut tasks = vec![
+            Task::Move {
+                goal: Goal::Adjacent(source.pos),
+                label: source.name.clone(),
+            },
+            Task::Withdraw {
+                building: source.id,
+                resource,
+                amount,
+                reserved: false,
+            },
+        ];
+        tasks.extend(self.ride_along(sid, source, room));
+        tasks.push(Task::Move {
+            goal: Goal::Adjacent(main.pos),
+            label: main.name.clone(),
+        });
+        tasks.push(Task::Deposit { building: main.id });
         Ok(JobPlan {
             description: format!(
                 "Hauling {amount} {} from {} to {}",
@@ -644,23 +788,13 @@ impl World {
                 source.name,
                 main.name
             ),
-            tasks: vec![
-                Task::Move {
-                    goal: Goal::Adjacent(source.pos),
-                    label: source.name.clone(),
-                },
-                Task::Withdraw {
-                    building: source.id,
-                    resource,
-                    amount,
-                    reserved: false,
-                },
-                Task::Move {
-                    goal: Goal::Adjacent(main.pos),
-                    label: main.name.clone(),
-                },
-                Task::Deposit { building: main.id },
-            ],
+            tasks,
+            carry: Some(Carry {
+                pickup: source.id,
+                drop: main.id,
+                amount,
+                urgent: self.project_demand(resource) > 0,
+            }),
             ..Default::default()
         })
     }
@@ -940,7 +1074,24 @@ impl World {
                 },
             ],
             reserve: Some((source.id, resource, amount)),
+            carry: Some(Carry {
+                pickup: source.id,
+                drop: station.id,
+                amount,
+                // A worker is standing at an empty bench.
+                urgent: station.storage.available(resource) == 0
+                    && self.spirits_waiting_at(station.id),
+            }),
             ..Default::default()
+        })
+    }
+
+    /// Whether a spirit posted to this bench is waiting for something to do.
+    fn spirits_waiting_at(&self, station: BuildingId) -> bool {
+        self.crafters().any(|c| {
+            c.policy.station == Some(station)
+                && c.actor.queue.is_empty()
+                && c.wait == Some(WaitKind::Inputs)
         })
     }
 
@@ -955,12 +1106,39 @@ impl World {
             .output_pile(sid)
             .ok_or_else(|| "Nothing finished to collect".to_string())?;
         let station = &self.buildings[station];
-        let amount = waiting
-            .min(s.actor.inventory.free())
-            .min(main.storage.free());
+        let space = self.main_room_for(resource);
+        if space == 0 {
+            let name = &self.defs.resource(resource).name;
+            return Err(Blocked::new(
+                WaitKind::Storage,
+                format!("Main Storage is keeping its room for raw materials, not more {name}"),
+            ));
+        }
+        let amount = waiting.min(s.actor.inventory.free()).min(space);
         if amount == 0 {
             return Err("Nothing finished to collect".into());
         }
+        let room = s.actor.inventory.free().min(space) - amount;
+        let mut tasks = vec![
+            Task::Move {
+                goal: Goal::Adjacent(station.pos),
+                label: station.name.clone(),
+            },
+            Task::Withdraw {
+                building: station.id,
+                resource,
+                amount,
+                reserved: true,
+            },
+        ];
+        tasks.extend(self.ride_along(sid, station, room));
+        tasks.push(Task::Move {
+            goal: Goal::Adjacent(main.pos),
+            label: main.name.clone(),
+        });
+        tasks.push(Task::Deposit { building: main.id });
+        let def = self.defs.building(station.kind);
+        let shelf = def.capacity.saturating_sub(def.input_buffer);
         Ok(JobPlan {
             description: format!(
                 "Carrying {amount} {} from {} to {}",
@@ -968,24 +1146,15 @@ impl World {
                 station.name,
                 main.name
             ),
-            tasks: vec![
-                Task::Move {
-                    goal: Goal::Adjacent(station.pos),
-                    label: station.name.clone(),
-                },
-                Task::Withdraw {
-                    building: station.id,
-                    resource,
-                    amount,
-                    reserved: true,
-                },
-                Task::Move {
-                    goal: Goal::Adjacent(main.pos),
-                    label: main.name.clone(),
-                },
-                Task::Deposit { building: main.id },
-            ],
+            tasks,
             reserve: Some((station.id, resource, amount)),
+            carry: Some(Carry {
+                pickup: station.id,
+                drop: main.id,
+                amount,
+                // A project is waiting for it, or the bench is about to stop.
+                urgent: self.project_demand(resource) > 0 || waiting * 2 >= shelf,
+            }),
             ..Default::default()
         })
     }
@@ -1030,14 +1199,20 @@ impl World {
                 ..Default::default()
             });
         }
-        if !p.reserved || p.state == ProjectState::AwaitingMaterials {
+        // Only what's set aside can be fetched, and only what isn't on site.
+        let ready = missing.iter().find_map(|&(r, need)| {
+            let total = def.cost.iter().find(|c| c.0 == r).map_or(0, |c| c.1);
+            let delivered = p.delivered.get(&r).copied().unwrap_or(0);
+            let left = p.claimed_of(r, total).saturating_sub(delivered).min(need);
+            (left > 0).then_some((r, left))
+        });
+        let Some((resource, need)) = ready else {
             return Err(p
                 .blocked
                 .clone()
                 .unwrap_or_else(|| "Waiting for materials".into())
                 .into());
-        }
-        let (resource, need) = missing[0];
+        };
         let amount = need.min(s.actor.inventory.free());
         let main = self.main();
         Ok(JobPlan {
@@ -1064,4 +1239,9 @@ impl World {
             ..Default::default()
         })
     }
+}
+
+/// Jobs that move goods between buildings.
+fn is_carrying(job: JobKind) -> bool {
+    matches!(job, JobKind::Collect | JobKind::Supply | JobKind::Haul)
 }

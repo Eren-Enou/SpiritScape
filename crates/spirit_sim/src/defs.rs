@@ -174,6 +174,9 @@ pub struct LogisticsRules {
     pub long_trip_load_pct: u32,
     /// Goods this close to a pickup can join the same trip.
     pub batch_tiles: u32,
+    /// Carriers weigh jobs by load and distance. Off, they take the job rules
+    /// strictly in order, which is how the difference is measured.
+    pub scored_carrying: bool,
 }
 
 /// Limits on the construction plan.
@@ -183,6 +186,8 @@ pub struct ConstructionRules {
     pub queue_limit: u32,
     /// An annex works with a bench this many tiles away.
     pub annex_reach: u32,
+    /// Room in Main Storage that surplus finished goods can't use.
+    pub raw_room: u32,
 }
 
 /// Settlement production settings that aren't player-adjustable.
@@ -502,12 +507,14 @@ struct RawLogistics {
     long_trip_batches: u32,
     long_trip_load_pct: u32,
     batch_tiles: u32,
+    scored_carrying: bool,
 }
 
 #[derive(Deserialize)]
 struct RawConstruction {
     queue_limit: u32,
     annex_reach: u32,
+    raw_room: u32,
 }
 
 #[derive(Deserialize)]
@@ -622,6 +629,9 @@ struct RawBuilding {
     slot_bonus: u32,
     #[serde(default)]
     benefit: String,
+    /// Finished goods in the cost follow the profile's improvement cost.
+    #[serde(default)]
+    scales_goods: bool,
 }
 
 #[derive(Deserialize)]
@@ -781,10 +791,12 @@ impl GameDefs {
             long_trip_batches: raw.logistics.long_trip_batches,
             long_trip_load_pct: raw.logistics.long_trip_load_pct.min(100),
             batch_tiles: raw.logistics.batch_tiles,
+            scored_carrying: raw.logistics.scored_carrying,
         };
         let construction = ConstructionRules {
             queue_limit: raw.construction.queue_limit.max(1),
             annex_reach: raw.construction.annex_reach,
+            raw_room: raw.construction.raw_room,
         };
 
         let mut roles = Vec::new();
@@ -819,6 +831,12 @@ impl GameDefs {
             };
             let mut cost = Vec::new();
             for c in &b.cost {
+                let made = raw.recipes.iter().any(|r| r.output.resource == c.resource);
+                let pct = if b.scales_goods && made {
+                    chosen.improvement_cost_pct
+                } else {
+                    pct
+                };
                 cost.push((resource_id(&c.resource)?, c.amount * pct / 100));
             }
             buildings.push(BuildingDef {

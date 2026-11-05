@@ -339,18 +339,60 @@ impl World {
     /// everything queued. Reserved stock is already out of `available`, so
     /// nothing is counted twice. The queue's limit keeps this bounded.
     pub(crate) fn project_demand(&self, r: ResourceId) -> u32 {
-        let waiting = self
+        let cost_of = |k: crate::defs::BuildingKindId| -> u32 {
+            let cost = self.defs.building(k).cost.iter();
+            cost.filter(|(res, _)| *res == r).map(|(_, n)| *n).sum()
+        };
+        let waiting: u32 = self
             .projects
             .iter()
             .filter(|p| p.is_active() && !p.reserved)
-            .map(|p| p.kind);
-        let queued = self.settlement.queue.iter().map(|q| q.kind);
-        waiting
-            .chain(queued)
-            .flat_map(|k| self.defs.building(k).cost.iter())
-            .filter(|(res, _)| *res == r)
-            .map(|(_, n)| *n)
-            .sum()
+            .map(|p| {
+                let need = cost_of(p.kind);
+                need.saturating_sub(p.claimed_of(r, need))
+            })
+            .sum();
+        let queued: u32 = self.settlement.queue.iter().map(|q| cost_of(q.kind)).sum();
+        waiting + queued
+    }
+
+    /// Room in Main Storage for `r`. Finished goods nobody wants leave some
+    /// free for raw materials, so surplus can't stop the settlement getting
+    /// what it needs to build with.
+    pub(crate) fn main_room_for(&self, r: ResourceId) -> u32 {
+        let free = self.main().storage.free();
+        let finished = self.defs.recipes.iter().any(|d| d.output.0 == r);
+        let wanted = self.main().storage.available(r) < self.goal_of(r);
+        if finished && !wanted {
+            free.saturating_sub(self.defs.construction.raw_room)
+        } else {
+            free
+        }
+    }
+
+    /// Room for what the player brings. While a project or an order is waiting
+    /// on goods, their spare logs can't take the room those need. Otherwise
+    /// it's all theirs.
+    pub(crate) fn player_room_for(&self, r: ResourceId) -> u32 {
+        let project = self.active_project().is_some_and(|p| !p.reserved);
+        let order = self.orders().iter().any(|o| self.deficit_of(o.output) > 0);
+        if project || order {
+            self.haul_room_for(r)
+        } else {
+            self.main_room_for(r)
+        }
+    }
+
+    /// Room for hauling a store's stock home. Raw materials nothing needs yet
+    /// can wait where they are, rather than take the last of the room.
+    pub(crate) fn haul_room_for(&self, r: ResourceId) -> u32 {
+        let main = &self.main().storage;
+        let surplus = main.available(r) >= self.gather_goal_of(r);
+        if surplus && self.order_for(r).is_none() {
+            main.free().saturating_sub(self.defs.construction.raw_room)
+        } else {
+            self.main_room_for(r)
+        }
     }
 
     /// Workers that fit at a bench, counting annexes.
@@ -412,7 +454,10 @@ impl World {
     fn staffed_stations(&self, output: ResourceId) -> Vec<&Building> {
         self.stations_for(output)
             .into_iter()
-            .filter(|b| self.staff().any(|s| self.may_work_at(s, b.id)))
+            .filter(|b| {
+                self.staff()
+                    .any(|s| self.may_work_at(s, b.id) && self.can_make(s, output))
+            })
             .collect()
     }
 
@@ -593,7 +638,8 @@ impl World {
         for b in self.stations().filter(|b| self.serves(s, b)) {
             for o in self.orders() {
                 let n = b.storage.available(o.output);
-                if n > 0 && best.is_none_or(|x| n > x.2) {
+                let room = self.main_room_for(o.output) > 0;
+                if n > 0 && room && best.is_none_or(|x| n > x.2) {
                     best = Some((b.id, o.output, n));
                 }
             }

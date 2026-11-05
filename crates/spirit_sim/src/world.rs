@@ -1086,6 +1086,7 @@ impl World {
         events: &'a mut Vec<SimEvent>,
         player_output_at_station: bool,
         player_recipe: Option<RecipeId>,
+        player_room: Option<(BuildingId, BTreeMap<ResourceId, u32>)>,
     ) -> TaskCtx<'a> {
         TaskCtx {
             defs,
@@ -1098,12 +1099,18 @@ impl World {
             events,
             player_output_at_station,
             player_recipe,
+            player_room,
         }
     }
 
     fn step_player(&mut self, events: &mut Vec<SimEvent>) {
         let level = self.player_task_level();
         let at_station = self.player_output_at_station();
+        let room = matches!(self.player.actor.queue.front(), Some(Task::Deposit { .. })).then(|| {
+            let carried = self.player.actor.inventory.items().keys();
+            let limits = carried.map(|r| (*r, self.player_room_for(*r))).collect();
+            (self.main_storage, limits)
+        });
         let World {
             defs,
             grid,
@@ -1120,7 +1127,7 @@ impl World {
         }
         let recipe = player.recipe;
         let mut ctx = Self::task_ctx(
-            defs, grid, trees, buildings, projects, ledger, *tick, events, at_station, recipe,
+            defs, grid, trees, buildings, projects, ledger, *tick, events, at_station, recipe, room,
         );
         let mut failure = None;
         match tasks::step(&mut player.actor, Who::Player, level, None, &mut ctx) {
@@ -1201,7 +1208,7 @@ impl World {
             }
             let level = spirit.level();
             let mut ctx = Self::task_ctx(
-                defs, grid, trees, buildings, projects, ledger, *tick, events, false, None,
+                defs, grid, trees, buildings, projects, ledger, *tick, events, false, None, None,
             );
             match tasks::step(
                 &mut spirit.actor,

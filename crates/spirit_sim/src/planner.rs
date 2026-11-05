@@ -360,6 +360,15 @@ impl World {
     /// True if blocking `p` leaves every currently reachable tree and
     /// building reachable from main storage.
     fn keeps_connectivity(&self, p: TilePos) -> bool {
+        // Open ground around the site has to stay joined up, or someone
+        // standing there could be walled in for good.
+        let around: Vec<TilePos> = self.grid.walkable_neighbors(p).collect();
+        if let Some(first) = around.first() {
+            let field = self.grid.distance_field_with_block(&[*first], Some(p));
+            if around.iter().any(|t| field.get(*t).is_none()) {
+                return false;
+            }
+        }
         let main = self.main().pos;
         let sources: Vec<TilePos> = self.grid.walkable_neighbors(main).collect();
         let before = self.grid.distance_field(&sources);
@@ -552,6 +561,7 @@ impl World {
             state: ProjectState::AwaitingMaterials,
             assigned: None,
             reserved: false,
+            claimed: BTreeMap::new(),
             delivered: BTreeMap::new(),
             consumed: BTreeMap::new(),
             build_progress: 0,
@@ -575,21 +585,25 @@ impl World {
             let mut blocked = None;
 
             if !self.projects[pid].reserved {
+                let tight = self.main().storage.free() < self.defs.construction.raw_room;
                 let main = &mut self.buildings[self.main_storage].storage;
+                let p = &mut self.projects[pid];
+                let left = |p: &Project, r, n| n - p.claimed_of(r, n).min(n);
                 let short: Vec<String> = def
                     .cost
                     .iter()
-                    .filter(|&&(r, n)| main.available(r) < n)
+                    .filter(|&&(r, n)| main.available(r) < left(p, r, n))
                     .map(|&(r, n)| {
-                        format!("{}/{n} {}", main.available(r), self.defs.resource(r).name)
+                        let have = main.available(r) + p.claimed_of(r, n);
+                        format!("{have}/{n} {}", self.defs.resource(r).name)
                     })
                     .collect();
                 if short.is_empty() {
                     for &(r, n) in &def.cost {
-                        main.try_reserve(r, n);
+                        main.try_reserve(r, left(p, r, n));
                     }
-                    let p = &mut self.projects[pid];
                     p.reserved = true;
+                    p.claimed.clear();
                     p.state = ProjectState::Supplying;
                     let cost: BTreeMap<_, _> = def.cost.iter().copied().collect();
                     let msg = format!(
@@ -599,6 +613,16 @@ impl World {
                     );
                     self.events.push(self.tick, EventKind::Construction, msg);
                 } else {
+                    // With no room for what's missing, what's here starts
+                    // moving. That frees the room the rest needs.
+                    if tight {
+                        for &(r, n) in &def.cost {
+                            let take = left(p, r, n).min(main.available(r));
+                            if take > 0 && main.try_reserve(r, take) {
+                                *p.claimed.entry(r).or_default() += take;
+                            }
+                        }
+                    }
                     blocked = Some(format!(
                         "Waiting for materials: only {} available in Main Storage",
                         short.join(", ")

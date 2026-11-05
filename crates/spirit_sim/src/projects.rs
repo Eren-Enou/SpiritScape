@@ -241,12 +241,15 @@ impl World {
         if !p.delivered.is_empty() || carrying || p.state == ProjectState::Building {
             return Err(format!("Work on the {} has started", def.name));
         }
-        let (reserved, site, building) = (p.reserved, p.site, p.building);
-        if reserved {
-            let main = self.main_storage;
-            for &(r, n) in &def.cost {
-                self.buildings[main].storage.release_reserved(r, n);
-            }
+        let (site, building) = (p.site, p.building);
+        let held: Vec<(ResourceId, u32)> = def
+            .cost
+            .iter()
+            .map(|&(r, n)| (r, p.claimed_of(r, n)))
+            .collect();
+        let main = self.main_storage;
+        for (r, n) in held {
+            self.buildings[main].storage.release_reserved(r, n);
         }
         if let Some(sid) = builder {
             let next = self.tick;
@@ -257,6 +260,7 @@ impl World {
         let p = &mut self.projects[pid];
         p.state = ProjectState::Cancelled;
         p.reserved = false;
+        p.claimed.clear();
         p.assigned = None;
         p.blocked = None;
         self.buildings[building].state = BuildingState::Removed;
@@ -391,7 +395,14 @@ impl World {
             let needs = if p.reserved {
                 Vec::new()
             } else {
-                self.plan_needs(p.kind, &mut spoken_for)
+                let mut needs = self.plan_needs(p.kind, &mut spoken_for);
+                for (line, &(r, n)) in needs.iter_mut().zip(&def.cost) {
+                    line.have = (line.have + p.claimed_of(r, n)).min(n);
+                    if line.have >= n {
+                        line.status = "ready".into();
+                    }
+                }
+                needs
             };
             let workers = p.assigned.iter().map(|s| self.spirits[*s].name.clone()).collect();
             let carrying = p.assigned.is_some_and(|sid| {

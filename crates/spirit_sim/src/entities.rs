@@ -489,6 +489,9 @@ pub struct Project {
     pub state: ProjectState,
     pub assigned: Option<SpiritId>,
     pub reserved: bool,
+    /// Stock claimed so far, when storage is too full to wait for everything.
+    #[serde(default)]
+    pub claimed: BTreeMap<ResourceId, u32>,
     pub delivered: BTreeMap<ResourceId, u32>,
     pub consumed: BTreeMap<ResourceId, u32>,
     pub build_progress: u32,
@@ -502,6 +505,15 @@ pub struct Project {
 }
 
 impl Project {
+    /// How much of a material is set aside for this project.
+    pub fn claimed_of(&self, r: ResourceId, need: u32) -> u32 {
+        if self.reserved {
+            need
+        } else {
+            self.claimed.get(&r).copied().unwrap_or(0)
+        }
+    }
+
     pub fn is_active(&self) -> bool {
         !matches!(self.state, ProjectState::Complete | ProjectState::Cancelled)
     }
