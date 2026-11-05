@@ -604,7 +604,7 @@ fn update_site_banners(
         .collect();
     for (t, mut text) in &mut titles {
         let (grown, total) = counts[t.0];
-        let content = format!("{}  {grown}/{total} trees", w.defs.sites[t.0].name);
+        let content = format!("{}  {grown}/{total} ready", w.defs.sites[t.0].name);
         if text.0 != content {
             text.0 = content;
         }

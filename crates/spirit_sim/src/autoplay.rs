@@ -77,6 +77,7 @@ impl Bot {
         w.trees
             .iter()
             .filter(|t| t.is_grown() && w.player_can_cut(t.kind))
+            .filter(|t| w.defs.tree(t.kind).skill == self.wc)
             .filter_map(|t| {
                 let walk = w.grid.approach_distance(&field, t.pos)?;
                 let xp = w.defs.tree(t.kind).xp_per_log;
@@ -1240,6 +1241,58 @@ pub fn train_on(panels: bool, minutes: u64) -> Result<LongTraining, String> {
         full_bag_seconds: spent(w.player.time.blocked_storage, log.blocked_storage),
         waiting_seconds: spent(w.player.time.waiting_input, log.waiting_input),
     })
+}
+
+/// Beside Main Storage, and a spot in the Distant Forest across the river.
+pub const QUARRY_HOME: crate::grid::TilePos = crate::grid::TilePos::new(6, 15);
+pub const QUARRY_ACROSS: crate::grid::TilePos = crate::grid::TilePos::new(30, 21);
+
+/// Seconds for the player to walk from home into the Distant Forest.
+pub fn walk_across(causeway: bool) -> f64 {
+    let mut w = World::from_scenario(crate::ScenarioKind::QuarryStart);
+    if causeway {
+        w.grid.open_crossing(crate::grid::TilePos::new(21, 20));
+        w.grid.open_crossing(crate::grid::TilePos::new(22, 20));
+    }
+    w.player.actor.mover.pos = QUARRY_HOME;
+    w.apply(Command::PlayerInteract(QUARRY_ACROSS))
+        .expect("a walkable tile");
+    let start = w.tick;
+    while w.player.actor.pos() != QUARRY_ACROSS && w.tick < start + 6000 {
+        w.step();
+    }
+    (w.tick - start) as f64 / w.defs.ticks_per_second as f64
+}
+
+/// How long the causeway takes, in seconds: from the plan to finished, with
+/// the player out cutting stone too, or leaving it all to the spirit.
+pub fn stone_time(alone: bool) -> Option<u64> {
+    let mut w = World::from_scenario(crate::ScenarioKind::QuarryStart);
+    let kind = w.defs.building_kind_id("stone_causeway")?;
+    w.apply(Command::QueueBuilding { kind, site: None }).ok()?;
+    let outcrop = crate::grid::TilePos::new(4, 22);
+    let stone = w.defs.resource_id("stone")?;
+    let tps = w.defs.ticks_per_second as u64;
+    for _ in 0..3600 * tps {
+        if w.buildings
+            .iter()
+            .any(|b| b.kind == kind && b.is_complete())
+        {
+            return Some(w.tick / tps);
+        }
+        let idle = w.player.actor.queue.is_empty() && w.player.session.is_none();
+        if !alone && idle {
+            // Cut a bagful, carry it home, and go back.
+            let target = if w.player.actor.inventory.get(stone) > 0 {
+                w.main().pos
+            } else {
+                outcrop
+            };
+            let _ = w.apply(Command::PlayerInteract(target));
+        }
+        w.step();
+    }
+    None
 }
 
 /// Every road on the map, laid at once, for measuring what they're worth.

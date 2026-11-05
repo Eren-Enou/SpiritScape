@@ -53,6 +53,16 @@ scale = 1.1
 # Golden crowns mark the higher tier.
 crown_tint = [1.0, 0.68, 0.18]
 
+# Worked like trees, but plainly not trees.
+[trees.stone_outcrop]
+models = [
+    "models/nature/stone_largeA.glb",
+    "models/nature/stone_largeB.glb",
+    "models/nature/stone_tallA.glb",
+]
+stump = "models/nature/stone_largeC.glb"
+scale = 0.9
+
 # Ironwood (level 10): tall and dark red, so the top tier stands out.
 [trees.ironwood]
 models = [
@@ -154,6 +164,11 @@ parts = []
 stockpile = "models/nature/log_stack.glb"
 site = [{ model = "models/town/planks.glb" }]
 parts = []
+
+[buildings.stone_causeway]
+stockpile = "models/nature/log_stack.glb"
+site = [{ model = "models/town/planks.glb" }]
+parts = [{ model = "models/town/poles.glb", rot = 0 }]
 
 [buildings.workshop_annex]
 stockpile = "models/nature/log_stack.glb"

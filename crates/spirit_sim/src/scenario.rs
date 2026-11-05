@@ -59,6 +59,8 @@ pub enum ScenarioKind {
     ExpandedRemote,
     /// An outpost that can make what the crossing needs, but hasn't yet.
     ForestAccess,
+    /// Stone to cut and a causeway to spend it on.
+    QuarryStart,
     /// A builder shut in by racks, as older saves can have.
     WalledIn,
     /// A skilled player with planks to spare and things to make from them.
@@ -72,7 +74,7 @@ pub enum ScenarioKind {
 }
 
 impl ScenarioKind {
-    pub const ALL: [ScenarioKind; 26] = [
+    pub const ALL: [ScenarioKind; 27] = [
         ScenarioKind::NewGame,
         ScenarioKind::Demo,
         ScenarioKind::Regrind,
@@ -94,6 +96,7 @@ impl ScenarioKind {
         ScenarioKind::ExpandedCentral,
         ScenarioKind::ExpandedRemote,
         ScenarioKind::ForestAccess,
+        ScenarioKind::QuarryStart,
         ScenarioKind::WalledIn,
         ScenarioKind::PanelWorkshop,
         ScenarioKind::PlankSurplus,
@@ -124,6 +127,7 @@ impl ScenarioKind {
             ScenarioKind::ExpandedCentral => "expanded_central",
             ScenarioKind::ExpandedRemote => "expanded_remote",
             ScenarioKind::ForestAccess => "forest_access",
+            ScenarioKind::QuarryStart => "quarry_start",
             ScenarioKind::WalledIn => "walled_in",
             ScenarioKind::PanelWorkshop => "panel_workshop",
             ScenarioKind::PlankSurplus => "plank_surplus",

@@ -25,6 +25,8 @@
 //! Format 6 (v0.10) adds road terrain. It only adds defaulted fields, but older
 //! games can't read a road, so the number moves.
 //! Format 7 (v0.11) adds a product, so older saves get an order for it.
+//! Format 8 (v0.15) adds a site and outcrops to the map, so anything older goes
+//! through `migrate_map` again. What's already on the map isn't touched.
 
 use crate::defs::{GameDefs, ResourceId};
 use crate::entities::{Building, Player, Project, Spirit, Tree};
@@ -44,7 +46,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Bump when the format changes, and add a migration to `decode`.
-pub const SAVE_VERSION: u32 = 7;
+pub const SAVE_VERSION: u32 = 8;
 const MAGIC: &str = "SPIRITSCAPE-SAVE";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -300,7 +302,7 @@ pub fn decode(text: &str) -> Result<(World, SaveMeta), SaveError> {
         .fits(&DefIds::of(&defs))
         .map_err(SaveError::Incompatible)?;
     let map = MapLayout::parse(BUILTIN_MAP).map_err(SaveError::Incompatible)?;
-    if body.meta.version < 5 {
+    if body.meta.version < 8 {
         migrate_map(&defs, &map, &mut body.state)?;
     }
     if (body.state.grid.width, body.state.grid.height) != (map.width, map.height) {

@@ -1,0 +1,20 @@
+# UI test of cutting stone and planning the causeway:
+#   cargo run --release -- --scenario quarry_start --save-dir target/ui_saves15 --script scripts/ui_quarry.txt --capture target/ui_quarry
+1.5 key R
+2.0 expect Quarrying
+2.1 shot 01_soul
+2.3 key R
+2.5 tile 4 22
+5.0 expect Stone
+5.1 shot 02_cutting
+5.3 key B
+5.7 press Plan Stone Causeway*
+6.1 expect Stone Causeway added to the plan
+6.2 expect Short of
+6.3 shot 03_planned
+6.5 press 8x
+60.0 expect Finished
+60.1 press 1x
+60.3 key C
+60.7 shot 04_open
+61.0 exit

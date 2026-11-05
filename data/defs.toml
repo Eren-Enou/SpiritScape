@@ -80,6 +80,12 @@ name = "Structural Beams"
 id = "panels"
 name = "Fitted Panels"
 
+# Cut from outcrops south of home. It's the second thing to gather, and the
+# only way to build across the river without going round by the bridge.
+[[resources]]
+id = "stone"
+name = "Stone"
+
 [[skills]]
 id = "woodcutting"
 name = "Woodcutting"
@@ -100,6 +106,12 @@ trainable = false
 id = "construction"
 name = "Construction"
 trainable = false
+
+# The second gathering skill, separate from Woodcutting. Open from the start.
+[[skills]]
+id = "quarrying"
+name = "Quarrying"
+trainable = true
 
 # Woodcutting tiers. Both the player and spirits need `level_required` in
 # the tree's skill to cut it. Numbers are tuned for quick playtesting.
@@ -148,6 +160,22 @@ chop_seconds = 4.0
 chop_seconds_per_level = 0.1
 min_chop_seconds = 1.5
 why = "The only source of Hardwood Logs, which Structural Beams are made from."
+
+# Outcrops work like trees: they're worked down, then recover.
+[[tree_types]]
+id = "stone_outcrop"
+name = "Stone Outcrop"
+map_char = "q"
+resource = "stone"
+skill = "quarrying"
+level_required = 1
+logs = 4
+regrow_seconds = 90.0
+xp_per_log = 18
+chop_seconds = 3.5
+chop_seconds_per_level = 0.1
+min_chop_seconds = 1.2
+why = "The only source of Stone, which the Stone Causeway is built from."
 
 # ---------------------------------------------------------------------------
 # Recipes: timed processing at a station building. The player and spirits use
@@ -262,6 +290,13 @@ name = "Hollow Grove"
 area = [50, 0, 59, 10]
 regrow_pct = 100
 region = "old_growth"
+
+# Stone south of home, a short walk from Main Storage.
+[[sites]]
+id = "south_quarry"
+name = "South Quarry"
+area = [2, 21, 12, 27]
+regrow_pct = 100
 
 # When a long walk is worth making. These stop spirits crossing the map for a
 # handful of materials, and from drifting between far-apart benches.
@@ -389,6 +424,21 @@ jobs = [
     { job = "deliver", priority = 100, when = "carrying_any" },
     { job = "collect", priority = 60, when = "output_unattended" },
     { job = "craft", priority = 50, when = "production_wanted" },
+]
+
+[[roles]]
+id = "quarrier"
+name = "Quarrying Spirit"
+skill = "quarrying"
+from_soul_separation = true
+move_seconds_per_tile = 0.3
+carry_capacity = 10
+deliver_to = "nearest"
+color = [0.70, 0.74, 0.80]
+jobs = [
+    { job = "deliver", priority = 100, when = "inventory_full" },
+    { job = "gather", priority = 50, when = "objective_unmet" },
+    { job = "deliver", priority = 20, when = "carrying_any" },
 ]
 
 # ---------------------------------------------------------------------------
@@ -674,6 +724,27 @@ build_seconds_per_level = 0.5
 min_build_seconds = 10.0
 color = [0.66, 0.54, 0.40]
 benefit = "Every spirit carries five more on each trip."
+
+# A second way over the river, far south of the bridge. It adds no trees, only
+# a shorter walk between home and the Distant Forest.
+[[buildings]]
+id = "stone_causeway"
+name = "Stone Causeway"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+access_site = [21, 20]
+opens = [[21, 20], [22, 20]]
+cost = [
+    { resource = "stone", amount = 60 },
+    { resource = "logs", amount = 20 },
+]
+build_seconds = 40.0
+build_seconds_per_level = 0.5
+min_build_seconds = 15.0
+color = [0.62, 0.62, 0.66]
+benefit = "A way over the river straight to the Distant Forest, without going round by the bridge."
 
 [objective]
 # "Maintain <target> <resource> in the main settlement storage."
