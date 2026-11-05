@@ -37,6 +37,8 @@ const WORKER_BUTTONS: usize = 3;
 const SOUL_OPTIONS: usize = 5;
 /// Recent milestones listed in the Progress tab.
 const RECENT_NOTICES: usize = 6;
+/// Further orders with buttons in the Production tab.
+const EXTRA_ORDER_BUTTONS: usize = 1;
 
 /// Screen space covered by the UI: right-hand panel and bottom event log.
 pub const PANEL_WIDTH: f32 = 430.0;
@@ -91,6 +93,19 @@ enum UiAction {
     /// Make the nth site the training area, or stop if it already is.
     TrainingArea(usize),
     BuildCache,
+    /// Adjust the nth further order's target.
+    ExtraTarget(usize, i32),
+    /// Put the nth further order first, or back level with the rest.
+    ExtraPriority(usize),
+    PlaceWorkshop,
+    BuildRack,
+    ToggleKeepPlace,
+    SpiritPrev,
+    SpiritNext,
+    CycleFocus,
+    CycleSite,
+    CycleStation,
+    ToggleAdvanced,
     ToggleCollect,
     ToggleSupply,
     ToggleTrainingFirst,
@@ -104,6 +119,7 @@ enum Tab {
     Production,
     Progress,
     Training,
+    Spirits,
 }
 
 /// Show routine spirit events in the log too.
@@ -156,6 +172,9 @@ enum Card {
     Recent,
     TrainingStatus,
     PlayerTime,
+    Orders,
+    Stations,
+    SpiritOrders,
 }
 
 /// Clipping box that holds the event log lines.
@@ -346,6 +365,22 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                         "Workshop C",
                         UiAction::Load(ScenarioKind::WorkshopConstruction),
                     ),
+                    (
+                        "Special",
+                        UiAction::Load(ScenarioKind::AdvancedSpecialization),
+                    ),
+                    (
+                        "Bottleneck",
+                        UiAction::Load(ScenarioKind::ProductionBottleneck),
+                    ),
+                    (
+                        "Expansion",
+                        UiAction::Load(ScenarioKind::ExpandedProduction),
+                    ),
+                    (
+                        "Retraining",
+                        UiAction::Load(ScenarioKind::SupportedRetraining),
+                    ),
                 ],
             );
 
@@ -387,6 +422,7 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                     ("Production (P)", UiAction::ShowTab(Tab::Production)),
                     ("Progress (J)", UiAction::ShowTab(Tab::Progress)),
                     ("Training (T)", UiAction::ShowTab(Tab::Training)),
+                    ("Spirits (O)", UiAction::ShowTab(Tab::Spirits)),
                 ],
             );
 
@@ -421,6 +457,23 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
 
             tab_panel(p, Tab::Production, |p| {
                 card(p, "WHAT LIMITS PLANKS", |c| body(c, Card::ProductionLimit));
+                card(p, "ORDERS", |c| {
+                    body(c, Card::Orders);
+                    for i in 0..EXTRA_ORDER_BUTTONS {
+                        button_row(
+                            c,
+                            &[
+                                ("Beams -5", UiAction::ExtraTarget(i, -5)),
+                                ("Beams +5", UiAction::ExtraTarget(i, 5)),
+                                ("", UiAction::ExtraPriority(i)),
+                            ],
+                        );
+                    }
+                });
+                card(p, "WORKSHOPS", |c| {
+                    body(c, Card::Stations);
+                    button_row(c, &[("", UiAction::PlaceWorkshop)]);
+                });
                 card(p, "PRODUCTION LINE", |c| {
                     body(c, Card::Production);
                     button_row(
@@ -453,6 +506,28 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                 card(p, "RECENTLY", |c| body(c, Card::Recent));
             });
 
+            tab_panel(p, Tab::Spirits, |p| {
+                card(p, "INSTRUCTIONS", |c| {
+                    button_row(
+                        c,
+                        &[
+                            ("Previous spirit", UiAction::SpiritPrev),
+                            ("Next spirit", UiAction::SpiritNext),
+                        ],
+                    );
+                    body(c, Card::SpiritOrders);
+                    button_row(
+                        c,
+                        &[
+                            ("", UiAction::CycleFocus),
+                            ("", UiAction::CycleSite),
+                            ("", UiAction::CycleStation),
+                            ("", UiAction::ToggleAdvanced),
+                        ],
+                    );
+                });
+            });
+
             tab_panel(p, Tab::Training, |p| {
                 card(p, "SPIRIT-SUPPORTED TRAINING", |c| {
                     body(c, Card::TrainingStatus);
@@ -464,6 +539,8 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                             ("", UiAction::ToggleCollect),
                             ("", UiAction::ToggleSupply),
                             ("", UiAction::ToggleTrainingFirst),
+                            ("", UiAction::ToggleKeepPlace),
+                            ("", UiAction::BuildRack),
                         ],
                     );
                 });
@@ -648,6 +725,12 @@ fn show_tab(
             _ => Tab::Training,
         };
     }
+    if keys.just_pressed(KeyCode::KeyO) {
+        *tab = match *tab {
+            Tab::Spirits => Tab::Settlement,
+            _ => Tab::Spirits,
+        };
+    }
     for (panel, mut node) in &mut panels {
         let display = if panel.0 == *tab {
             Display::Flex
@@ -764,6 +847,69 @@ fn on_button(
     }
     match action {
         UiAction::SaveGame => sim.save_game(),
+        UiAction::ExtraTarget(i, d) => {
+            if let Some(o) = sim.world.settlement.extra_orders.get(i) {
+                let output = o.output;
+                let target = (o.target as i32 + d).max(0) as u32;
+                sim.command(Command::SetOrderTarget { output, target });
+            }
+        }
+        UiAction::ExtraPriority(i) => {
+            if let Some(o) = sim.world.settlement.extra_orders.get(i) {
+                let output = o.output;
+                let priority = if o.priority > 0 { 0 } else { 1 };
+                sim.command(Command::SetOrderPriority { output, priority });
+            }
+        }
+        UiAction::PlaceWorkshop => {
+            let kind = sim.world.defs.building_kind_id("workshop");
+            sim.placing = if sim.placing.is_some() { None } else { kind };
+            sim.message = if sim.placing.is_some() {
+                "Click a free tile on the map to place the Workshop".into()
+            } else {
+                String::new()
+            };
+        }
+        UiAction::BuildRack => {
+            if let Some(kind) = sim.world.defs.building_kind_id("log_rack") {
+                sim.command(Command::RequestBuilding(kind));
+            }
+        }
+        UiAction::ToggleKeepPlace => {
+            let on = !sim.world.settlement.training.keep_bench_place;
+            sim.command(Command::SetKeepBenchPlace(on));
+        }
+        UiAction::SpiritPrev | UiAction::SpiritNext => {
+            let count = sim.world.spirits.len().max(1);
+            let step = if action == UiAction::SpiritNext {
+                1
+            } else {
+                count - 1
+            };
+            sim.selected_spirit = (sim.selected_spirit + step) % count;
+        }
+        UiAction::CycleFocus => {
+            change_policy(&mut sim, |_, p, _| p.focus = p.focus.next());
+        }
+        UiAction::CycleSite => change_policy(&mut sim, |w, p, _| {
+            let sites = w.defs.sites.len() as u16;
+            p.site = match p.site {
+                None if sites > 0 => Some(SiteId(0)),
+                Some(s) if s.0 + 1 < sites => Some(SiteId(s.0 + 1)),
+                _ => None,
+            };
+        }),
+        UiAction::CycleStation => change_policy(&mut sim, |w, p, _| {
+            let ids: Vec<usize> = w.stations().map(|b| b.id).collect();
+            let at = p.station.and_then(|b| ids.iter().position(|i| *i == b));
+            p.station = match at {
+                None => ids.first().copied(),
+                Some(i) => ids.get(i + 1).copied(),
+            };
+        }),
+        UiAction::ToggleAdvanced => {
+            change_policy(&mut sim, |_, p, _| p.prefer_advanced = !p.prefer_advanced)
+        }
         UiAction::OpenMenu => {
             sim.menu_error = None;
             sim.open_menu();
@@ -880,6 +1026,19 @@ fn on_button(
     }
 }
 
+/// Edits the selected spirit's instructions.
+fn change_policy(
+    sim: &mut Sim,
+    change: impl FnOnce(&World, &mut spirit_sim::entities::SpiritPolicy, usize),
+) {
+    let spirit = sim.selected_spirit;
+    let Some(mut policy) = sim.world.spirits.get(spirit).map(|s| s.policy) else {
+        return;
+    };
+    change(&sim.world, &mut policy, spirit);
+    sim.command(Command::SetSpiritPolicy { spirit, policy });
+}
+
 /// Skills the player can turn into a spirit.
 fn soul_skills(w: &World) -> Vec<SkillId> {
     (0..w.defs.skills.len())
@@ -908,6 +1067,10 @@ fn update_buttons(
     let w = &sim.world;
     let options = w.soul_options(sim.soul_skill);
     let has_save = sim.store.any_files();
+    let selected = w.spirits.get(sim.selected_spirit);
+    let selected_role = selected.map(|s| w.defs.role(s.role));
+    let selected_gathers = selected_role.is_some_and(|r| r.has_job(JobKind::Gather));
+    let selected_crafts = selected_role.is_some_and(|r| r.has_job(JobKind::Craft));
     let cache_built = w
         .training_cache_kind()
         .is_some_and(|k| w.buildings.iter().any(|b| b.kind == k));
@@ -920,6 +1083,9 @@ fn update_buttons(
             UiAction::MenuContinue => has_save,
             UiAction::MenuBack => sim.started,
             UiAction::BuildCache => !cache_built,
+            UiAction::CycleSite | UiAction::ToggleAdvanced => selected_gathers,
+            UiAction::CycleStation => selected_crafts,
+            UiAction::CycleFocus => !w.spirits.is_empty(),
             _ => true,
         };
         let display = if show { Display::Flex } else { Display::None };
@@ -946,6 +1112,14 @@ fn update_buttons(
             UiAction::ToggleCollect => w.settlement.training.collect,
             UiAction::ToggleSupply => w.settlement.training.supply,
             UiAction::ToggleTrainingFirst => w.settlement.training.training_first,
+            UiAction::ToggleKeepPlace => w.settlement.training.keep_bench_place,
+            UiAction::PlaceWorkshop => sim.placing.is_some(),
+            UiAction::ExtraPriority(i) => w
+                .settlement
+                .extra_orders
+                .get(*i)
+                .is_some_and(|o| o.priority > 0),
+            UiAction::ToggleAdvanced => selected.is_some_and(|s| s.policy.prefer_advanced),
             _ => false,
         };
         let color = if active { BUTTON_ACTIVE } else { BUTTON_BG };
@@ -1029,6 +1203,52 @@ fn update_buttons(
                 }
                 None => continue,
             },
+            UiAction::ExtraPriority(i) => match w.settlement.extra_orders.get(*i) {
+                Some(o) if o.priority > 0 => "Beams: first".into(),
+                Some(_) => "Beams: normal priority".into(),
+                None => continue,
+            },
+            UiAction::PlaceWorkshop => {
+                if sim.placing.is_some() {
+                    "Cancel placing".into()
+                } else {
+                    match w.defs.building_kind_id("workshop") {
+                        Some(kind) => {
+                            let cost = w.defs.building(kind).cost.iter().copied().collect();
+                            format!("Place Workshop: {}", w.defs.describe_amounts(&cost))
+                        }
+                        None => continue,
+                    }
+                }
+            }
+            UiAction::BuildRack => match w.defs.building_kind_id("log_rack") {
+                Some(kind) => {
+                    let def = w.defs.building(kind);
+                    let cost = def.cost.iter().copied().collect();
+                    format!("Build {}: {}", def.name, w.defs.describe_amounts(&cost))
+                }
+                None => continue,
+            },
+            UiAction::ToggleKeepPlace => {
+                let on = w.settlement.training.keep_bench_place;
+                format!("Keep a bench place: {}", if on { "ON" } else { "OFF" })
+            }
+            UiAction::CycleFocus => match selected {
+                Some(s) => format!("Focus: {}", s.policy.focus.label()),
+                None => continue,
+            },
+            UiAction::CycleSite => match selected.and_then(|s| s.policy.site) {
+                Some(site) => format!("Gather at: {}", w.defs.site(site).name),
+                None => "Gather at: anywhere".into(),
+            },
+            UiAction::CycleStation => match selected.and_then(|s| s.policy.station) {
+                Some(b) => format!("Work at: {} #{b}", w.buildings[b].name),
+                None => "Work at: any bench".into(),
+            },
+            UiAction::ToggleAdvanced => {
+                let on = selected.is_some_and(|s| s.policy.prefer_advanced);
+                format!("Top tier first: {}", if on { "ON" } else { "OFF" })
+            }
             UiAction::ToggleCollect => {
                 let on = w.settlement.training.collect;
                 format!("Collect my logs: {}", if on { "ON" } else { "OFF" })
@@ -1079,6 +1299,9 @@ fn update_cards(
             Card::Recent => recent_lines(&sim.world),
             Card::TrainingStatus => training_lines(&sim.world),
             Card::PlayerTime => player_time_lines(&sim.world),
+            Card::Orders => order_lines(&sim.world),
+            Card::Stations => station_lines(&sim.world),
+            Card::SpiritOrders => spirit_order_lines(&sim),
         };
         if rendered.changed(&lines) {
             cards::rebuild(&mut commands, entity, &lines);
@@ -1100,6 +1323,10 @@ fn header_lines(sim: &Sim) -> Vec<Line> {
         ScenarioKind::WorkshopManual => "Workshop: manual",
         ScenarioKind::WorkshopAutomated => "Workshop: automated",
         ScenarioKind::WorkshopConstruction => "Workshop: construction",
+        ScenarioKind::AdvancedSpecialization => "Specialization",
+        ScenarioKind::ProductionBottleneck => "Bottleneck",
+        ScenarioKind::ExpandedProduction => "Expansion",
+        ScenarioKind::SupportedRetraining => "Retraining",
     };
     let speed = if sim.paused {
         colored("PAUSED", WARN)
@@ -1296,6 +1523,81 @@ fn soul_lines(sim: &Sim) -> Vec<Line> {
         ),
         WARN,
     )]);
+    lines
+}
+
+fn order_lines(w: &World) -> Vec<Line> {
+    let mut lines = Vec::new();
+    for o in w.order_reports() {
+        let met = o.in_main >= o.goal;
+        lines.push(vec![
+            text(o.name.clone()),
+            bar(
+                o.in_main as f32 / o.goal.max(1) as f32,
+                if met { GOOD } else { WARN },
+                110.0,
+            ),
+            text(format!("{} / {}", o.in_main, o.goal)),
+            Item::Spacer,
+            muted(format!("{:.0}/min", o.per_min)),
+        ]);
+        let color = if o.stalled { WARN } else { MUTED };
+        lines.push(vec![colored(format!("     {}", o.status), color)]);
+    }
+    lines
+}
+
+fn station_lines(w: &World) -> Vec<Line> {
+    let mut lines = Vec::new();
+    for s in w.station_reports() {
+        let full = s.occupied >= s.slots;
+        lines.push(vec![
+            text(format!("{} #{}", s.name, s.id)),
+            bar(
+                s.occupied as f32 / s.slots.max(1) as f32,
+                if full { WARN } else { GOOD },
+                90.0,
+            ),
+            text(format!("{}/{} places", s.occupied, s.slots)),
+            Item::Spacer,
+            muted(format!("{} made", s.crafted)),
+        ]);
+        if !s.workers.is_empty() {
+            lines.push(vec![muted(format!("     {}", s.workers.join(", ")))]);
+        }
+    }
+    let hauling = w.production_report().hauling;
+    if hauling.total() > 0 {
+        lines.push(vec![muted(format!(
+            "Haulers spend {}% of their working time walking.",
+            hauling.pct_of_working(hauling.traveling)
+        ))]);
+    }
+    lines
+}
+
+fn spirit_order_lines(sim: &Sim) -> Vec<Line> {
+    let w = &sim.world;
+    let Some(s) = w.spirits.get(sim.selected_spirit) else {
+        return vec![vec![muted("No spirits yet.")]];
+    };
+    let (status, word) = spirit_status(s);
+    let mut lines = vec![
+        vec![
+            big(s.name.clone(), TEXT),
+            muted(format!("{} Lv {}", w.defs.role(s.role).name, s.level())),
+            Item::Spacer,
+            colored(word, status.color()),
+        ],
+        vec![muted(s.activity.text().to_string())],
+    ];
+    let t = s.time.recent();
+    let total = t.total().max(1);
+    lines.push(vec![muted(format!(
+        "Last 2 minutes: walking {}%, waiting {}%",
+        t.traveling * 100 / total,
+        (t.waiting_input + t.waiting_recovery + t.waiting_station) * 100 / total
+    ))]);
     lines
 }
 

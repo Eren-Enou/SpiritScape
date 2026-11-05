@@ -51,6 +51,9 @@ pub fn spirit_status(s: &Spirit) -> (Status, String) {
             (Activity::Blocked(_), Some(WaitKind::Inputs)) => {
                 (Status::Waiting, "waiting for logs".into())
             }
+            (Activity::Blocked(_), Some(WaitKind::Station)) => {
+                (Status::Waiting, "waiting for a bench".into())
+            }
             (Activity::Blocked(_), Some(WaitKind::Storage)) => {
                 (Status::Blocked, "storage full".into())
             }

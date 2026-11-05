@@ -29,7 +29,7 @@
 12.5 shot 06_separated
 12.6 press Production (P)
 13.0 expect planks/min
-13.05 scroll 1380 600 -8
+13.05 scroll 1380 600 -14
 13.1 expect Ashwhisper: on planks
 13.2 shot 07_production
 13.4 press Ashwhisper: on planks

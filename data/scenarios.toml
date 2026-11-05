@@ -116,3 +116,75 @@ spirits = [
     { role = "builder", xp = 388, spawn = "B" },
 ]
 requested_buildings = ["storehouse"]
+
+# --- v0.6: specialization and production ------------------------------------
+
+[advanced_specialization]
+title = "Specialization"
+description = "You're close to the top tiers: Ironwood at Woodcutting level 10, Structural Beams at Woodworking level 10. Reach them, then sacrifice enough to make spirits that keep them for good."
+objective_target = 40
+plank_target = 20
+log_reserve = 10
+player_xp = { woodcutting = 1100, woodworking = 1100 }
+main_storage = { logs = 60, hardwood = 24 }
+extra_targets = { beams = 10 }
+spirits = [
+    { role = "hauler", xp = 388, spawn = "H" },
+    { role = "builder", xp = 388, spawn = "B" },
+]
+
+[production_bottleneck]
+title = "Bottleneck"
+description = "Four Woodworking Spirits share one Workshop with two places. Only two can work at once: the Production tab shows the others waiting. Adding workers won't help."
+objective_target = 60
+plank_target = 150
+log_reserve = 0
+main_storage = { logs = 250 }
+spirits = [
+    { role = "woodcutter", xp = 388, spawn = "W" },
+    { role = "woodcutter", xp = 388, spawn = "W" },
+    { role = "hauler", xp = 388, spawn = "H" },
+    { role = "hauler", xp = 388, spawn = "H" },
+    { role = "woodworker", xp = 388, spawn = "B" },
+    { role = "woodworker", xp = 388, spawn = "B" },
+    { role = "woodworker", xp = 388, spawn = "B" },
+    { role = "woodworker", xp = 388, spawn = "B" },
+    { role = "builder", xp = 388, spawn = "B" },
+]
+
+[expanded_production]
+title = "Expansion"
+description = "The same line as the Bottleneck scenario, with materials ready for a second Workshop. It's already ordered: watch output rise when it opens. Beams are maintained at the same time by a level 10 spirit."
+objective_target = 60
+plank_target = 150
+log_reserve = 0
+main_storage = { logs = 220, planks = 20, beams = 6, hardwood = 30 }
+extra_targets = { beams = 8 }
+spirits = [
+    { role = "woodcutter", xp = 388, spawn = "W" },
+    { role = "woodcutter", xp = 1154, spawn = "W", prefer_advanced = true },
+    { role = "hauler", xp = 388, spawn = "H" },
+    { role = "hauler", xp = 388, spawn = "H" },
+    { role = "woodworker", xp = 1154, spawn = "B" },
+    { role = "woodworker", xp = 388, spawn = "B" },
+    { role = "woodworker", xp = 388, spawn = "B" },
+    { role = "woodworker", xp = 388, spawn = "B" },
+    { role = "builder", xp = 388, spawn = "B" },
+]
+requested_buildings = ["workshop"]
+
+[supported_retraining]
+title = "Retraining"
+description = "You've sacrificed most of your Woodworking, and the settlement can help you get it back. Try Stock the bench in the Training tab, give a spirit the My training focus, and build a Log Rack. Every action that earns XP is still yours."
+objective_target = 60
+plank_target = 10
+log_reserve = 10
+player_xp = { woodworking = 200 }
+main_storage = { logs = 120, planks = 30 }
+spirits = [
+    { role = "woodcutter", xp = 388, spawn = "W" },
+    { role = "woodcutter", xp = 388, spawn = "W" },
+    { role = "hauler", xp = 388, spawn = "H" },
+    { role = "woodworker", xp = 388, spawn = "B" },
+    { role = "builder", xp = 388, spawn = "B" },
+]

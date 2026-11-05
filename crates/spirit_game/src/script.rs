@@ -147,6 +147,7 @@ fn key(name: &str) -> Option<(KeyCode, Key)> {
         "P" => KeyCode::KeyP,
         "J" => KeyCode::KeyJ,
         "T" => KeyCode::KeyT,
+        "O" => KeyCode::KeyO,
         "1" => KeyCode::Digit1,
         "2" => KeyCode::Digit2,
         "3" => KeyCode::Digit3,

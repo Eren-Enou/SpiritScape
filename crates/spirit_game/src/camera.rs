@@ -271,6 +271,13 @@ fn map_clicks(
         && mouse.just_pressed(MouseButton::Left)
         && let Some(tile) = hovered.0
     {
+        if let Some(kind) = sim.placing {
+            sim.command(Command::RequestBuildingAt { kind, site: tile });
+            if !sim.message.starts_with("Can't") {
+                sim.placing = None;
+            }
+            return;
+        }
         sim.command(Command::PlayerInteract(tile));
     }
 }

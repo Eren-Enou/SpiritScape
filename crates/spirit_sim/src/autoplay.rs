@@ -7,8 +7,8 @@
 //! efficiently and never gets distracted, so its times are a lower bound on a
 //! person's, not a prediction of them.
 
-use crate::defs::{ResourceId, SkillId};
-use crate::entities::TreeId;
+use crate::defs::{BuildingKindId, JobKind, ResourceId, SkillId};
+use crate::entities::{Focus, TreeId};
 use crate::journey::{Milestone, Phase};
 use crate::metrics::TimeUse;
 use crate::tasks::Task;
@@ -103,7 +103,11 @@ impl Bot {
         let bag = &w.player.actor.inventory;
         let logs = bag.get(self.logs);
         let bench = w.bench_stock();
-        if logs >= 2 || bench >= 2 {
+        if bag.is_full() && logs < 2 {
+            let main = w.main().pos;
+            self.storage_trips += 1;
+            self.click(w, Command::PlayerInteract(main));
+        } else if logs >= 2 || bench >= 2 {
             self.click(w, Command::PlayerInteract(station));
         } else if bag.total() > 0
             || (w.main().storage.available(self.logs) >= 2 && !w.settlement.training.supply)
@@ -345,4 +349,132 @@ pub fn play_first_cycle(profile: &str) -> Result<(World, PacingReport), String> 
         player_time: w.player.time,
     };
     Ok((w, report))
+}
+
+/// One way of setting up the settlement for retraining.
+#[derive(Clone, Debug)]
+pub struct RetrainResult {
+    pub setup: &'static str,
+    pub stretch: Stretch,
+}
+
+impl RetrainResult {
+    /// XP earned per minute of the stretch, for `xp` earned.
+    pub fn xp_per_min(&self, xp: u64) -> u64 {
+        xp * 60 / self.stretch.seconds.max(1)
+    }
+}
+
+fn dedicate(w: &mut World, job: JobKind) {
+    let id = w
+        .spirits
+        .iter()
+        .find(|s| w.defs.role(s.role).has_job(job))
+        .map(|s| s.id);
+    if let Some(spirit) = id {
+        let mut policy = w.spirits[spirit].policy;
+        policy.focus = Focus::Training;
+        let _ = w.apply(Command::SetSpiritPolicy { spirit, policy });
+    }
+}
+
+fn build_all(w: &mut World, bot: &mut Bot, kind: BuildingKindId, count: u32, limit: u64) {
+    for _ in 0..count {
+        let built = w.buildings.iter().filter(|b| b.kind == kind).count();
+        let _ = w.apply(Command::RequestBuilding(kind));
+        bot.chop_until(w, limit, |w| {
+            w.active_project().is_none()
+                && w.buildings.iter().filter(|b| b.kind == kind).count() > built
+        });
+    }
+}
+
+/// Sawing `xp` of Woodworking back from the same start under four settlements.
+pub fn compare_sawing(xp: u64) -> Vec<RetrainResult> {
+    let start = World::from_scenario(crate::ScenarioKind::SupportedRetraining);
+    let bot = Bot::new(&start);
+    let goal = Goal::SawTo(start.player.xp(bot.ww) + xp);
+    let limit = 3600 * start.defs.ticks_per_second as u64;
+    let mut out = vec![RetrainResult {
+        setup: "No assistance",
+        stretch: measure(start.clone(), &bot, goal, limit),
+    }];
+
+    let mut basic = start.clone();
+    let _ = basic.apply(Command::SetTrainingSupply(true));
+    out.push(RetrainResult {
+        setup: "Hauling support",
+        stretch: measure(basic.clone(), &bot, goal, limit),
+    });
+
+    let mut dedicated = basic.clone();
+    dedicate(&mut dedicated, JobKind::Supply);
+    dedicate(&mut dedicated, JobKind::Gather);
+    out.push(RetrainResult {
+        setup: "Dedicated gatherer and hauler",
+        stretch: measure(dedicated.clone(), &bot, goal, limit),
+    });
+
+    // Local stock: racks at the bench and a larger standing supply, built up
+    // before the session. That's the investment the earlier setups skip.
+    let mut stocked = dedicated;
+    let rack = stocked.defs.building_kind_id("log_rack").expect("log rack");
+    let mut setup = bot.clone();
+    build_all(&mut stocked, &mut setup, rack, 2, limit);
+    let _ = stocked.apply(Command::SetObjectiveTarget(180));
+    let full = stocked.station().map_or(0, |b| {
+        stocked.defs.building(b.kind).training_buffer + stocked.settlement.bench_bonus
+    });
+    setup.chop_until(&mut stocked, limit, |w| {
+        w.bench_stock() >= full && w.main().storage.get(w.defs.objective.resource) >= 120
+    });
+    setup.stop(&mut stocked);
+    out.push(RetrainResult {
+        setup: "Plus Log Racks and a standing stock",
+        stretch: measure(
+            stocked.clone(),
+            &setup,
+            Goal::SawTo(stocked.player.xp(setup.ww) + xp),
+            limit,
+        ),
+    });
+    out
+}
+
+/// Chopping `xp` of Woodcutting from the same start under three settlements.
+pub fn compare_chopping(xp: u64) -> Vec<RetrainResult> {
+    // A settlement with work of its own, so its gatherers want the same trees.
+    let mut start = World::from_scenario(crate::ScenarioKind::SupportedRetraining);
+    let _ = start.apply(Command::SetObjectiveTarget(150));
+    let bot = Bot::new(&start);
+    let goal = Goal::ChopTo(start.player.xp(bot.wc) + xp);
+    let limit = 3600 * start.defs.ticks_per_second as u64;
+    let mut out = vec![RetrainResult {
+        setup: "No assistance",
+        stretch: measure(start.clone(), &bot, goal, limit),
+    }];
+
+    let grove = start.defs.site_id("starting_grove").expect("grove");
+    let mut reserved = start.clone();
+    let _ = reserved.apply(Command::SetTrainingArea(Some(grove)));
+    out.push(RetrainResult {
+        setup: "Grove reserved",
+        stretch: measure(reserved.clone(), &bot, goal, limit),
+    });
+
+    let mut cached = reserved;
+    let mut setup = bot.clone();
+    enable_area(&mut cached, &mut setup, limit);
+    setup.stop(&mut cached);
+    dedicate(&mut cached, JobKind::Haul);
+    out.push(RetrainResult {
+        setup: "Plus Training Cache and a dedicated hauler",
+        stretch: measure(
+            cached.clone(),
+            &setup,
+            Goal::ChopTo(cached.player.xp(setup.wc) + xp),
+            limit,
+        ),
+    });
+    out
 }

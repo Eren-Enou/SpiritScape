@@ -2,7 +2,9 @@
 //! and expand the chosen job into a task queue.
 
 use crate::defs::{Condition, DeliverPolicy, JobKind, ResourceId, SiteId, TreeKindId};
-use crate::entities::{Activity, BuildingId, ProjectState, Spirit, SpiritId, TreeId};
+use crate::entities::{
+    Activity, Building, BuildingId, Focus, ProjectState, Spirit, SpiritId, Tree, TreeId,
+};
 use crate::events::EventKind;
 use crate::metrics::WaitKind;
 use crate::tasks::{Goal, Task};
@@ -55,13 +57,19 @@ impl World {
             Condition::Always => true,
             Condition::InventoryFull => s.actor.inventory.is_full(),
             Condition::CarryingAny => s.actor.inventory.total() > 0,
-            Condition::ObjectiveUnmet => self.objective_unmet(),
+            Condition::ObjectiveUnmet => self.objective_unmet() || self.advanced_wanted(sid),
             Condition::OutpostStockAvailable => {
                 let min = self.defs.role(s.role).haul_min;
                 self.outposts().any(|b| b.storage.total() >= min)
             }
             Condition::ProjectAssigned => self.project_for(sid).is_some(),
-            Condition::ProductionWanted => s.assigned && self.production_deficit() > 0,
+            Condition::ProductionWanted => {
+                s.assigned
+                    && self
+                        .orders()
+                        .iter()
+                        .any(|o| self.deficit_of(o.output) > 0 && self.can_make(s, o.output))
+            }
             Condition::WorkshopNeedsInput => self.input_wanted().is_some(),
             Condition::WorkshopOutputReady => self.output_ready(self.defs.role(s.role).haul_min),
             Condition::OutputUnattended => {
@@ -146,8 +154,9 @@ impl World {
         let previous = self.spirits[sid].activity.clone();
         let mut blocked: Option<Blocked> = None;
 
+        let focus = self.spirits[sid].policy.focus;
         for rule in &role.jobs {
-            if !self.condition_holds(sid, rule.when) {
+            if !focus.allows(rule.job) || !self.condition_holds(sid, rule.when) {
                 continue;
             }
             match self.plan_job(sid, rule.job) {
@@ -195,7 +204,29 @@ impl World {
         self.spirits[sid].activity = activity;
     }
 
+    /// Whether this spirit's level allows a recipe for `output`.
+    fn can_make(&self, s: &Spirit, output: ResourceId) -> bool {
+        self.defs
+            .recipes
+            .iter()
+            .any(|d| d.output.0 == output && d.skill == s.skill() && d.level_required <= s.level())
+    }
+
+    /// A material other than the settlement's basic one is short, and this
+    /// spirit can cut it.
+    fn advanced_wanted(&self, sid: SpiritId) -> bool {
+        let s = &self.spirits[sid];
+        let basic = self.settlement.objective.resource;
+        self.defs.tree_tiers(s.skill()).into_iter().any(|k| {
+            let r = self.defs.tree(k).resource;
+            r != basic && self.spirit_can_cut(s, k) && self.gather_short(r)
+        })
+    }
+
     fn idle_reason(&self, sid: SpiritId) -> String {
+        if self.spirits[sid].policy.focus == Focus::Rest {
+            return "resting, as instructed".into();
+        }
         let role = self.defs.role(self.spirits[sid].role);
         if role.has_job(JobKind::Gather) {
             let o = &self.settlement.objective;
@@ -391,6 +422,29 @@ impl World {
             ));
         }
 
+        // Which trees are this spirit's business: wanted materials it can
+        // cut, at its assigned site, the top tier first if it's been told to.
+        let short: Vec<bool> = (0..self.defs.resources.len())
+            .map(|i| self.gather_short(ResourceId(i as u16)))
+            .collect();
+        let wanted =
+            |k: TreeKindId| self.spirit_can_cut(s, k) && short[self.defs.tree(k).resource.index()];
+        let first_choice = s
+            .policy
+            .prefer_advanced
+            .then(|| {
+                let mut tiers = self.defs.tree_tiers(s.skill()).into_iter();
+                tiers
+                    .rfind(|k| wanted(*k))
+                    .map(|k| self.defs.tree(k).resource)
+            })
+            .flatten();
+        let suits = |t: &Tree| {
+            wanted(t.kind)
+                && first_choice.is_none_or(|r| self.defs.tree(t.kind).resource == r)
+                && s.policy.site.is_none_or(|p| t.site == Some(p))
+        };
+
         let mut any_cuttable = false;
         let mut any_permitted = false;
         let mut any_grown = false;
@@ -401,7 +455,7 @@ impl World {
         let mut free_logs = vec![0u32; self.defs.sites.len()];
         for t in &self.trees {
             if let Some(site) = t.site
-                && self.spirit_can_cut(s, t.kind)
+                && suits(t)
                 && t.claimed_by.is_none_or(|c| c == sid)
             {
                 free_logs[site.index()] += t.logs_left();
@@ -411,7 +465,7 @@ impl World {
         let mut best_home: Option<(u32, TreeId)> = None;
         let mut best: Option<(u32, TreeId)> = None;
         for t in &self.trees {
-            if !self.spirit_can_cut(s, t.kind) {
+            if !suits(t) {
                 continue;
             }
             any_cuttable = true;
@@ -579,20 +633,121 @@ impl World {
         })
     }
 
-    /// Work at the station. With no supplier in the settlement, the worker
-    /// first fetches its own materials from Main Storage.
+    /// Whether someone will do `job` for the settlement.
+    pub(crate) fn has_worker_for(&self, job: JobKind) -> bool {
+        self.spirits
+            .iter()
+            .any(|s| self.defs.role(s.role).has_job(job) && s.policy.focus.allows(job))
+    }
+
+    /// Work at a station: the most urgent order this spirit can serve, at the
+    /// first permitted station that has a free place and materials.
     fn plan_craft(&self, sid: SpiritId) -> Result<JobPlan, Blocked> {
         let s = &self.spirits[sid];
-        let station = self
-            .station()
-            .ok_or_else(|| "No workshop available".to_string())?;
+        let mut blocked: Option<Blocked> = None;
+        for output in self.orders_for(s) {
+            for b in self.stations_for(output) {
+                if !self.may_work_at(s, b.id) {
+                    continue;
+                }
+                match self.plan_craft_at(sid, b, output) {
+                    Ok(plan) => return Ok(plan),
+                    // A full bench says most about why this spirit is idle.
+                    Err(e) if e.kind == WaitKind::Station => blocked = Some(e),
+                    Err(e) => {
+                        blocked.get_or_insert(e);
+                    }
+                }
+            }
+        }
+        Err(blocked.unwrap_or_else(|| "No workshop available".into()))
+    }
+
+    /// What this spirit could make, in the order it should try: urgent orders
+    /// first and, between equals, the hardest work it's qualified for, because
+    /// fewer spirits can do that.
+    fn orders_for(&self, s: &Spirit) -> Vec<ResourceId> {
+        let mut list: Vec<_> = self
+            .orders()
+            .into_iter()
+            .filter(|o| self.deficit_of(o.output) > 0 && self.can_make(s, o.output))
+            .map(|o| {
+                let tier = self
+                    .defs
+                    .recipes
+                    .iter()
+                    .filter(|d| d.output.0 == o.output && d.level_required <= s.level())
+                    .map(|d| d.level_required)
+                    .max()
+                    .unwrap_or(0);
+                (
+                    std::cmp::Reverse(o.priority),
+                    std::cmp::Reverse(tier),
+                    o.output,
+                )
+            })
+            .collect();
+        list.sort();
+        list.into_iter().map(|x| x.2).collect()
+    }
+
+    /// Between batches, a worker leaves its bench job if something more
+    /// urgent has become possible right where it stands.
+    pub(crate) fn switch_craft_if_needed(&mut self, sid: SpiritId) {
+        let s = &self.spirits[sid];
+        let Some(&Task::Craft {
+            building,
+            output: Some(current),
+        }) = s.actor.queue.front()
+        else {
+            return;
+        };
+        if s.actor.action_ticks > 0 {
+            return;
+        }
+        let b = &self.buildings[building];
+        let have = |r| s.actor.inventory.get(r) + b.storage.available(r);
+        let better = self
+            .orders_for(s)
+            .into_iter()
+            .take_while(|o| *o != current)
+            .any(|o| {
+                self.defs
+                    .best_recipe_for(b.kind, s.level(), o, have)
+                    .is_some()
+            });
+        if better {
+            let s = &mut self.spirits[sid];
+            s.actor.clear_tasks();
+            s.next_think = self.tick;
+        }
+    }
+
+    /// Work at one station. With no supplier in the settlement, the worker
+    /// first fetches its own materials from Main Storage.
+    fn plan_craft_at(
+        &self,
+        sid: SpiritId,
+        station: &Building,
+        output: ResourceId,
+    ) -> Result<JobPlan, Blocked> {
+        let s = &self.spirits[sid];
         let def = self.defs.building(station.kind);
-        let output = self.settlement.order.output;
         let limit = def.capacity.saturating_sub(def.input_buffer);
         if station.storage.get(output) >= limit || station.storage.free() == 0 {
             return Err(Blocked::new(
                 WaitKind::Storage,
                 format!("{} output is full", station.name),
+            ));
+        }
+        if !self.slot_free_for_spirit(station) {
+            return Err(Blocked::new(
+                WaitKind::Station,
+                format!(
+                    "{} waiting: {} is occupied",
+                    self.defs.role(s.role).name,
+                    station.name
+                ),
             ));
         }
         let to_station = Task::Move {
@@ -601,38 +756,48 @@ impl World {
         };
         let craft = Task::Craft {
             building: station.id,
+            output: Some(output),
         };
         let have = |r| s.actor.inventory.get(r) + station.storage.available(r);
-        if let Some(r) = self.defs.best_recipe(station.kind, s.level(), have) {
+        let best = self
+            .defs
+            .best_recipe_for(station.kind, s.level(), output, have);
+        if let Some(r) = best {
             return Ok(JobPlan {
                 description: format!("Making {} at {}", self.defs.recipe(r).name, station.name),
                 tasks: vec![to_station, craft],
                 ..Default::default()
             });
         }
-        let short = || {
-            Blocked::new(
-                WaitKind::Inputs,
-                format!("{} waiting: insufficient logs", station.name),
-            )
-        };
-        if self.has_role_with(JobKind::Supply) {
-            return Err(short());
-        }
-        let (resource, want) = self.input_wanted().ok_or_else(short)?;
-        let amount = want
-            .min(self.input_spare(resource))
-            .min(s.actor.inventory.free());
-        let recipe = self.production_recipe().ok_or_else(short)?;
         let lowest = self
             .defs
             .station_recipes(station.kind)
             .into_iter()
             .map(|r| self.defs.recipe(r))
-            .filter_map(|r| r.inputs.iter().find(|i| i.0 == resource).map(|i| i.1))
-            .min()
+            .find(|r| r.output.0 == output);
+        let input = lowest.map_or(self.defs.objective.resource, |r| r.inputs[0].0);
+        let short = || {
+            Blocked::new(
+                WaitKind::Inputs,
+                format!(
+                    "{} waiting: insufficient {}",
+                    station.name,
+                    self.defs.resource(input).name.to_lowercase()
+                ),
+            )
+        };
+        if self.has_worker_for(JobKind::Supply) {
+            return Err(short());
+        }
+        let (_, resource, want) = self.input_wanted().ok_or_else(short)?;
+        let amount = want
+            .min(self.input_spare(resource))
+            .min(s.actor.inventory.free());
+        let recipe = self.recipe_for(output).ok_or_else(short)?;
+        let needed = lowest
+            .and_then(|r| r.inputs.iter().find(|i| i.0 == resource).map(|i| i.1))
             .unwrap_or(1);
-        if amount + have(resource) < lowest {
+        if amount + have(resource) < needed {
             return Err(short());
         }
         let main = self.main();
@@ -661,15 +826,13 @@ impl World {
         })
     }
 
-    /// Carry raw materials from Main Storage to the station, leaving the reserve.
+    /// Carry raw materials from Main Storage to a station, leaving the reserve.
     fn plan_supply(&self, sid: SpiritId) -> Result<JobPlan, Blocked> {
         let s = &self.spirits[sid];
-        let station = self
-            .station()
-            .ok_or_else(|| "No workshop available".to_string())?;
-        let (resource, want) = self
+        let (station, resource, want) = self
             .input_wanted()
             .ok_or_else(|| "The workshop has enough materials".to_string())?;
+        let station = &self.buildings[station];
         let name = &self.defs.resource(resource).name;
         let amount = want
             .min(self.input_spare(resource))
@@ -707,19 +870,18 @@ impl World {
         })
     }
 
-    /// Carry finished goods from the station to Main Storage.
+    /// Carry finished goods from a station to Main Storage.
     fn plan_collect(&self, sid: SpiritId) -> Result<JobPlan, Blocked> {
         let s = &self.spirits[sid];
-        let station = self
-            .station()
-            .ok_or_else(|| "No workshop available".to_string())?;
         let main = self.main();
         if main.storage.free() == 0 {
             return Err(Blocked::new(WaitKind::Storage, "Main Storage is full"));
         }
-        let resource = self.settlement.order.output;
-        let amount = self
-            .output_waiting()
+        let (station, resource, waiting) = self
+            .output_pile()
+            .ok_or_else(|| "Nothing finished to collect".to_string())?;
+        let station = &self.buildings[station];
+        let amount = waiting
             .min(s.actor.inventory.free())
             .min(main.storage.free());
         if amount == 0 {

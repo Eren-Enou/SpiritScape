@@ -529,7 +529,8 @@ fn sync_goods_piles(
 ) {
     let w = &sim.world;
     for (pile, mut vis, mut tf) in &mut piles {
-        let amount = w.buildings[pile.0].storage.get(w.settlement.order.output);
+        let storage = &w.buildings[pile.0].storage;
+        let amount: u32 = w.orders().iter().map(|o| storage.get(o.output)).sum();
         tf.scale = Vec3::splat(0.4 + 0.4 * (amount as f32 / 30.0).min(1.0));
         vis.set_if_neq(if amount > 0 {
             Visibility::Inherited

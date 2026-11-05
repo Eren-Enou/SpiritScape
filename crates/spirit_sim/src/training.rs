@@ -8,7 +8,7 @@
 
 use crate::behavior::{Blocked, JobPlan};
 use crate::defs::{BuildingKindId, JobKind, ResourceId, SiteId};
-use crate::entities::{Building, SpiritId};
+use crate::entities::{Building, Focus, SpiritId};
 use crate::events::EventKind;
 use crate::metrics::WaitKind;
 use crate::tasks::{Goal, Task};
@@ -26,6 +26,9 @@ pub struct TrainingSupport {
     pub supply: bool,
     /// Support comes before production, instead of after it.
     pub training_first: bool,
+    /// Spirits leave one place free for the player at every bench.
+    #[serde(default)]
+    pub keep_bench_place: bool,
 }
 
 /// How training support stands right now.
@@ -68,7 +71,7 @@ impl World {
 
     /// Whether the player's planks stay at the bench for a hauler to collect.
     pub(crate) fn player_output_at_station(&self) -> bool {
-        self.settlement.training.supply && self.has_role_with(JobKind::Collect)
+        self.settlement.training.supply && self.has_worker_for(JobKind::Collect)
     }
 
     /// Logs on their way to the bench for the player.
@@ -99,10 +102,27 @@ impl World {
         let Some(station) = self.station() else {
             return 0;
         };
-        let buffer = self.defs.building(station.kind).training_buffer;
+        let buffer = self.bench_size(station);
         buffer
             .saturating_sub(self.bench_stock() + self.bench_incoming())
             .min(station.storage.free())
+    }
+
+    /// Logs a bench can hold for the player.
+    fn bench_size(&self, station: &Building) -> u32 {
+        self.defs.building(station.kind).training_buffer + self.settlement.bench_bonus
+    }
+
+    /// Extra stock gatherers should keep while a spirit is dedicated to the
+    /// player's training: a bench's worth, so the next refill is ready.
+    pub(crate) fn training_gather_demand(&self, r: ResourceId) -> u32 {
+        let dedicated = self.settlement.training.supply
+            && r == self.training_input()
+            && self.gatherers().any(|s| s.policy.focus == Focus::Training);
+        match self.station() {
+            Some(b) if dedicated => self.bench_size(b),
+            _ => 0,
+        }
     }
 
     pub(crate) fn training_pickup_ready(&self, sid: SpiritId) -> bool {
@@ -342,9 +362,7 @@ impl World {
         } else {
             format!("{spare} spare {name} available to bring to the bench.")
         };
-        let bench_size = self
-            .station()
-            .map_or(0, |b| self.defs.building(b.kind).training_buffer);
+        let bench_size = self.station().map_or(0, |b| self.bench_size(b));
         TrainingReport {
             area: t.area.map(|s| self.defs.site(s).name.clone()),
             cache: self

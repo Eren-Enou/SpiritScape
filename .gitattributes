@@ -1,3 +1,4 @@
 *.glb binary
 *.bin binary
 *.png binary
+*.save binary

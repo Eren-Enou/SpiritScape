@@ -380,18 +380,8 @@ impl World {
     /// The player approves a building the planner won't start on its own.
     /// It goes up near Main Storage and is built like any other project.
     pub(crate) fn request_building(&mut self, kind: BuildingKindId) -> Result<String, String> {
+        self.check_order(kind)?;
         let def = self.defs.building(kind);
-        let name = def.name.clone();
-        if !def.manual {
-            return Err(format!("A {name} can't be ordered"));
-        }
-        let count = self.buildings.iter().filter(|b| b.kind == kind).count() as u32;
-        if def.max_count.is_some_and(|m| count >= m) {
-            return Err(format!("The settlement can't have more {name}s"));
-        }
-        if self.active_project().is_some() {
-            return Err("Finish the current construction project first".into());
-        }
         let site = if def.training_cache {
             let area = self
                 .settlement
@@ -405,6 +395,52 @@ impl World {
             self.site_near(self.main().pos, 2)
                 .ok_or_else(|| "No room near Main Storage".to_string())?
         };
+        Ok(self.start_order(kind, site))
+    }
+
+    /// The player picks the tile. Workers must be able to reach it, and it
+    /// mustn't cut anything off.
+    pub(crate) fn request_building_at(
+        &mut self,
+        kind: BuildingKindId,
+        site: TilePos,
+    ) -> Result<String, String> {
+        self.check_order(kind)?;
+        let occupied = self.player.actor.pos() == site
+            || self
+                .spirits
+                .iter()
+                .any(|s| s.actor.pos() == site || s.actor.mover.path.iter().any(|p| *p == site));
+        if !self.grid.is_buildable(site)
+            || occupied
+            || self.grid.walkable_neighbors(site).count() < 2
+            || !self.keeps_connectivity(site)
+        {
+            return Err(format!("You can't build at {site}"));
+        }
+        Ok(self.start_order(kind, site))
+    }
+
+    /// Whether a building can be ordered at all right now.
+    fn check_order(&self, kind: BuildingKindId) -> Result<(), String> {
+        let def = self.defs.building(kind);
+        let name = &def.name;
+        if !def.manual {
+            return Err(format!("A {name} can't be ordered"));
+        }
+        let count = self.buildings.iter().filter(|b| b.kind == kind).count() as u32;
+        if def.max_count.is_some_and(|m| count >= m) {
+            return Err(format!("The settlement can't have more {name}s"));
+        }
+        if self.active_project().is_some() {
+            return Err("Finish the current construction project first".into());
+        }
+        Ok(())
+    }
+
+    fn start_order(&mut self, kind: BuildingKindId, site: TilePos) -> String {
+        let def = self.defs.building(kind);
+        let name = def.name.clone();
         let cost: BTreeMap<_, _> = def.cost.iter().copied().collect();
         let msg = format!(
             "Ordered a {name} at {site} (cost {})",
@@ -413,7 +449,7 @@ impl World {
         self.create_project(kind, site, "ordered by the player".into());
         self.events.push(self.tick, EventKind::Player, msg.clone());
         self.update_projects();
-        Ok(msg)
+        msg
     }
 
     /// The closest free tile to `center`, at least `min_distance` from it
@@ -457,7 +493,15 @@ impl World {
             pos: site,
             name: def.name.clone(),
             state: BuildingState::UnderConstruction { project: pid },
-            storage: Storage::new(def.storage_capacity()),
+            storage: Storage::new(
+                def.storage_capacity()
+                    + if def.is_station {
+                        self.settlement.bench_bonus
+                    } else {
+                        0
+                    },
+            ),
+            crafted: 0,
         });
         self.grid.set_occupied(site, true);
         self.projects.push(Project {
@@ -580,7 +624,19 @@ impl World {
         if bonus > 0 {
             msg += &format!(" Main Storage now holds {} (+{bonus}).", storage.capacity);
         }
-        let notice = if bonus > 0 {
+        let bench_bonus = def.training_bonus;
+        let is_station = def.is_station;
+        let notice = if is_station {
+            Some(format!(
+                "{} complete. It's a new place to work, with {} more benches.",
+                def.name, def.slots
+            ))
+        } else if bench_bonus > 0 {
+            Some(format!(
+                "{} complete. The bench can hold {bench_bonus} more logs for your training.",
+                def.name
+            ))
+        } else if bonus > 0 {
             Some(format!(
                 "{} complete. Settlement storage capacity increased to {}.",
                 def.name, storage.capacity
@@ -594,6 +650,14 @@ impl World {
             None
         };
         let gatherers_use_it = def.accepts_gatherer_deposits;
+        if bench_bonus > 0 {
+            self.settlement.bench_bonus += bench_bonus;
+            for b in &mut self.buildings {
+                if self.defs.buildings[b.kind.index()].is_station {
+                    b.storage.capacity += bench_bonus;
+                }
+            }
+        }
         if gatherers_use_it {
             msg += " Gatherers can now deliver here; haulers carry its stock to Main Storage.";
         }

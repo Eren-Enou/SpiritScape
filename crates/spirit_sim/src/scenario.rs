@@ -1,10 +1,10 @@
 //! Starting scenarios (`data/scenarios.toml`). Normal gameplay and the
 //! development demonstration share all rules and differ only in setup.
 
-use crate::defs::{GameDefs, ResourceId};
+use crate::defs::{GameDefs, ResourceId, TreeKindId};
 use crate::entities::{Actor, Building, BuildingState, Player, Tree, TreeState};
 use crate::events::{EventKind, EventLog, Notices};
-use crate::grid::{BUILTIN_MAP, Grid, MapLayout};
+use crate::grid::{BUILTIN_MAP, Grid, MapLayout, TilePos};
 use crate::inventory::Storage;
 use crate::journey::Journey;
 use crate::metrics::SiteStats;
@@ -33,10 +33,18 @@ pub enum ScenarioKind {
     WorkshopAutomated,
     /// The chain supplies planks to a construction project.
     WorkshopConstruction,
+    /// Train toward the top tiers, then sacrifice them into spirits.
+    AdvancedSpecialization,
+    /// More workers than a workshop has places.
+    ProductionBottleneck,
+    /// The same line with a second workshop on order.
+    ExpandedProduction,
+    /// Retrain with spirits and infrastructure behind you.
+    SupportedRetraining,
 }
 
 impl ScenarioKind {
-    pub const ALL: [ScenarioKind; 8] = [
+    pub const ALL: [ScenarioKind; 12] = [
         ScenarioKind::NewGame,
         ScenarioKind::Demo,
         ScenarioKind::Regrind,
@@ -45,6 +53,10 @@ impl ScenarioKind {
         ScenarioKind::WorkshopManual,
         ScenarioKind::WorkshopAutomated,
         ScenarioKind::WorkshopConstruction,
+        ScenarioKind::AdvancedSpecialization,
+        ScenarioKind::ProductionBottleneck,
+        ScenarioKind::ExpandedProduction,
+        ScenarioKind::SupportedRetraining,
     ];
 
     pub fn key(self) -> &'static str {
@@ -57,6 +69,10 @@ impl ScenarioKind {
             ScenarioKind::WorkshopManual => "workshop_manual",
             ScenarioKind::WorkshopAutomated => "workshop_automated",
             ScenarioKind::WorkshopConstruction => "workshop_construction",
+            ScenarioKind::AdvancedSpecialization => "advanced_specialization",
+            ScenarioKind::ProductionBottleneck => "production_bottleneck",
+            ScenarioKind::ExpandedProduction => "expanded_production",
+            ScenarioKind::SupportedRetraining => "supported_retraining",
         }
     }
 
@@ -74,6 +90,9 @@ pub struct SpiritSeed {
     #[serde(default)]
     pub level: Option<u32>,
     pub spawn: String,
+    /// Starts with the instruction to gather the top tier first.
+    #[serde(default)]
+    pub prefer_advanced: bool,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -99,6 +118,39 @@ pub struct ScenarioDef {
     /// Buildings already ordered at start.
     #[serde(default)]
     pub requested_buildings: Vec<String>,
+    /// Stock of each further product to maintain.
+    #[serde(default)]
+    pub extra_targets: BTreeMap<String, u32>,
+}
+
+/// A full-grown tree of `kind`.
+pub(crate) fn new_tree(defs: &GameDefs, kind: TreeKindId, pos: TilePos, id: usize) -> Tree {
+    let def = defs.tree(kind);
+    let site = defs.site_at(pos.x, pos.y);
+    let pct = site.map_or(100, |s| defs.site(s).regrow_pct) as u64;
+    Tree {
+        id,
+        kind,
+        pos,
+        state: TreeState::Grown { logs: def.logs },
+        site,
+        regrow_ticks: (def.regrow_ticks * pct / 100).max(1),
+        claimed_by: None,
+    }
+}
+
+/// Orders for further products: none wanted until the player sets a target.
+pub(crate) fn extra_orders(outputs: &[ResourceId]) -> Vec<ProductionOrder> {
+    outputs
+        .iter()
+        .map(|&output| ProductionOrder {
+            output,
+            target: 0,
+            input_reserve: 0,
+            enabled: true,
+            priority: 0,
+        })
+        .collect()
 }
 
 pub fn load_scenarios(text: &str) -> Result<BTreeMap<String, ScenarioDef>, String> {
@@ -137,18 +189,7 @@ impl World {
         for (&c, positions) in &map.markers {
             for &pos in positions {
                 if let Some(kind) = defs.tree_kind_for_char(c) {
-                    let def = defs.tree(kind);
-                    let site = defs.site_at(pos.x, pos.y);
-                    let pct = site.map_or(100, |s| defs.site(s).regrow_pct) as u64;
-                    trees.push(Tree {
-                        id: 0,
-                        kind,
-                        pos,
-                        state: TreeState::Grown { logs: def.logs },
-                        site,
-                        regrow_ticks: (def.regrow_ticks * pct / 100).max(1),
-                        claimed_by: None,
-                    });
+                    trees.push(new_tree(&defs, kind, pos, 0));
                     grid.set_occupied(pos, true);
                 } else if let Some(kind) = defs.building_kind_for_char(c) {
                     let def = defs.building(kind);
@@ -159,6 +200,7 @@ impl World {
                         name: def.name.clone(),
                         state: BuildingState::Complete,
                         storage: Storage::new(def.storage_capacity()),
+                        crafted: 0,
                     });
                     grid.set_occupied(pos, true);
                 }
@@ -204,7 +246,9 @@ impl World {
             target: scenario.plank_target,
             input_reserve: scenario.log_reserve,
             enabled: true,
+            priority: 0,
         };
+        let defs_orders = defs.production.more_outputs.clone();
         let mut world = World {
             defs,
             tick: 0,
@@ -221,6 +265,8 @@ impl World {
                 site_open,
                 order,
                 training: TrainingSupport::default(),
+                extra_orders: extra_orders(&defs_orders),
+                bench_bonus: 0,
             },
             site_stats,
             output_stats: SiteStats::default(),
@@ -229,6 +275,7 @@ impl World {
             main_storage,
             notices: Notices::default(),
             journey: None,
+            product_stats: BTreeMap::new(),
         };
 
         for (skill, &xp) in &scenario.player_xp {
@@ -258,7 +305,19 @@ impl World {
             let xp = seed
                 .level
                 .map_or(seed.xp, |l| world.defs.xp_table.xp_for_level(l));
-            world.add_spirit(role, xp, pos);
+            let id = world.add_spirit(role, xp, pos);
+            world.spirits[id].policy.prefer_advanced = seed.prefer_advanced;
+        }
+
+        for (key, &target) in &scenario.extra_targets {
+            let id = world
+                .defs
+                .resource_id(key)
+                .ok_or_else(|| format!("unknown resource {key:?}"))?;
+            world
+                .order_for_mut(id)
+                .ok_or_else(|| format!("no order for {key:?}"))?
+                .target = target;
         }
 
         let o = &world.settlement.objective;
