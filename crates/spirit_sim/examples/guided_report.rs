@@ -38,6 +38,14 @@ fn main() {
                     main.total(),
                     main.capacity
                 );
+                let goals = w.ambitions();
+                let done: Vec<&str> = goals
+                    .iter()
+                    .filter(|a| a.done)
+                    .map(|a| a.title.as_str())
+                    .collect();
+                println!("Ambitions met: {} of {}.", done.len(), goals.len());
+                println!("{}", done.join(", "));
                 println!("\n```text\n{}```\n", r.report);
             }
             Err(e) => println!("FAILED: {e}\n"),

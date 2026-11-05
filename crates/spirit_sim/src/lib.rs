@@ -5,6 +5,7 @@
 //! state and submits [`world::Command`]s.
 
 pub mod advice;
+pub mod ambitions;
 pub mod autoplay;
 pub mod behavior;
 pub mod defs;

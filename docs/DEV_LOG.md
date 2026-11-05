@@ -2,6 +2,18 @@
 
 The handoff between development runs. Newest first.
 
+## v0.16 Ambitions
+
+**Status:** on branch `v0.16-long-goals`, with its PR targeting `v0.15-quarrying`. Not merged.
+
+**Shipped:** twelve long-term goals in data, an Ambitions card in the Progress tab, and a settled game pointing at the next goal.
+
+**Measured:** the guided route meets 7 of 12 by about 2:30. No test reaches the level 20 goals.
+
+**Decided:** no rewards, no saved state.
+
+**Next:** the remaining backlog is polish and performance on long saves. All balance so far comes from scripts, so more systems add risk without a playtest. Prefer small fixes: wording that says "trees" for all gathering, and a long-save performance check.
+
 ## v0.15 Quarrying
 
 **Status:** on branch `v0.15-quarrying`, with its PR targeting `v0.14-full-loads`. Not merged.

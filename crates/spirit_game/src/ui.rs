@@ -207,6 +207,7 @@ struct GoalRoot;
 /// A card body and what it shows.
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
 enum Card {
+    Ambitions,
     Header,
     Player,
     Soul,
@@ -685,6 +686,7 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
             });
 
             tab_panel(p, Tab::Progress, |p| {
+                card(p, "AMBITIONS", |c| body(c, Card::Ambitions));
                 card(p, "YOUR SKILLS", |c| body(c, Card::Skills));
                 card(p, "YOUR WORKFORCE", |c| body(c, Card::Workforce));
                 card(p, "SETTLEMENT IMPROVEMENTS", |c| {
@@ -1761,6 +1763,7 @@ fn update_cards(
             Card::ProductionLimit => production_limit_lines(&sim.world),
             Card::ChainTime => chain_time_lines(&sim.world),
             Card::Goal => goal_lines(&sim.world),
+            Card::Ambitions => ambition_lines(&sim.world),
             Card::Menu => menu_lines(&sim),
             Card::Skills => skills_lines(&sim.world),
             Card::Workforce => workforce_lines(&sim.world),
@@ -2378,6 +2381,24 @@ fn goal_lines(w: &World) -> Vec<Line> {
             bar(have as f32 / want.max(1) as f32, XP, 180.0),
             muted(format!("{} / {want} {label}", have.min(want))),
         ]);
+    }
+    lines
+}
+
+/// The next few long-term goals, and how many are behind you.
+fn ambition_lines(w: &World) -> Vec<Line> {
+    let all = w.ambitions();
+    let done = all.iter().filter(|a| a.done).count();
+    let mut lines = vec![vec![muted(format!("{done} of {} done", all.len()))]];
+    for a in all.into_iter().filter(|a| !a.done).take(3) {
+        lines.push(vec![text(a.title)]);
+        lines.push(vec![muted(a.hint)]);
+        if let Some((have, want, label)) = a.progress {
+            lines.push(vec![
+                bar(have as f32 / want.max(1) as f32, XP, 180.0),
+                muted(format!("{} / {want} {label}", have.min(want))),
+            ]);
+        }
     }
     lines
 }

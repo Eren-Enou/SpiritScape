@@ -381,6 +381,8 @@ pub struct JourneyRules {
 
 #[derive(Clone, Debug)]
 pub struct GameDefs {
+    /// Long-term goals, in the order they're suggested.
+    pub ambitions: Vec<crate::ambitions::AmbitionDef>,
     /// The progression profile these definitions were resolved with.
     pub profile: ProfileInfo,
     /// Every profile in the data file.
@@ -419,6 +421,8 @@ struct RawDefs {
     saves: RawSaves,
     progression: RawProgression,
     journey: JourneyRules,
+    #[serde(default)]
+    ambitions: Vec<crate::ambitions::AmbitionDef>,
     resources: Vec<ResourceDef>,
     skills: Vec<SkillDef>,
     tree_types: Vec<RawTreeType>,
@@ -991,7 +995,17 @@ impl GameDefs {
             reject_cooldown_ticks: ticks(p.reject_cooldown_seconds),
         };
 
+        for a in &raw.ambitions {
+            let known_building = |b: &String| buildings.iter().any(|d| d.id == *b);
+            let known_skill = a.skill.iter().all(|s| skills.iter().any(|d| d.id == *s));
+            let known_resource = a.made.iter().all(|r| resources.iter().any(|d| d.id == *r));
+            if !a.built.iter().all(known_building) || !known_skill || !known_resource {
+                return Err(format!("ambition {:?} refers to something unknown", a.id));
+            }
+        }
+
         Ok(GameDefs {
+            ambitions: raw.ambitions,
             profile: ProfileInfo {
                 id: chosen.id,
                 title: chosen.title,
