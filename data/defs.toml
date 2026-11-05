@@ -271,7 +271,7 @@ long_trip_tiles = 16
 long_trip_batches = 4
 # A carrier makes a long trip for at least this share of a full load, unless
 # that's more than is wanted.
-long_trip_load_pct = 50
+long_trip_load_pct = 100
 # Goods this close to a pickup can join the same trip home.
 batch_tiles = 6
 # Haulers choose between carrying jobs by load, distance and urgency.

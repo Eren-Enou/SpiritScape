@@ -278,15 +278,15 @@ fn geography_decides_how_far_the_hauler_walks() {
 }
 
 #[test]
-fn an_outpost_pays_off_once_it_has_its_own_hauler() {
+fn an_outpost_saves_walking_with_one_hauler_or_two() {
     let runs = compare_layouts(20);
     let tiles = |name: &str| runs.iter().find(|r| r.name == name).unwrap().hauler_tiles;
-    // One hauler split between both ends of the map walks further for it.
+    // Full loads home mean even a hauler split between both ends gains.
     assert!(
-        tiles("Remote, one hauler, planks too") > tiles("Central, one hauler, planks too"),
-        "a lone shared hauler favours central production"
+        tiles("Remote, one hauler, planks too") < tiles("Central, one hauler, planks too"),
+        "a lone shared hauler now favours remote production too"
     );
-    // A second one posted there turns that around.
+    // A second one posted there gains more.
     assert!(
         tiles("Remote, two haulers, planks too") < tiles("Central, two haulers, planks too"),
         "a posted hauler favours remote production"
