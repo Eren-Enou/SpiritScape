@@ -2,6 +2,16 @@
 
 The handoff between development runs. Newest first.
 
+## v0.18 Demand and Goals
+
+**Status:** on branch `v0.18-demand-and-goals`, with its PR targeting `v0.17-long-runs`. Not merged.
+
+**Shipped:** orders now ask for what other orders need of them, capped, and playthroughs announce goals once.
+
+**Measured:** earlier reference results match exactly. The long-run speed reading fell from about 25,000 to 19,000 ticks a second, which may be noise.
+
+**Next:** the known gaps are closed. The remaining items need a person: playtests, physical input, frame rate, and art and audio judgement.
+
 ## v0.17 Long Runs
 
 **Status:** on branch `v0.17-long-runs`, with its PR targeting `v0.16-long-goals`. Not merged.

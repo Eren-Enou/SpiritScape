@@ -402,7 +402,24 @@ impl World {
 
     /// The stock an order aims for: its target plus unreserved project needs.
     pub fn goal_of(&self, output: ResourceId) -> u32 {
-        self.order_for(output).map_or(0, |o| o.target) + self.project_demand(output)
+        self.order_for(output).map_or(0, |o| o.target)
+            + self.project_demand(output)
+            + self.demand_from_orders(output)
+    }
+
+    /// What other orders need of `output` as a material, capped like any other
+    /// upstream demand. Recipes can't form a loop, so this always ends.
+    fn demand_from_orders(&self, output: ResourceId) -> u32 {
+        self.orders()
+            .iter()
+            .filter(|o| o.output != output && self.uses_input(o.output, output))
+            .filter_map(|o| {
+                let def = self.defs.recipe(self.recipe_for(o.output)?);
+                let per_batch = def.inputs.iter().find(|i| i.0 == output)?.1;
+                Some(self.deficit_of(o.output).div_ceil(def.output.1) * per_batch)
+            })
+            .sum::<u32>()
+            .min(self.defs.production.upstream_cap)
     }
 
     pub fn production_goal(&self) -> u32 {

@@ -81,6 +81,32 @@ impl World {
             .collect()
     }
 
+    /// Tells a playthrough when a goal is met. The first look only takes note
+    /// of what's already done.
+    pub(crate) fn update_ambitions(&mut self) {
+        if self.journey.is_none() {
+            return;
+        }
+        let done: Vec<(String, String)> = self
+            .defs
+            .ambitions
+            .iter()
+            .filter(|d| self.ambition(d).done)
+            .map(|d| (d.id.clone(), d.title.clone()))
+            .collect();
+        let tick = self.tick;
+        let Some(seen) = &mut self.settlement.ambitions_seen else {
+            self.settlement.ambitions_seen = Some(done.into_iter().map(|d| d.0).collect());
+            return;
+        };
+        for (id, title) in done {
+            if !seen.contains(&id) {
+                seen.push(id);
+                self.notices.push(tick, format!("Ambition met: {title}"));
+            }
+        }
+    }
+
     /// The next goal not yet met.
     pub fn next_ambition(&self) -> Option<Ambition> {
         self.ambitions().into_iter().find(|a| !a.done)

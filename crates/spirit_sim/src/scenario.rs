@@ -352,6 +352,7 @@ impl World {
                 training: TrainingSupport::default(),
                 extra_orders: extra_orders(&defs_orders),
                 carry_bonus: 0,
+                ambitions_seen: None,
                 bench_bonus: 0,
                 queue: Vec::new(),
                 next_queue_id: 0,

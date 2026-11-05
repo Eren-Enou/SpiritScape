@@ -71,6 +71,10 @@ pub struct Settlement {
     /// Orders beyond the main one.
     #[serde(default)]
     pub extra_orders: Vec<ProductionOrder>,
+    /// Long-term goals already announced. None until they've first been read,
+    /// so an older save isn't told everything it's already done.
+    #[serde(default)]
+    pub ambitions_seen: Option<Vec<String>>,
     /// More that every spirit can carry, from what's been built.
     #[serde(default)]
     pub carry_bonus: u32,
@@ -1073,6 +1077,9 @@ impl World {
         self.update_play_log();
         self.update_storage_warning();
         self.update_journey();
+        if self.tick.is_multiple_of(SNAPSHOT_TICKS) {
+            self.update_ambitions();
+        }
     }
 
     pub fn run_ticks(&mut self, n: u64) {

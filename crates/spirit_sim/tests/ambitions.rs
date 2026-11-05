@@ -139,6 +139,45 @@ fn a_resting_quarrying_spirit_does_not_talk_about_logs() {
     assert!(!text.contains("Logs"), "{text}");
 }
 
+#[test]
+fn meeting_a_goal_is_announced_once() {
+    let mut w = World::new_journey("development").unwrap();
+    w.run_ticks(100);
+    let panels = w.defs.resource_id("panels").unwrap();
+    w.ledger.crafted.insert(panels, 20);
+    w.run_ticks(300);
+    let count = |w: &World| {
+        let n = w
+            .notices
+            .iter()
+            .filter(|n| n.text == "Ambition met: Make 20 Fitted Panels");
+        n.count()
+    };
+    assert_eq!(count(&w), 1);
+    w.run_ticks(300);
+    assert_eq!(count(&w), 1);
+}
+
+#[test]
+fn an_older_save_is_not_told_everything_it_has_already_done() {
+    let mut w = World::new_journey("development").unwrap();
+    let panels = w.defs.resource_id("panels").unwrap();
+    w.ledger.crafted.insert(panels, 20);
+    assert!(w.settlement.ambitions_seen.is_none());
+    w.run_ticks(300);
+    assert!(!w.notices.contains("Ambition met"));
+}
+
+#[test]
+fn scenarios_stay_quiet_about_goals() {
+    let mut w = World::from_scenario(ScenarioKind::PlankSurplus);
+    let kind = w.defs.building_kind_id("grove_lane").unwrap();
+    w.apply(Command::QueueBuilding { kind, site: None })
+        .unwrap();
+    w.run_ticks(6000);
+    assert!(!w.notices.contains("Ambition met"));
+}
+
 /// A whole game, so it's release only.
 #[test]
 #[ignore]

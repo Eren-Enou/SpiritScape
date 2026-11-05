@@ -190,6 +190,58 @@ fn spirits_make_panels_to_a_target_without_carrying_planks_to_and_fro() {
     assert!(hauled < 40, "{hauled} trips for 10 panels");
 }
 
+/// The workshop with no planks at all, and logs to make them from.
+fn no_planks() -> World {
+    let mut w = world();
+    let planks = res(&w, "planks");
+    let main = w.main_storage;
+    let had = w.buildings[main].storage.withdraw_available(planks, 200);
+    *w.ledger.seeded.entry(planks).or_default() -= had as u64;
+    stock(&mut w, "logs", 150);
+    w
+}
+
+#[test]
+fn a_panel_plan_makes_the_planks_it_needs() {
+    let mut w = no_planks();
+    stock(&mut w, "beams", 0);
+    plan(&mut w, "carrying_frames").unwrap();
+    assert!(run_until(&mut w, 30000, |w| built(w, "carrying_frames")));
+}
+
+#[test]
+fn asking_for_panels_raises_the_plank_goal_by_a_capped_amount() {
+    let mut w = no_planks();
+    let (planks, panels) = (res(&w, "planks"), res(&w, "panels"));
+    let before = w.goal_of(planks);
+    w.apply(Command::SetOrderTarget {
+        output: panels,
+        target: 5,
+    })
+    .unwrap();
+    assert_eq!(w.goal_of(planks), before + 15);
+    w.apply(Command::SetOrderTarget {
+        output: panels,
+        target: 500,
+    })
+    .unwrap();
+    assert_eq!(w.goal_of(planks), before + w.defs.production.upstream_cap);
+}
+
+#[test]
+fn the_plank_goal_falls_back_when_panels_are_done() {
+    let mut w = no_planks();
+    let (planks, panels) = (res(&w, "planks"), res(&w, "panels"));
+    let before = w.goal_of(planks);
+    w.apply(Command::SetOrderTarget {
+        output: panels,
+        target: 2,
+    })
+    .unwrap();
+    assert!(run_until(&mut w, 20000, |w| w.main().storage.get(panels) >= 2));
+    assert_eq!(w.goal_of(planks), before);
+}
+
 #[test]
 fn a_plan_says_who_is_making_panels() {
     let mut w = world();
