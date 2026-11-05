@@ -355,6 +355,16 @@ spirits = [
     { role = "builder", xp = 388, spawn = "B" },
 ]
 
+[caravan_yard]
+title = "Caravan yard"
+description = "Logs and panels are piling up. Plan a Trade Caravan in the Projects tab (B) and watch it take them away."
+objective_target = 20
+auto_gather = true
+main_storage = { logs = 240, panels = 45 }
+spirits = [
+    { role = "builder", xp = 388, spawn = "B" },
+]
+
 [full_map]
 title = "Full map"
 description = "Everything is built: every road and both crossings, with a remote bench running. Walk around, and see how it all fits together."

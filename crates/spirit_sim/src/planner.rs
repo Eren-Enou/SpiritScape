@@ -713,12 +713,18 @@ impl World {
         let opens = def.opens.clone();
         let paves = def.paves.clone();
         let carry_bonus = def.carry_bonus;
+        let repeatable = def.repeatable;
+        let building = p.building;
         let slot_bonus = def.slot_bonus;
         let site = p.site;
         let benefit = def.benefit.clone();
         let name = def.name.clone();
-        let notice = if !opens.is_empty() || !paves.is_empty() || slot_bonus > 0 || carry_bonus > 0
-        {
+        let notice = if repeatable {
+            Some(format!(
+                "{name} sent. That's {} so far.",
+                self.settlement.caravans + 1
+            ))
+        } else if !opens.is_empty() || !paves.is_empty() || slot_bonus > 0 || carry_bonus > 0 {
             Some(format!("{name} complete. {benefit}"))
         } else if is_station {
             Some(format!(
@@ -746,6 +752,12 @@ impl World {
         let gatherers_use_it = def.accepts_gatherer_deposits;
         for [x, y] in opens {
             self.grid.open_crossing(TilePos::new(x, y));
+        }
+        if repeatable {
+            // It's gone, and the place it was loaded is free again.
+            self.settlement.caravans += 1;
+            self.grid.set_occupied(site, false);
+            self.buildings[building].state = BuildingState::Removed;
         }
         if carry_bonus > 0 {
             self.settlement.carry_bonus += carry_bonus;

@@ -11,7 +11,7 @@ git fetch origin
 ```
 
 ```bash
-git checkout v0.20-playtest-ready
+git checkout v0.21-trade-caravans
 ```
 
 Press `F6` at any time to write a report of your session. Note the time whenever something surprises you.
@@ -83,6 +83,14 @@ cargo run --release -- --scenario full_map --fps
 - [ ] Does it look like one settlement?
 - [ ] Does a hauler waiting for a full load look sensible, or stuck?
 - [ ] Is it smooth on your machine?
+
+## 7. Trade Caravans (5 minutes)
+
+```bash
+cargo run --release -- --scenario caravan_yard
+```
+
+- [ ] Did a caravan feel like a choice, or a chore?
 
 ## Four decisions only you can make
 

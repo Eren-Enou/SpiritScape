@@ -1,0 +1,13 @@
+# UI test of sending a Trade Caravan:
+#   cargo run --release -- --scenario caravan_yard --save-dir target/ui_saves21 --script scripts/ui_caravan.txt --capture target/ui_caravan
+1.5 key B
+2.0 press Plan Trade Caravan*
+2.4 expect Trade Caravan added to the plan
+2.5 shot 01_planned
+2.7 press 8x
+16.0 press 1x
+16.2 expect Trade Caravan sent
+16.3 shot 02_sent
+16.5 press Plan Trade Caravan*
+16.9 expect Trade Caravan added to the plan
+17.0 exit

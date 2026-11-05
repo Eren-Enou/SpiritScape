@@ -126,6 +126,12 @@ hint = "Plan one in Projects (B). It holds twice what a Storehouse does."
 built = ["panelled_warehouse"]
 
 [[ambitions]]
+id = "caravans"
+title = "Send 5 Trade Caravans"
+hint = "Plan a Trade Caravan in Projects (B) whenever goods are piling up."
+caravans = 5
+
+[[ambitions]]
 id = "master_wood"
 title = "Master Woodworking"
 hint = "Reach Woodworking level 20. It counts even if you give the XP to a spirit later."
@@ -825,6 +831,26 @@ build_seconds_per_level = 0.5
 min_build_seconds = 15.0
 color = [0.62, 0.62, 0.66]
 benefit = "A way over the river straight to the Distant Forest, without going round by the bridge."
+
+# The one thing that uses goods without end. It's loaded up beside Main
+# Storage like any project, then it leaves and the place is free again.
+[[buildings]]
+id = "trade_caravan"
+name = "Trade Caravan"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+repeatable = true
+scales_goods = true
+cost = [
+    { resource = "logs", amount = 200 },
+    { resource = "panels", amount = 20 },
+]
+build_seconds = 10.0
+build_seconds_per_level = 0.5
+min_build_seconds = 5.0
+color = [0.70, 0.52, 0.34]
+benefit = "Sends surplus logs and panels away to trade, which makes room and adds to your settlement's renown."
 
 [objective]
 # "Maintain <target> <resource> in the main settlement storage."

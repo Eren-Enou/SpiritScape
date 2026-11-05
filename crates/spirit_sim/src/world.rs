@@ -74,6 +74,9 @@ pub struct Settlement {
     /// Orders beyond the main one.
     #[serde(default)]
     pub extra_orders: Vec<ProductionOrder>,
+    /// Trade Caravans sent so far.
+    #[serde(default)]
+    pub caravans: u32,
     /// Long-term goals already announced. None until they've first been read,
     /// so an older save isn't told everything it's already done.
     #[serde(default)]
