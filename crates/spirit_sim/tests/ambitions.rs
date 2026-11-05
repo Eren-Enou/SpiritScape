@@ -13,7 +13,7 @@ fn done(w: &World, title: &str) -> bool {
 #[test]
 fn a_new_game_has_every_goal_ahead_of_it() {
     let w = World::new_journey("normal").unwrap();
-    assert_eq!(w.ambitions().len(), 16);
+    assert_eq!(w.ambitions().len(), 17);
     assert!(w.ambitions().iter().all(|a| !a.done));
     assert_eq!(w.next_ambition().unwrap().title, "Set up at Old Growth");
 }

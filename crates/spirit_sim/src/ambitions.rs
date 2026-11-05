@@ -27,6 +27,9 @@ pub struct AmbitionDef {
     /// Trade Caravans to have sent.
     #[serde(default)]
     pub caravans: u32,
+    /// Old stones to have read.
+    #[serde(default)]
+    pub markers: u32,
 }
 
 /// How a goal stands.
@@ -66,6 +69,11 @@ impl World {
             done &= have >= def.amount as u64;
             let name = self.defs.resource(r).name.clone();
             progress = Some((have, def.amount as u64, name));
+        }
+        if def.markers > 0 {
+            let read = self.settlement.markers_read.len() as u32;
+            done &= read >= def.markers;
+            progress = Some((read as u64, def.markers as u64, "read".to_string()));
         }
         if def.caravans > 0 {
             let sent = self.settlement.caravans;

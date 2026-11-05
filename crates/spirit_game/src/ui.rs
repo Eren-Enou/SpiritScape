@@ -209,6 +209,7 @@ struct GoalRoot;
 /// A card body and what it shows.
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
 enum Card {
+    Markers,
     Ending,
     Ambitions,
     SpiritStory,
@@ -700,6 +701,7 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
             tab_panel(p, Tab::Progress, |p| {
                 card(p, "YOUR STORY", |c| body(c, Card::Ending));
                 card(p, "AMBITIONS", |c| body(c, Card::Ambitions));
+                card(p, "THE OLD STONES", |c| body(c, Card::Markers));
                 card(p, "YOUR SKILLS", |c| body(c, Card::Skills));
                 card(p, "YOUR WORKFORCE", |c| body(c, Card::Workforce));
                 card(p, "SETTLEMENT IMPROVEMENTS", |c| {
@@ -1785,6 +1787,7 @@ fn update_cards(
             Card::ProductionLimit => production_limit_lines(&sim.world),
             Card::ChainTime => chain_time_lines(&sim.world),
             Card::Goal => goal_lines(&sim.world),
+            Card::Markers => marker_lines(&sim.world),
             Card::Ending => ending_lines(&sim.world),
             Card::Ambitions => ambition_lines(&sim.world),
             Card::SpiritStory => story_lines(&sim),
@@ -2410,6 +2413,22 @@ fn goal_lines(w: &World) -> Vec<Line> {
             bar(have as f32 / want.max(1) as f32, XP, 180.0),
             muted(format!("{} / {want} {label}", have.min(want))),
         ]);
+    }
+    lines
+}
+
+/// The old stones read so far.
+fn marker_lines(w: &World) -> Vec<Line> {
+    let read = w.markers_read();
+    if read.is_empty() {
+        return vec![vec![muted(
+            "Nothing found yet. Walk up to any tall stone you see.",
+        )]];
+    }
+    let mut lines = Vec::new();
+    for (title, words) in read {
+        lines.push(vec![text(title)]);
+        lines.push(vec![muted(words)]);
     }
     lines
 }

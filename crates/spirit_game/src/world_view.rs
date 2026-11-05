@@ -323,6 +323,24 @@ fn rebuild_on_restart(
         }
     }
 
+    // Plain rocks are everywhere, so these have to stand out from far off.
+    let stone = meshes.add(Cuboid::new(0.34, 1.7, 0.34));
+    let glow = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.86, 0.84, 0.72),
+        emissive: LinearRgba::rgb(0.55, 0.50, 0.28),
+        ..default()
+    });
+    for m in &w.defs.markers {
+        let at = tile_world(m.at[0] as f32, m.at[1] as f32);
+        commands.spawn((
+            WorldEntity,
+            Mesh3d(stone.clone()),
+            MeshMaterial3d(glow.clone()),
+            Transform::from_translation(at + Vec3::Y * 0.85)
+                .with_rotation(Quat::from_rotation_z(0.08)),
+        ));
+    }
+
     for i in 0..w.defs.sites.len() {
         spawn_site_banner(&mut commands, i);
     }

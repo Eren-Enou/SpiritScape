@@ -2,6 +2,14 @@
 
 The handoff between development runs. Newest first.
 
+## v0.26 The Old Stones
+
+**Status:** on branch `v0.26-old-markers`, with its PR targeting `v0.25-the-long-work`. Not merged.
+
+**Shipped:** six stones with a story, a card to keep them, a changed ending, and a 17th goal.
+
+**Next:** seasons or events, onboarding, then sound and visual feedback. Check that stones stand out on screen.
+
 ## v0.25 The Hearth
 
 **Status:** on branch `v0.25-the-long-work`, with its PR targeting `v0.24-masonry`. Not merged.

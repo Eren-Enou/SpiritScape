@@ -393,6 +393,8 @@ pub struct JourneyRules {
 pub struct GameDefs {
     /// Long-term goals, in the order they're suggested.
     pub ambitions: Vec<crate::ambitions::AmbitionDef>,
+    /// Old stones to find around the map.
+    pub markers: Vec<crate::stories::MarkerDef>,
     /// What spirits made by Soul Separation can be like.
     pub traits: Vec<crate::stories::TraitDef>,
     /// Milestones in a spirit's working life.
@@ -437,6 +439,8 @@ struct RawDefs {
     journey: JourneyRules,
     #[serde(default)]
     ambitions: Vec<crate::ambitions::AmbitionDef>,
+    #[serde(default)]
+    markers: Vec<crate::stories::MarkerDef>,
     #[serde(default)]
     traits: Vec<crate::stories::TraitDef>,
     #[serde(default)]
@@ -1053,6 +1057,7 @@ impl GameDefs {
 
         Ok(GameDefs {
             ambitions: raw.ambitions,
+            markers: raw.markers,
             traits: raw.traits,
             deeds: raw.deeds,
             profile: ProfileInfo {
