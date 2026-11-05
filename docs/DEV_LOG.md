@@ -2,6 +2,18 @@
 
 The handoff between development runs. Newest first.
 
+## v0.14 Full Loads
+
+**Status:** on branch `v0.14-full-loads`, with its PR targeting `v0.13-stranded-rescue`. Not merged.
+
+**Shipped:** one data change. Long trips now wait for a full load, not half.
+
+**Measured:** remote walks about half what central does for the same beams (454 tiles against 902), and now wins with a lone shared hauler too. First beams arrive about 50 seconds later.
+
+**Decided:** remote's purpose is saving hauler time, and that's now large enough to matter. I built and removed a rule letting bench workers fetch their own materials, because it did worse. See `docs/V0.14_FULL_LOADS.md`.
+
+**Next:** physical input, then the first new skill or resource chain.
+
 ## v0.13 Stranded Rescue
 
 **Status:** on branch `v0.13-stranded-rescue`, with its PR targeting `v0.12-guided-player`. Not merged.
