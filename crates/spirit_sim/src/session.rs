@@ -282,9 +282,9 @@ impl World {
     pub(crate) fn set_auto_gather(&mut self, on: bool) -> String {
         self.player.auto_gather = on;
         let msg = if on {
-            "When a tree is finished you'll move on to another nearby"
+            "When one is finished you'll move on to another nearby"
         } else {
-            "When a tree is finished you'll stop and wait for your next click"
+            "When one is finished you'll stop and wait for your next click"
         };
         self.events.push(self.tick, EventKind::Player, msg);
         msg.into()
@@ -440,7 +440,7 @@ impl World {
             }
             NextTree::WaitUntil(at) => {
                 let secs = (at - self.tick).div_ceil(tps);
-                self.player.activity = format!("Waiting for trees to regrow ({secs}s)");
+                self.player.activity = format!("Waiting for it to recover ({secs}s)");
                 let tick = self.tick;
                 if let Some(s) = &mut self.player.session {
                     s.waiting_since.get_or_insert(tick);

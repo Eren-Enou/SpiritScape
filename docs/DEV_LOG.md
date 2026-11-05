@@ -2,6 +2,16 @@
 
 The handoff between development runs. Newest first.
 
+## v0.17 Long Runs
+
+**Status:** on branch `v0.17-long-runs`, with its PR targeting `v0.16-long-goals`. Not merged.
+
+**Shipped:** the `long_run_report` example and a wording cleanup for gathering.
+
+**Measured:** 24 more game hours left speed flat at about 25,000 ticks a second and the save flat at 90 KB. Frame rate isn't measured.
+
+**Next:** the backlog is nearly done, and what's left needs a person: playtests, physical input and art judgement. Stop adding systems until there's playtest feedback.
+
 ## v0.16 Ambitions
 
 **Status:** on branch `v0.16-long-goals`, with its PR targeting `v0.15-quarrying`. Not merged.

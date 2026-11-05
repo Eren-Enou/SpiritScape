@@ -170,6 +170,12 @@ Quarrying adds `--scenario quarry_start`. See [docs/V0.15_QUARRYING.md](docs/V0.
 cargo run -p spirit_sim --release --example quarry_report
 ```
 
+To check that a game stays fast over many hours, see [docs/V0.17_LONG_RUNS.md](docs/V0.17_LONG_RUNS.md).
+
+```bash
+cargo run -p spirit_sim --release --example long_run_report
+```
+
 To check that the game's own messages are enough, see [docs/V0.12_GUIDED_PLAYER.md](docs/V0.12_GUIDED_PLAYER.md).
 
 ```bash
