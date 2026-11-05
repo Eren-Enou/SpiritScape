@@ -114,7 +114,12 @@ impl World {
                     let name = &self.defs.building(p.kind).name;
                     p.blocked.as_ref().map(|b| format!("{name}: {b}"))
                 })
-                .or_else(|| wanted.iter().find(|o| o.stalled).map(|o| o.status.clone()))
+                .or_else(|| {
+                    // Before there's a spirit to do it, nothing is wrong.
+                    let staffed = self.crafters().next().is_some();
+                    let stalled = wanted.iter().find(|o| staffed && o.stalled);
+                    stalled.map(|o| o.status.clone())
+                })
                 .or_else(|| {
                     self.spirits
                         .iter()

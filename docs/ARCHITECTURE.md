@@ -125,3 +125,11 @@ that adds XP to a spirit.
 - Does the player want to direct the planner (approve or veto sites, choose placement) or just watch it?
 - Is the gather → deliver → idle rhythm readable from the map (paths, claimed-tree rings) without reading the panel?
 - What's the next problem to solve autonomously after field storage (for example roads, a second gatherer type, or storage full)?
+
+## Player sessions (v0.7)
+
+`session.rs` holds the player's continuous activities. A session decides what to do when the current task finishes, and every step is an ordinary task, so XP, resources and conservation follow the same code as a click. `update_session` runs last in a tick, so a level just earned already counts.
+
+A session stores ids, not a plan, and lives on `Player`, so it saves with everything else and a loaded game continues on the same tick. `advice.rs` holds read-only summaries: the settlement glance, storage advice and the play report. The only thing it changes is the flag that keeps the storage notice to once.
+
+`autoplay::play_full_session` drives the whole path through commands, and `examples/session_report.rs` prints it. See [V0.7_GAMEPLAY.md](V0.7_GAMEPLAY.md).

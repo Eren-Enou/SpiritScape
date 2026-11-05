@@ -67,7 +67,7 @@ impl TrainingMode {
                 "Spirits bring logs and take planks away when production can spare them. Fewest clicks, but you often wait, so less XP each minute."
             }
             TrainingMode::Optimized => {
-                "Spirits serve your training first, so production slows. Fastest and least clicking once the things below are in place."
+                "Spirits serve your training first, so production slows. Fastest of all once everything below is in place, and slower than Relaxed until it is."
             }
         }
     }

@@ -39,6 +39,10 @@ pub struct Bot {
     pub actions: u32,
     /// Trips ended at a storage to unload or fetch.
     pub storage_trips: u32,
+    /// Acts on the game's advice when storage runs short.
+    pub heeds_storage_advice: bool,
+    /// Tick of the last time it acted on that advice.
+    last_relief: u64,
 }
 
 impl Bot {
@@ -50,6 +54,8 @@ impl Bot {
             next_action: 0,
             actions: 0,
             storage_trips: 0,
+            heeds_storage_advice: false,
+            last_relief: 0,
         }
     }
 
@@ -83,11 +89,40 @@ impl Bot {
         }
     }
 
+    /// Does what the storage advice says: orders more room when it can, and
+    /// gives spirits more reason to use up logs. A person would do this from
+    /// the Production tab.
+    fn relieve_storage(&mut self, w: &mut World) {
+        let tps = w.defs.ticks_per_second as u64;
+        if w.storage_advice().is_none() || w.tick < self.last_relief + 60 * tps {
+            return;
+        }
+        self.last_relief = w.tick;
+        let target = w.settlement.order.target + 40;
+        self.click(w, Command::SetProductionTarget(target));
+        let room = w.defs.buildings.iter().position(|b| b.capacity_bonus > 0);
+        if let Some(i) = room {
+            let kind = BuildingKindId(i as u16);
+            let def = w.defs.building(kind);
+            let main = &w.main().storage;
+            if def.cost.iter().all(|(r, n)| main.available(*r) >= *n) {
+                self.click(w, Command::RequestBuilding(kind));
+            }
+        }
+    }
+
     fn chop_step(&mut self, w: &mut World) {
+        if self.heeds_storage_advice {
+            self.relieve_storage(w);
+        }
         let bag = &w.player.actor.inventory;
         let spot = self.nearest_tree(w);
         let empty_handed = bag.total() == 0;
-        if bag.is_full() || spot.is_none() && !empty_handed {
+        let tps = w.defs.ticks_per_second as u64;
+        if bag.is_full() && w.main().storage.free() == 0 {
+            // Nothing to do but wait for room; a person wouldn't keep clicking.
+            self.next_action = w.tick + 10 * tps;
+        } else if bag.is_full() || spot.is_none() && !empty_handed {
             let target = self.drop_off(w);
             self.storage_trips += 1;
             self.click(w, Command::PlayerInteract(target));
@@ -496,6 +531,10 @@ pub struct FullSession {
     pub first_cycle: PacingReport,
     /// Sawing the same XP back each way, from the same moment.
     pub modes: Vec<(TrainingMode, Stretch)>,
+    /// Optimized again, after building what its checklist asks for.
+    pub invested: Stretch,
+    /// Minutes of play it took to build that up.
+    pub invest_seconds: u64,
     /// How far Woodcutting got toward the Ironwood level, and that level's XP.
     pub advanced_xp: (u64, u64),
     /// A save and load mid-session changed nothing.
@@ -528,8 +567,30 @@ pub fn play_full_session(
         modes.push((mode, measure(trial, &bot, goal, hour)));
     }
 
+    // The same again with the investment Optimized asks for: a Log Rack and a
+    // standing stock, built while the player keeps chopping.
+    let mut built = w.clone();
+    let mut setup = bot.clone();
+    built.apply(Command::SetTrainingMode(TrainingMode::Optimized))?;
+    let rack = built
+        .defs
+        .building_kind_id("log_rack")
+        .ok_or("no log rack")?;
+    let started = built.tick;
+    setup.chop_until(&mut built, hour, |w| w.active_project().is_none());
+    build_all(&mut built, &mut setup, rack, 1, hour);
+    built.apply(Command::SetObjectiveTarget(240))?;
+    setup.chop_until(&mut built, hour, |w| {
+        w.training_plan().checks.iter().all(|(_, done)| *done)
+    });
+    setup.stop(&mut built);
+    let invest_seconds = (built.tick - started) / tps;
+    let goal = Goal::SawTo(built.player.xp(setup.ww) + xp);
+    let invested = measure(built, &setup, goal, hour);
+
     // Training on, while the settlement looks after itself.
     let _ = w.apply(Command::SetTrainingMode(TrainingMode::Relaxed));
+    bot.heeds_storage_advice = true;
     let remaining = (minutes * 60 * tps).saturating_sub(w.tick);
     bot.chop_until(&mut w, remaining, |_| false);
     let ironwood = w.defs.tree_tiers(bot.wc).last().copied();
@@ -537,7 +598,7 @@ pub fn play_full_session(
     let advanced_xp = (w.player.xp(bot.wc), w.defs.xp_table.xp_for_level(level));
 
     // Save in the middle of a session and carry on in both worlds.
-    bot.chop_until(&mut w, hour, |w| {
+    bot.chop_until(&mut w, 600 * tps, |w| {
         w.player.session.is_some() && !w.player.actor.queue.is_empty()
     });
     let text = crate::save::encode(&w, "new_game");
@@ -551,6 +612,8 @@ pub fn play_full_session(
         auto_gather,
         first_cycle,
         modes,
+        invested,
+        invest_seconds,
         advanced_xp,
         resumed_exactly,
         report: w.play_report(),

@@ -98,7 +98,10 @@ fn one_click_chops_until_the_bag_is_full() {
     let bag = &w.player.actor.inventory;
     assert!(bag.is_full(), "it stopped early");
     assert_eq!(end_of(&w), SessionEnd::BagFull);
-    assert_eq!(w.player.log.gather_interactions, 1, "one click did all that");
+    assert_eq!(
+        w.player.log.gather_interactions, 1,
+        "one click did all that"
+    );
     let cut = w.trees.iter().filter(|t| !t.is_grown()).count();
     assert!(cut >= 2, "it moved between trees");
     assert!(w.player.activity.contains("bag is full"));
@@ -143,7 +146,10 @@ fn it_prefers_the_kind_clicked_and_falls_back_to_the_same_material() {
             || w.trees.iter().any(|t| t.kind == basic && !t.is_grown())
     });
     assert!(
-        w.trees.iter().filter(|t| t.kind == basic).all(|t| t.is_grown()),
+        w.trees
+            .iter()
+            .filter(|t| t.kind == basic)
+            .all(|t| t.is_grown()),
         "it left Oak for a Tree while Oak was standing"
     );
 }
@@ -175,7 +181,9 @@ fn it_stays_inside_the_site_and_never_crosses_the_map() {
     // Nothing regrows in time, and the forest over the river is full of trees.
     for t in &mut w.trees {
         if t.site == Some(site) {
-            t.state = TreeState::Depleted { regrow_at: 1_000_000 };
+            t.state = TreeState::Depleted {
+                regrow_at: 1_000_000,
+            };
         }
     }
     let first = w.trees.iter().position(|t| t.site == Some(site)).unwrap();
@@ -185,7 +193,11 @@ fn it_stays_inside_the_site_and_never_crosses_the_map() {
     click(&mut w, pos);
     assert!(run_until(&mut w, 600, |w| w.player.session.is_none()));
     assert_eq!(end_of(&w), SessionEnd::NoTargets);
-    assert!(w.player.activity.contains("another site"), "{}", w.player.activity);
+    assert!(
+        w.player.activity.contains("another site"),
+        "{}",
+        w.player.activity
+    );
     assert!(pos.is_adjacent(w.player.actor.pos()), "it wandered off");
 }
 
@@ -239,7 +251,9 @@ fn a_tree_finished_by_a_spirit_does_not_end_the_session() {
     click(&mut w, pos);
     run_until(&mut w, 400, chopping);
     let id = w.tree_at(pos).unwrap().id;
-    w.trees[id].state = TreeState::Depleted { regrow_at: w.tick + 600 };
+    w.trees[id].state = TreeState::Depleted {
+        regrow_at: w.tick + 600,
+    };
     w.run_ticks(3);
     assert!(w.player.session.is_some());
     assert!(run_until(&mut w, 300, chopping));
@@ -264,7 +278,10 @@ fn moving_stops_the_session_at_once() {
     click_tree(&mut w, "tree");
     run_until(&mut w, 400, chopping);
     w.run_ticks(5);
-    let dx = if w.grid.is_walkable(TilePos::new(w.player.actor.pos().x + 1, w.player.actor.pos().y)) {
+    let dx = if w.grid.is_walkable(TilePos::new(
+        w.player.actor.pos().x + 1,
+        w.player.actor.pos().y,
+    )) {
         1
     } else {
         -1
@@ -383,7 +400,9 @@ fn automatic_choice_still_makes_the_best_recipe() {
 fn a_recipe_above_the_players_level_is_refused() {
     let mut w = World::from_scenario(ScenarioKind::WorkshopManual);
     let precise = recipe(&w, "precise_planks");
-    let err = w.apply(Command::SetPlayerRecipe(Some(precise))).unwrap_err();
+    let err = w
+        .apply(Command::SetPlayerRecipe(Some(precise)))
+        .unwrap_err();
     assert!(err.contains("level 5"), "{err}");
     assert_eq!(w.player.recipe, None);
 }
@@ -401,8 +420,16 @@ fn repeated_work_ends_when_the_materials_run_out_and_says_why() {
     assert!(run_until(&mut w, 2000, |w| w.player.session.is_none()));
     assert_eq!(w.player.log.workshop_interactions, 1);
     assert_eq!(end_of(&w), SessionEnd::Blocked);
-    assert!(w.player.activity.contains("You need 3 Logs"), "{}", w.player.activity);
-    assert!(w.player.activity.contains("you have 1"), "{}", w.player.activity);
+    assert!(
+        w.player.activity.contains("You need 3 Logs"),
+        "{}",
+        w.player.activity
+    );
+    assert!(
+        w.player.activity.contains("you have 1"),
+        "{}",
+        w.player.activity
+    );
     // 28 logs is 9 batches, with 1 log left.
     assert_eq!(w.ledger.batches.get(&precise), Some(&9));
     assert_eq!(w.player.xp(ww) - before, 9 * w.defs.recipe(precise).xp);
@@ -496,7 +523,11 @@ fn moving_away_from_the_bench_stops_work_and_costs_nothing() {
     w.apply(Command::PlayerStep { dx, dy }).unwrap();
     assert!(w.player.session.is_none());
     w.run_ticks(40);
-    assert_eq!(w.player.actor.inventory.get(logs), held, "no batch finished");
+    assert_eq!(
+        w.player.actor.inventory.get(logs),
+        held,
+        "no batch finished"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -519,7 +550,11 @@ fn losing_a_chosen_recipe_stops_work_and_says_why() {
     w.soul_separate(ww, xp).unwrap();
     assert!(run_until(&mut w, 60, |w| w.player.session.is_none()));
     assert_eq!(end_of(&w), SessionEnd::Blocked);
-    assert!(w.player.activity.contains("level 5"), "{}", w.player.activity);
+    assert!(
+        w.player.activity.contains("level 5"),
+        "{}",
+        w.player.activity
+    );
     assert_eq!(w.player.xp(ww), 0, "no XP after the sacrifice");
 }
 
@@ -542,8 +577,16 @@ fn losing_a_tier_is_announced_with_what_the_spirit_keeps() {
     let wc = w.defs.skill_id("woodcutting").unwrap();
     w.soul_separate(wc, 388).unwrap();
     let n = w.notices.recent(1).next().unwrap();
-    assert!(n.text.contains("Your Woodcutting Spirit can cut"), "{}", n.text);
-    assert!(n.text.contains("can't cut Oak until Woodcutting level 5"), "{}", n.text);
+    assert!(
+        n.text.contains("Your Woodcutting Spirit can cut"),
+        "{}",
+        n.text
+    );
+    assert!(
+        n.text.contains("can't cut Oak until Woodcutting level 5"),
+        "{}",
+        n.text
+    );
     assert!(n.text.contains("for good"), "{}", n.text);
 }
 
@@ -554,7 +597,11 @@ fn a_new_tier_says_where_what_and_why() {
     run_until(&mut w, 800, |w| {
         w.notices.contains("Oak trees are now available")
     });
-    let n = w.notices.iter().find(|n| n.text.contains("Oak trees")).unwrap();
+    let n = w
+        .notices
+        .iter()
+        .find(|n| n.text.contains("Oak trees"))
+        .unwrap();
     assert!(n.text.contains("Starting Grove"), "{}", n.text);
     assert!(n.text.contains("30 XP"), "{}", n.text);
     assert!(n.text.contains("Twice the XP"), "{}", n.text);
@@ -568,15 +615,21 @@ fn a_new_tier_says_where_what_and_why() {
 fn the_three_modes_set_and_read_back() {
     let mut w = World::from_scenario(ScenarioKind::SupportedRetraining);
     assert_eq!(w.training_mode(), TrainingMode::Manual);
-    w.apply(Command::SetTrainingMode(TrainingMode::Relaxed)).unwrap();
+    w.apply(Command::SetTrainingMode(TrainingMode::Relaxed))
+        .unwrap();
     assert_eq!(w.training_mode(), TrainingMode::Relaxed);
     assert!(w.settlement.training.supply && w.settlement.training.collect);
     assert!(w.spirits.iter().all(|s| s.policy.focus != Focus::Training));
-    w.apply(Command::SetTrainingMode(TrainingMode::Optimized)).unwrap();
+    w.apply(Command::SetTrainingMode(TrainingMode::Optimized))
+        .unwrap();
     assert_eq!(w.training_mode(), TrainingMode::Optimized);
-    let serving = w.spirits.iter().filter(|s| s.policy.focus == Focus::Training);
+    let serving = w
+        .spirits
+        .iter()
+        .filter(|s| s.policy.focus == Focus::Training);
     assert_eq!(serving.count(), 2, "one hauler and one gatherer");
-    w.apply(Command::SetTrainingMode(TrainingMode::Manual)).unwrap();
+    w.apply(Command::SetTrainingMode(TrainingMode::Manual))
+        .unwrap();
     assert_eq!(w.training_mode(), TrainingMode::Manual);
     assert!(w.spirits.iter().all(|s| s.policy.focus == Focus::Anything));
 }
@@ -584,7 +637,8 @@ fn the_three_modes_set_and_read_back() {
 #[test]
 fn the_bench_session_waits_for_spirits_with_one_click() {
     let mut w = World::from_scenario(ScenarioKind::SupportedRetraining);
-    w.apply(Command::SetTrainingMode(TrainingMode::Relaxed)).unwrap();
+    w.apply(Command::SetTrainingMode(TrainingMode::Relaxed))
+        .unwrap();
     let ww = w.defs.skill_id("woodworking").unwrap();
     w.apply(Command::SetProductionEnabled(false)).unwrap();
     w.apply(Command::SetInputReserve(10_000)).unwrap();
@@ -606,22 +660,33 @@ fn the_bench_session_waits_for_spirits_with_one_click() {
 #[test]
 fn a_waiting_player_keeps_their_place_at_the_bench() {
     let mut w = World::from_scenario(ScenarioKind::SupportedRetraining);
-    w.apply(Command::SetTrainingMode(TrainingMode::Relaxed)).unwrap();
+    w.apply(Command::SetTrainingMode(TrainingMode::Relaxed))
+        .unwrap();
     w.apply(Command::SetInputReserve(10_000)).unwrap();
     let at = bench(&w);
     click(&mut w, at);
     assert!(run_until(&mut w, 200, waiting));
     let id = w.station().unwrap().id;
     assert!(w.slots_used(id) >= 1);
-    assert!(w.spirits.iter().filter(|s| {
-        s.actor.queue.iter().any(|t| matches!(t, Task::Craft { building, .. } if *building == id))
-    }).count() < 2);
+    assert!(
+        w.spirits
+            .iter()
+            .filter(|s| {
+                s.actor
+                    .queue
+                    .iter()
+                    .any(|t| matches!(t, Task::Craft { building, .. } if *building == id))
+            })
+            .count()
+            < 2
+    );
 }
 
 #[test]
 fn waiting_ends_with_the_reason_when_nothing_comes() {
     let mut w = World::from_scenario(ScenarioKind::SupportedRetraining);
-    w.apply(Command::SetTrainingMode(TrainingMode::Relaxed)).unwrap();
+    w.apply(Command::SetTrainingMode(TrainingMode::Relaxed))
+        .unwrap();
     // Nothing can be spared: the reserve covers every log in storage.
     w.apply(Command::SetInputReserve(10_000)).unwrap();
     w.defs.player.craft_wait_ticks = 50;
@@ -629,15 +694,24 @@ fn waiting_ends_with_the_reason_when_nothing_comes() {
     click(&mut w, at);
     assert!(run_until(&mut w, 400, |w| w.player.session.is_none()));
     assert_eq!(end_of(&w), SessionEnd::Blocked);
-    assert!(w.player.activity.contains("Nothing arrived"), "{}", w.player.activity);
-    assert!(w.player.activity.contains("reserve"), "{}", w.player.activity);
+    assert!(
+        w.player.activity.contains("Nothing arrived"),
+        "{}",
+        w.player.activity
+    );
+    assert!(
+        w.player.activity.contains("reserve"),
+        "{}",
+        w.player.activity
+    );
 }
 
 #[test]
 fn the_plan_names_what_limits_training() {
     let mut w = World::from_scenario(ScenarioKind::SupportedRetraining);
     assert!(w.training_plan().limit.contains("carrying everything"));
-    w.apply(Command::SetTrainingMode(TrainingMode::Relaxed)).unwrap();
+    w.apply(Command::SetTrainingMode(TrainingMode::Relaxed))
+        .unwrap();
     assert!(w.training_plan().limit.contains("supply is the limit"));
     w.run_ticks(1);
     w.apply(Command::SetObjectiveTarget(500)).unwrap();
@@ -652,14 +726,18 @@ fn the_plan_names_what_limits_training() {
 #[test]
 fn support_never_gives_spirits_or_the_player_free_xp() {
     let mut w = World::from_scenario(ScenarioKind::SupportedRetraining);
-    w.apply(Command::SetTrainingMode(TrainingMode::Optimized)).unwrap();
+    w.apply(Command::SetTrainingMode(TrainingMode::Optimized))
+        .unwrap();
     let ww = w.defs.skill_id("woodworking").unwrap();
     let spirit_xp: Vec<u64> = w.spirits.iter().map(|s| s.xp()).collect();
     let before = w.player.xp(ww);
     // The player is doing nothing.
     w.run_ticks(3000);
     assert_eq!(w.player.xp(ww), before);
-    assert_eq!(w.spirits.iter().map(|s| s.xp()).collect::<Vec<_>>(), spirit_xp);
+    assert_eq!(
+        w.spirits.iter().map(|s| s.xp()).collect::<Vec<_>>(),
+        spirit_xp
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -702,7 +780,9 @@ fn a_bag_that_cannot_be_emptied_counts_as_blocked_time() {
 #[test]
 fn only_chopping_reaches_the_storage_wall_and_the_game_warned_first() {
     let wall = storage_wall("normal", 120).unwrap();
-    let stuck = wall.stuck_at.expect("storage stops a player who spends nothing");
+    let stuck = wall
+        .stuck_at
+        .expect("storage stops a player who spends nothing");
     assert!(!wall.reached_goal);
     assert!(wall.warned_at.unwrap() < stuck);
     assert!(wall.xp_at_stuck < wall.goal_xp);
@@ -736,7 +816,9 @@ fn regained_levels_are_timed() {
     let r = w.player.log.regains[0].clone();
     assert_eq!((r.level, r.xp_given, r.done), (5, 100, None));
     click_tree(&mut w, "tree");
-    assert!(run_until(&mut w, 2000, |w| w.player.log.regains[0].done.is_some()));
+    assert!(run_until(&mut w, 2000, |w| w.player.log.regains[0]
+        .done
+        .is_some()));
     assert!(w.play_report().contains("back after"));
 }
 
@@ -829,7 +911,10 @@ fn saving_while_waiting_for_regrowth_continues_exactly() {
     let pos = w.trees[first].pos;
     click(&mut w, pos);
     run_until(&mut w, 300, |w| {
-        w.player.session.as_ref().is_some_and(|s| s.waiting_since.is_some())
+        w.player
+            .session
+            .as_ref()
+            .is_some_and(|s| s.waiting_since.is_some())
     });
     continues_exactly(w);
 }
@@ -855,7 +940,8 @@ fn saving_at_the_bench_keeps_the_recipe_and_session() {
 #[test]
 fn saving_while_waiting_for_spirits_continues_exactly() {
     let mut w = World::from_scenario(ScenarioKind::SupportedRetraining);
-    w.apply(Command::SetTrainingMode(TrainingMode::Relaxed)).unwrap();
+    w.apply(Command::SetTrainingMode(TrainingMode::Relaxed))
+        .unwrap();
     w.apply(Command::SetInputReserve(10_000)).unwrap();
     let at = bench(&w);
     click(&mut w, at);
@@ -914,7 +1000,10 @@ fn saves_from_v0_6_load_and_keep_working() {
     for name in ["v2_journey.save", "v2_workshop.save"] {
         let (mut w, meta) = decode(&fixture(name)).unwrap();
         assert_eq!(meta.version, 2, "{name}");
-        assert!(w.player.session.is_none(), "{name}: nothing to continue yet");
+        assert!(
+            w.player.session.is_none(),
+            "{name}: nothing to continue yet"
+        );
         assert!(w.player.auto_gather, "{name}: the new default applies");
         assert_eq!(w.player.recipe, None);
         let work = w.player.actor.queue.len();
@@ -923,7 +1012,10 @@ fn saves_from_v0_6_load_and_keep_working() {
         w.run_ticks(3000);
         w.check_conservation().unwrap();
         assert!(w.ledger.xp_earned > xp, "{name}: the job finished");
-        assert!(w.player.actor.queue.is_empty(), "{name}: then the player stops");
+        assert!(
+            w.player.actor.queue.is_empty(),
+            "{name}: then the player stops"
+        );
     }
 }
 
@@ -978,7 +1070,10 @@ fn the_full_session_works_under_normal_rules_with_no_help() {
     assert!(s.report.contains("back after"), "{}", s.report);
     // Planks were spent on an improvement, by spirits, with no developer help.
     assert!(w.settlement_glance().working + w.settlement_glance().idle > 0);
-    assert_eq!(w.ledger.xp_earned, w.player.log.xp_earned.values().sum::<u64>());
+    assert_eq!(
+        w.ledger.xp_earned,
+        w.player.log.xp_earned.values().sum::<u64>()
+    );
 }
 
 #[test]
@@ -986,7 +1081,12 @@ fn continuous_gathering_saves_clicks_without_changing_the_xp_rules() {
     let (auto, a) = play_full_session("development", true, 10).unwrap();
     let (manual, m) = play_full_session("development", false, 10).unwrap();
     let trees = |w: &World| w.player.log.gather_interactions;
-    assert!(trees(&auto) * 2 < trees(&manual), "{} vs {}", trees(&auto), trees(&manual));
+    assert!(
+        trees(&auto) * 2 < trees(&manual),
+        "{} vs {}",
+        trees(&auto),
+        trees(&manual)
+    );
     assert!(a.resumed_exactly && m.resumed_exactly);
     assert!(auto.player.time.total() > 0);
 }
@@ -999,4 +1099,36 @@ fn relaxed_training_trades_pace_for_clicks() {
     let relaxed = get(TrainingMode::Relaxed);
     assert!(relaxed.actions < manual.actions, "fewer clicks");
     assert_eq!(relaxed.storage_trips, 0, "no carrying");
+    assert!(relaxed.seconds > manual.seconds, "and it takes longer");
+}
+
+#[test]
+fn optimized_training_pays_only_once_the_investment_is_made() {
+    let (_, s) = play_full_session("normal", true, 25).unwrap();
+    let get = |m: TrainingMode| &s.modes.iter().find(|(x, _)| *x == m).unwrap().1;
+    let manual = get(TrainingMode::Manual);
+    let relaxed = get(TrainingMode::Relaxed);
+    let early = get(TrainingMode::Optimized);
+    assert!(
+        early.seconds > relaxed.seconds,
+        "no shortcut without the work"
+    );
+    assert!(
+        s.invested.seconds < manual.seconds,
+        "faster than doing it yourself"
+    );
+    assert!(s.invested.actions < manual.actions, "with far fewer clicks");
+}
+
+#[test]
+fn following_the_storage_advice_keeps_a_long_session_moving() {
+    let (w, s) = play_full_session("normal", true, 45).unwrap();
+    assert!(s.seconds <= 47 * 60, "the session ran over: {}", s.seconds);
+    let t = &w.player.time;
+    assert!(
+        t.blocked_storage * 100 / t.total() < 2,
+        "stuck for {} of {} ticks",
+        t.blocked_storage,
+        t.total()
+    );
 }
