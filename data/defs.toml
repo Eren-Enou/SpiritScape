@@ -263,6 +263,9 @@ annex_reach = 3
 # planks made training Woodworking can fill the store, and then no logs can
 # come in for the buildings that would use them up.
 raw_room = 100
+# How long a road tile takes to cross, as a percentage of open ground. Spirits
+# and the player both take 0.3 seconds on grass, so this makes it 0.2.
+road_pct = 67
 
 [gathering]
 # Window for measured throughput and time-use shares.
@@ -535,6 +538,78 @@ build_seconds_per_level = 0.5
 min_build_seconds = 8.0
 color = [0.72, 0.58, 0.42]
 benefit = "One more place at your bench, so you can train there without moving a spirit."
+
+# Plank roads: the settlement's way of turning surplus planks into time. Each
+# is a fixed route, laid in one go when it's finished, and everyone who walks
+# on it goes faster. The work starts at the near end, or at the first clear
+# tile if something's been built there. Anything standing on the route stays,
+# and the road runs around it.
+[[buildings]]
+id = "grove_lane"
+name = "Grove Lane"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+paves = [[6, 14], [6, 13], [16, 13]]
+scales_goods = true
+cost = [{ resource = "planks", amount = 30 }]
+build_seconds = 20.0
+build_seconds_per_level = 0.5
+min_build_seconds = 8.0
+color = [0.60, 0.45, 0.30]
+benefit = "A plank road from Main Storage past the Starting Grove. Everyone on it walks a third faster."
+
+[[buildings]]
+id = "north_road"
+name = "North Road"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+paves = [[17, 13], [17, 3], [20, 3]]
+requires = ["grove_lane"]
+scales_goods = true
+cost = [{ resource = "planks", amount = 35 }]
+build_seconds = 25.0
+build_seconds_per_level = 0.5
+min_build_seconds = 10.0
+color = [0.60, 0.45, 0.30]
+benefit = "Carries the road on to the bridge, the long stretch of every trip east."
+
+[[buildings]]
+id = "old_growth_road"
+name = "Old Growth Road"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+paves = [[23, 3], [23, 2], [39, 2], [39, 4], [47, 4]]
+requires = ["north_road"]
+scales_goods = true
+cost = [{ resource = "planks", amount = 65 }]
+build_seconds = 30.0
+build_seconds_per_level = 0.5
+min_build_seconds = 12.0
+color = [0.60, 0.45, 0.30]
+benefit = "From the bridge through Old Growth to the ravine, so haulers get home sooner."
+
+[[buildings]]
+id = "forest_road"
+name = "Forest Road"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+paves = [[24, 4], [24, 14], [37, 14]]
+requires = ["north_road"]
+scales_goods = true
+cost = [{ resource = "planks", amount = 60 }]
+build_seconds = 30.0
+build_seconds_per_level = 0.5
+min_build_seconds = 12.0
+color = [0.60, 0.45, 0.30]
+benefit = "From the bridge south into the Distant Forest, where the Oak is."
 
 [objective]
 # "Maintain <target> <resource> in the main settlement storage."

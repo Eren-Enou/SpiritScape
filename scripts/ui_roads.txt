@@ -1,0 +1,24 @@
+# UI test of laying a road and seeing the ground change:
+#   cargo run --release -- --scenario plank_surplus --save-dir target/ui_saves10 --script scripts/ui_roads.txt --capture target/ui_roads
+1.5 key B
+2.0 expect SETTLEMENT PLAN
+2.1 expect Plan Grove Lane
+2.2 shot 01_choices
+2.3 press Plan Grove Lane*
+2.8 expect Grove Lane added to the plan
+2.9 expect walks a third faster
+3.0 press Plan North Road*
+3.4 expect North Road added to the plan
+3.5 shot 02_planned
+3.8 press 8x
+36.0 expect Finished
+36.1 press 1x
+36.6 shot 03_laid
+37.0 key C
+37.4 shot 04_overview
+37.6 press Save
+38.0 expect Game saved
+38.1 key F9
+38.7 expect Game loaded
+39.0 shot 05_reloaded
+39.2 exit

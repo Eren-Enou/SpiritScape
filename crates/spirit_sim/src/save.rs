@@ -22,6 +22,8 @@
 //! then stands idle, because older saves have no session to continue. Format
 //! 4 (v0.8) also only adds defaulted fields, plus definitions after the old ones.
 //! Format 5 (v0.9) makes the map bigger, so older saves go through `migrate_map`.
+//! Format 6 (v0.10) adds road terrain. It only adds defaulted fields, but older
+//! games can't read a road, so the number moves.
 
 use crate::defs::{GameDefs, ResourceId};
 use crate::entities::{Building, Player, Project, Spirit, Tree};
@@ -41,7 +43,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Bump when the format changes, and add a migration to `decode`.
-pub const SAVE_VERSION: u32 = 5;
+pub const SAVE_VERSION: u32 = 6;
 const MAGIC: &str = "SPIRITSCAPE-SAVE";
 
 #[derive(Clone, Debug, PartialEq, Eq)]

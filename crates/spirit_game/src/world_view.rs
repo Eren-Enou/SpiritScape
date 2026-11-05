@@ -202,6 +202,7 @@ fn spawn_hover_tip(mut commands: Commands) {
     ));
 }
 
+#[allow(clippy::too_many_arguments)]
 fn rebuild_on_restart(
     mut commands: Commands,
     sim: Res<Sim>,
@@ -209,6 +210,8 @@ fn rebuild_on_restart(
     assets: Res<AssetServer>,
     mut spawned: ResMut<Spawned>,
     existing: Query<Entity, With<WorldEntity>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     if spawned.generation == Some(sim.generation) {
         return;
@@ -224,6 +227,11 @@ fn rebuild_on_restart(
     let w = &sim.world;
     let t = &visuals.terrain;
     let is_water = |p: TilePos| matches!(w.grid.terrain(p), Some(Terrain::Water | Terrain::Bridge));
+    let plank = meshes.add(Cuboid::new(0.98, 0.05, 0.29));
+    let plank_colors = [
+        materials.add(Color::srgb(0.55, 0.40, 0.25)),
+        materials.add(Color::srgb(0.48, 0.34, 0.21)),
+    ];
 
     for y in 0..w.grid.height {
         for x in 0..w.grid.width {
@@ -250,6 +258,31 @@ fn rebuild_on_restart(
                                 .with_rotation(Quat::from_rotation_y((h % 360) as f32))
                                 .with_scale(Vec3::splat(0.8)),
                         );
+                    }
+                }
+                Terrain::Road => {
+                    spawn(&t.grass, Transform::from_translation(at));
+                    // Planks run across the way the road goes.
+                    let along_x = matches!(
+                        w.grid.terrain(TilePos::new(x + 1, y)),
+                        Some(Terrain::Road | Terrain::Bridge)
+                    ) || matches!(
+                        w.grid.terrain(TilePos::new(x - 1, y)),
+                        Some(Terrain::Road | Terrain::Bridge)
+                    );
+                    let turn = if along_x {
+                        Quat::from_rotation_y(std::f32::consts::FRAC_PI_2)
+                    } else {
+                        Quat::IDENTITY
+                    };
+                    for i in 0..3u32 {
+                        let shift = turn * Vec3::new(0.0, 0.03, (i as f32 - 1.0) * 0.32);
+                        commands.spawn((
+                            WorldEntity,
+                            Mesh3d(plank.clone()),
+                            MeshMaterial3d(plank_colors[((h >> i) & 1) as usize].clone()),
+                            Transform::from_translation(at + shift).with_rotation(turn),
+                        ));
                     }
                 }
                 Terrain::Rock => {
@@ -652,6 +685,7 @@ fn update_labels(
                 let def = w.defs.building(b.kind);
                 let content = match b.state {
                     BuildingState::Removed => String::new(),
+                    BuildingState::Complete if !def.paves.is_empty() => String::new(),
                     BuildingState::Complete if def.capacity == 0 => b.name.clone(),
                     BuildingState::Complete if b.storage.total() == 0 => {
                         format!("{}: empty", b.name)

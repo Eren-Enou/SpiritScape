@@ -284,7 +284,9 @@ impl World {
     pub fn building_at(&self, p: TilePos) -> Option<&Building> {
         self.buildings
             .iter()
-            .find(|b| b.pos == p && b.state != BuildingState::Removed)
+            .filter(|b| b.pos == p && b.state != BuildingState::Removed)
+            // A finished road is ground, not something to walk up to.
+            .find(|b| !(b.is_complete() && !self.defs.building(b.kind).paves.is_empty()))
     }
 
     pub fn spirit_level_name(&self, s: &Spirit) -> String {

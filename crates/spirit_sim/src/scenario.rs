@@ -59,6 +59,8 @@ pub enum ScenarioKind {
     ExpandedRemote,
     /// An outpost that can make what the crossing needs, but hasn't yet.
     ForestAccess,
+    /// Main Storage clogged with planks and the roads still to be laid.
+    PlankSurplus,
     /// A small plan to set going and leave alone.
     ProjectQueue,
     /// One hauler shared between home and the outpost.
@@ -66,7 +68,7 @@ pub enum ScenarioKind {
 }
 
 impl ScenarioKind {
-    pub const ALL: [ScenarioKind; 23] = [
+    pub const ALL: [ScenarioKind; 24] = [
         ScenarioKind::NewGame,
         ScenarioKind::Demo,
         ScenarioKind::Regrind,
@@ -88,6 +90,7 @@ impl ScenarioKind {
         ScenarioKind::ExpandedCentral,
         ScenarioKind::ExpandedRemote,
         ScenarioKind::ForestAccess,
+        ScenarioKind::PlankSurplus,
         ScenarioKind::ProjectQueue,
         ScenarioKind::SharedHauler,
     ];
@@ -115,6 +118,7 @@ impl ScenarioKind {
             ScenarioKind::ExpandedCentral => "expanded_central",
             ScenarioKind::ExpandedRemote => "expanded_remote",
             ScenarioKind::ForestAccess => "forest_access",
+            ScenarioKind::PlankSurplus => "plank_surplus",
             ScenarioKind::ProjectQueue => "project_queue",
             ScenarioKind::SharedHauler => "shared_hauler",
         }
@@ -392,10 +396,15 @@ impl World {
                 extra_slots: 0,
             };
             let opens = def.opens.clone();
+            let paves = def.paves.clone();
+            let road_pct = world.defs.construction.road_pct;
             world.buildings.push(building);
-            world.grid.set_occupied(pos, true);
+            world.grid.set_occupied(pos, paves.is_empty());
             for [x, y] in opens {
                 world.grid.open_crossing(TilePos::new(x, y));
+            }
+            for [x, y] in paves {
+                world.grid.pave(TilePos::new(x, y), road_pct);
             }
         }
         for seed in &scenario.spirits {

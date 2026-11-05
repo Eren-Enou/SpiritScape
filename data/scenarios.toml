@@ -355,6 +355,24 @@ spirits = [
     { role = "builder", xp = 388, spawn = "B" },
 ]
 
+[plank_surplus]
+title = "Plank surplus"
+description = "Training has left Main Storage full of planks. Open the Projects tab (B) and plan a road: the planks go, and everyone gets about faster."
+objective_target = 20
+plank_target = 10
+log_reserve = 0
+auto_gather = true
+player_xp = { woodcutting = 1154, woodworking = 1154 }
+main_storage = { logs = 30, planks = 260 }
+prebuilt = [
+    { building = "outpost_storage", at = [34, 4] },
+]
+spirits = [
+    { role = "woodcutter", xp = 388, spawn = "W" },
+    { role = "hauler", xp = 388, spawn = "H" },
+    { role = "builder", xp = 388, spawn = "B" },
+]
+
 [project_queue]
 title = "Project plan"
 description = "Plan an Outpost Storage, the Forest Crossing and a Workshop Annex in the Projects tab (B), then go and chop. Nothing here needs you again."

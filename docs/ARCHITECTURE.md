@@ -159,3 +159,9 @@ Main Storage is protected by `main_room_for`, `haul_room_for` and `player_room_f
 `best_carry` in `behavior.rs` compares the carrying jobs a hauler could take by units moved per tile walked. It's a single comparison at the moment a job is chosen, not a route planner. `logistics.scored_carrying` in `defs.toml` turns it off, which is how its effect is measured.
 
 Crossings change terrain, which is saved with the world. The front end redraws the map when a new one finishes. See [V0.9_SETTLEMENT_PROJECTS.md](V0.9_SETTLEMENT_PROJECTS.md).
+
+## Roads (v0.10)
+
+A road is a building whose `paves` list becomes `Terrain::Road` when it's finished, so paying for one goes through the same plan, demand and builder as anything else. `Grid` keeps `road_pct`, which stays 0 until the first road is laid. While it's 0, `find_path` is the original breadth-first search, so worlds without roads repeat exactly. After that it uses `quickest_path`, a Dijkstra search with ties settled by discovery order.
+
+`Mover.stride` is the length of the current step, so roads can shorten it and the front end can still interpolate. `DistanceField` still counts tiles: job choices are about distance, and only walking knows about speed. See [V0.10_PLANK_ROADS.md](V0.10_PLANK_ROADS.md).

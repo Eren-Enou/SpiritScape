@@ -551,6 +551,10 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                             ("", UiAction::Plan("forest_crossing")),
                             ("", UiAction::Plan("workshop_annex")),
                             ("", UiAction::Plan("storehouse")),
+                            ("", UiAction::Plan("grove_lane")),
+                            ("", UiAction::Plan("north_road")),
+                            ("", UiAction::Plan("old_growth_road")),
+                            ("", UiAction::Plan("forest_road")),
                         ],
                     );
                 });
@@ -1797,6 +1801,7 @@ fn header_lines(sim: &Sim) -> Vec<Line> {
         ScenarioKind::ExpandedCentral => "Expanded, central",
         ScenarioKind::ExpandedRemote => "Expanded, remote",
         ScenarioKind::ForestAccess => "Forest access",
+        ScenarioKind::PlankSurplus => "Plank surplus",
         ScenarioKind::ProjectQueue => "Project plan",
         ScenarioKind::SharedHauler => "Shared hauler",
     };

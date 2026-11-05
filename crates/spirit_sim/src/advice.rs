@@ -50,6 +50,17 @@ impl World {
             fixes.push(
                 "lower the plank target in Production (P) and spend planks on building".to_string(),
             );
+            let road = self
+                .plannable()
+                .into_iter()
+                .map(|k| self.defs.building(k))
+                .find(|d| !d.paves.is_empty());
+            if let Some(road) = road {
+                fixes.push(format!(
+                    "plan the {} in Projects (B): it uses planks, and everyone walks faster on it",
+                    road.name
+                ));
+            }
         }
         let storehouse = self
             .defs

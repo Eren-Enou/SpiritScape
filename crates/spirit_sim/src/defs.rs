@@ -188,6 +188,8 @@ pub struct ConstructionRules {
     pub annex_reach: u32,
     /// Room in Main Storage that surplus finished goods can't use.
     pub raw_room: u32,
+    /// How long a road tile takes, as a percentage of open ground.
+    pub road_pct: u32,
 }
 
 /// Settlement production settings that aren't player-adjustable.
@@ -309,6 +311,8 @@ pub struct BuildingDef {
     pub access_site: Option<[i32; 2]>,
     /// Tiles that become a crossing when this is finished.
     pub opens: Vec<[i32; 2]>,
+    /// Tiles that become road when this is finished, in order from its start.
+    pub paves: Vec<[i32; 2]>,
     /// The site that crossing reaches.
     pub unlocks_site: Option<String>,
     /// Buildings that must be finished first.
@@ -512,11 +516,31 @@ struct RawLogistics {
     scored_carrying: bool,
 }
 
+/// Every tile along a road's corners.
+fn road_tiles(corners: &[[i32; 2]]) -> Result<Vec<[i32; 2]>, String> {
+    let mut tiles: Vec<[i32; 2]> = corners.iter().take(1).copied().collect();
+    for pair in corners.windows(2) {
+        let ([ax, ay], [bx, by]) = (pair[0], pair[1]);
+        if ax != bx && ay != by {
+            return Err("a road's corners must line up".into());
+        }
+        let (dx, dy) = ((bx - ax).signum(), (by - ay).signum());
+        let (mut x, mut y) = (ax, ay);
+        while [x, y] != [bx, by] {
+            x += dx;
+            y += dy;
+            tiles.push([x, y]);
+        }
+    }
+    Ok(tiles)
+}
+
 #[derive(Deserialize)]
 struct RawConstruction {
     queue_limit: u32,
     annex_reach: u32,
     raw_room: u32,
+    road_pct: u32,
 }
 
 #[derive(Deserialize)]
@@ -623,6 +647,9 @@ struct RawBuilding {
     access_site: Option<[i32; 2]>,
     #[serde(default)]
     opens: Vec<[i32; 2]>,
+    /// Corners of a road, joined by straight lines.
+    #[serde(default)]
+    paves: Vec<[i32; 2]>,
     #[serde(default)]
     unlocks_site: Option<String>,
     #[serde(default)]
@@ -801,6 +828,7 @@ impl GameDefs {
             queue_limit: raw.construction.queue_limit.max(1),
             annex_reach: raw.construction.annex_reach,
             raw_room: raw.construction.raw_room,
+            road_pct: raw.construction.road_pct.clamp(1, 100),
         };
 
         let mut roles = Vec::new();
@@ -870,6 +898,7 @@ impl GameDefs {
                 training_bonus: b.training_bonus,
                 access_site: b.access_site,
                 opens: b.opens,
+                paves: road_tiles(&b.paves).map_err(|e| format!("{:?}: {e}", b.id))?,
                 unlocks_site: b.unlocks_site,
                 requires: b.requires,
                 slot_bonus: b.slot_bonus,

@@ -19,7 +19,7 @@ fn clock(secs: u64) -> String {
 }
 
 fn main() {
-    println!("# v0.9 expansion report\n");
+    println!("# Expansion report\n");
     println!("## Steady pace\n");
     println!("{MINUTES} minutes, after a {WARM_UP}-minute warm-up, with an unreachable target.\n");
     println!(
@@ -81,6 +81,18 @@ fn main() {
             );
             let spent: Vec<String> = r.consumed.iter().map(|(n, c)| format!("{c} {n}")).collect();
             println!("Construction used {}.\n", spent.join(", "));
+            println!("Roads laid: {}.\n", r.roads.join(", "));
+            let main = &w.main().storage;
+            let held: Vec<String> = ["logs", "planks", "beams"]
+                .iter()
+                .map(|id| format!("{} {id}", main.get(w.defs.resource_id(id).unwrap())))
+                .collect();
+            println!(
+                "Main Storage ended with {} of {}.
+",
+                held.join(", "),
+                main.capacity
+            );
             println!("```text\n{}```", r.report);
             if std::env::args().any(|a| a == "--state") {
                 println!("\n```text\n{}\n```", r.final_state);
