@@ -412,7 +412,7 @@ pub(crate) fn craft_room(
     let (out, out_n) = recipe.output;
     let output_limit = def.capacity.saturating_sub(def.input_buffer);
     let station_room = station.storage.free() >= out_n
-        && station.storage.get(out) + out_n <= output_limit.max(out_n);
+        && station.storage.available(out) + out_n <= output_limit.max(out_n);
     let bag_room = bag.free()
         + recipe
             .inputs

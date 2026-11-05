@@ -719,8 +719,24 @@ impl World {
             } else {
                 load
             };
-            waiting >= need.max(1)
+            // A shelf that can't take another batch is as full as it gets, so
+            // a big enough hauler must not wait for more than it can ever hold.
+            waiting >= need.min(self.shelf_can_reach(b)).max(1)
         })
+    }
+
+    /// The most finished goods a bench can pile up before its worker stops.
+    fn shelf_can_reach(&self, b: &Building) -> u32 {
+        let def = self.defs.building(b.kind);
+        let shelf = def.capacity.saturating_sub(def.input_buffer);
+        let batch = self
+            .defs
+            .station_recipes(b.kind)
+            .iter()
+            .map(|r| self.defs.recipe(*r).output.1)
+            .max()
+            .unwrap_or(1);
+        shelf.saturating_sub(batch - 1)
     }
 
     /// Spirits working at or headed for a station.
@@ -794,7 +810,7 @@ impl World {
         };
         let def = self.defs.building(b.kind);
         let limit = def.capacity.saturating_sub(def.input_buffer);
-        b.storage.get(self.settlement.order.output) >= limit || b.storage.free() == 0
+        b.storage.available(self.settlement.order.output) >= limit || b.storage.free() == 0
     }
 
     pub fn workshop_status(&self) -> WorkshopStatus {

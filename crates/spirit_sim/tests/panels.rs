@@ -401,3 +401,21 @@ fn long_training_keeps_going_with_panels_and_clogs_without_them() {
     assert!(with.xp > without.xp * 3);
     assert_eq!(with.full_bag_seconds, 0);
 }
+
+/// Found by a long game: planks set aside for training filled the bench's
+/// shelf, and the worker there stopped for good.
+#[test]
+fn planks_set_aside_for_training_do_not_stop_a_bench_making_planks() {
+    let mut w = world();
+    w.apply(Command::SetProductionTarget(400)).unwrap();
+    stock(&mut w, "logs", 60);
+    let planks = res(&w, "planks");
+    let station = w.training_bench().unwrap().id;
+    let b = &mut w.buildings[station];
+    b.storage.deposit(planks, 20);
+    assert!(b.storage.try_reserve(planks, 20));
+    *w.ledger.seeded.entry(planks).or_default() += 20;
+    let before = w.ledger.crafted.get(&planks).copied().unwrap_or(0);
+    w.run_ticks(1500);
+    assert!(w.ledger.crafted.get(&planks).copied().unwrap_or(0) > before);
+}

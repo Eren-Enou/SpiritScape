@@ -1858,7 +1858,10 @@ fn header_lines(sim: &Sim) -> Vec<Line> {
     let speed = if sim.paused {
         colored("PAUSED", WARN)
     } else {
-        muted(format!("speed {}x", sim.speed))
+        match sim.world.season() {
+            Some(s) => muted(format!("{}  speed {}x", s.name, sim.speed)),
+            None => muted(format!("speed {}x", sim.speed)),
+        }
     };
     vec![
         vec![

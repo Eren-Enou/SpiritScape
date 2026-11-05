@@ -2,6 +2,16 @@
 
 The handoff between development runs. Newest first.
 
+## v0.27 Seasons
+
+**Status:** on branch `v0.27-seasons`, with its PR targeting `v0.26-old-markers`. Not merged.
+
+**Shipped:** a four-season year in real games, and fixes for a bench lock-up and an oversized-load wait.
+
+**Measured:** every goal takes 16:20, up from 13:12.
+
+**Next:** events and visitors, onboarding, then sound and visual feedback, including seasons on the map and a better ending moment.
+
 ## v0.26 The Old Stones
 
 **Status:** on branch `v0.26-old-markers`, with its PR targeting `v0.25-the-long-work`. Not merged.
