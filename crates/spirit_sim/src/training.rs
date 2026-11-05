@@ -8,7 +8,7 @@
 
 use crate::behavior::{Blocked, JobPlan};
 use crate::defs::{BuildingKindId, JobKind, ResourceId, SiteId};
-use crate::entities::{Building, Focus, SpiritId};
+use crate::entities::{Building, BuildingId, Focus, SpiritId};
 use crate::events::EventKind;
 use crate::metrics::WaitKind;
 use crate::tasks::{Goal, Task};
@@ -29,6 +29,9 @@ pub struct TrainingSupport {
     /// Spirits leave one place free for the player at every bench.
     #[serde(default)]
     pub keep_bench_place: bool,
+    /// The bench the player trains at. With none, the first one.
+    #[serde(default)]
+    pub bench: Option<BuildingId>,
 }
 
 /// A named way of training, each a set of the options above.
@@ -67,7 +70,7 @@ impl TrainingMode {
                 "Spirits bring logs and take planks away when production can spare them. Fewest clicks, but you often wait, so less XP each minute."
             }
             TrainingMode::Optimized => {
-                "Spirits serve your training first, so production slows. Fastest of all once everything below is in place, and slower than Relaxed until it is."
+                "Spirits serve your training first, so production slows. It only reaches full speed once everything below is in place."
             }
         }
     }
@@ -77,6 +80,8 @@ impl TrainingMode {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TrainingPlan {
     pub mode: TrainingMode,
+    /// What the player's training uses.
+    pub material: String,
     /// Logs a minute the player's sawing uses at their level.
     pub use_per_min: u32,
     /// Logs a minute gatherers delivered lately.
@@ -117,14 +122,62 @@ impl World {
             .find(|b| b.kind == kind && b.is_complete())
     }
 
-    fn training_input(&self) -> ResourceId {
-        self.defs.objective.resource
+    /// The bench the player trains at.
+    pub fn training_bench(&self) -> Option<&Building> {
+        let chosen = self.settlement.training.bench.map(|b| &self.buildings[b]);
+        chosen
+            .filter(|b| b.is_complete())
+            .or_else(|| self.station())
     }
 
-    /// Logs set aside for the player at the bench.
+    /// What the player's training uses: the chosen recipe's material, or the
+    /// settlement's basic one.
+    pub(crate) fn training_input(&self) -> ResourceId {
+        let chosen = self.player.recipe.map(|r| self.defs.recipe(r));
+        chosen
+            .and_then(|d| d.inputs.first())
+            .map_or(self.defs.objective.resource, |(r, _)| *r)
+    }
+
+    /// Materials set aside for the player at the bench.
     pub fn bench_stock(&self) -> u32 {
-        self.station()
+        self.training_bench()
             .map_or(0, |b| b.storage.reserved(self.training_input()))
+    }
+
+    /// Hands what's set aside back to general use.
+    pub(crate) fn release_bench_stock(&mut self) {
+        let r = self.training_input();
+        if let Some(id) = self.training_bench().map(|b| b.id) {
+            let held = self.buildings[id].storage.reserved(r);
+            self.buildings[id].storage.release_reserved(r, held);
+        }
+    }
+
+    /// Chooses the bench to train at. Stock set aside at the old one goes
+    /// back to general use: nothing moves between benches by itself.
+    pub(crate) fn set_training_bench(
+        &mut self,
+        bench: Option<BuildingId>,
+    ) -> Result<String, String> {
+        if let Some(id) = bench {
+            let usable = self.stations().any(|b| b.id == id);
+            if !usable {
+                return Err("That isn't a finished workshop".into());
+            }
+        }
+        if self.settlement.training.bench != bench {
+            self.release_bench_stock();
+            self.settlement.training.bench = bench;
+        }
+        let name = self.training_bench().map_or("no bench".into(), |b| {
+            let place = self.defs.site_at(b.pos.x, b.pos.y);
+            let site = place.map_or("home".to_string(), |s| self.defs.site(s).name.clone());
+            format!("the {} at {site}", b.name)
+        });
+        let msg = format!("You train at {name}");
+        self.events.push(self.tick, EventKind::Player, msg.clone());
+        Ok(msg)
     }
 
     /// Whether the player's planks stay at the bench for a hauler to collect.
@@ -157,7 +210,7 @@ impl World {
 
     /// Logs the bench could still take for the player.
     fn bench_shortfall(&self) -> u32 {
-        let Some(station) = self.station() else {
+        let Some(station) = self.training_bench() else {
             return 0;
         };
         let buffer = self.bench_size(station);
@@ -177,7 +230,7 @@ impl World {
         let dedicated = self.settlement.training.supply
             && r == self.training_input()
             && self.gatherers().any(|s| s.policy.focus == Focus::Training);
-        match self.station() {
+        match self.training_bench() {
             Some(b) if dedicated => self.bench_size(b),
             _ => 0,
         }
@@ -193,10 +246,12 @@ impl World {
 
     /// A trip is worth it: the bench can take a load and there are logs to spare.
     pub(crate) fn training_supply_ready(&self, sid: SpiritId) -> bool {
-        let min = self.defs.role(self.spirits[sid].role).haul_min;
+        let s = &self.spirits[sid];
+        let min = self.defs.role(s.role).haul_min;
         self.settlement.training.supply
+            && self.training_bench().is_some_and(|b| self.serves(s, b))
             && self.bench_shortfall() >= min
-            && self.input_spare(self.training_input()) >= min
+            && self.any_spare(self.training_input()) >= min
     }
 
     /// Empty the Training Cache into Main Storage.
@@ -245,34 +300,39 @@ impl World {
         })
     }
 
-    /// Carry logs above the reserve to the player's part of the bench.
+    /// Carry materials from the nearest storage to the player's part of their
+    /// bench, wherever it is.
     pub(crate) fn plan_training_supply(&self, sid: SpiritId) -> Result<JobPlan, Blocked> {
         let s = &self.spirits[sid];
         let station = self
-            .station()
+            .training_bench()
             .ok_or_else(|| "No workshop available".to_string())?;
         let resource = self.training_input();
         let name = &self.defs.resource(resource).name;
-        let amount = self
-            .bench_shortfall()
-            .min(self.input_spare(resource))
-            .min(s.actor.inventory.free());
-        if amount == 0 {
-            return Err(Blocked::new(
+        let short = || {
+            Blocked::new(
                 WaitKind::Inputs,
                 format!("No spare {name} for your training"),
-            ));
+            )
+        };
+        let want = self.bench_shortfall();
+        let (source, stock, _) = self
+            .supply_source(station.id, resource, want)
+            .ok_or_else(short)?;
+        let amount = want.min(stock).min(s.actor.inventory.free());
+        if amount == 0 {
+            return Err(short());
         }
-        let main = self.main();
+        let source = &self.buildings[source];
         Ok(JobPlan {
             description: format!("Bringing {amount} {name} to the bench for your training"),
             tasks: vec![
                 Task::Move {
-                    goal: Goal::Adjacent(main.pos),
-                    label: main.name.clone(),
+                    goal: Goal::Adjacent(source.pos),
+                    label: source.name.clone(),
                 },
                 Task::Withdraw {
-                    building: main.id,
+                    building: source.id,
                     resource,
                     amount,
                     reserved: true,
@@ -285,7 +345,7 @@ impl World {
                     building: station.id,
                 },
             ],
-            reserve: Some((main.id, resource, amount)),
+            reserve: Some((source.id, resource, amount)),
             ..Default::default()
         })
     }
@@ -343,7 +403,7 @@ impl World {
         let mode = self.training_mode();
         let r = self.training_input();
         let name = self.defs.resource(r).name.clone();
-        let spare = self.input_spare(r);
+        let spare = self.any_spare(r);
         let use_per_min = self.player_use_per_min(r);
         let gathered: f32 = self
             .gathering_report()
@@ -378,7 +438,7 @@ impl World {
                 .iter()
                 .any(|s| self.defs.role(s.role).has_job(job) && s.policy.focus == Focus::Training)
         };
-        let bench = self.station().map_or(0, |b| self.bench_size(b));
+        let bench = self.training_bench().map_or(0, |b| self.bench_size(b));
         let checks = vec![
             (
                 "A Hauling Spirit serving you first".to_string(),
@@ -396,6 +456,7 @@ impl World {
         ];
         TrainingPlan {
             mode,
+            material: name,
             use_per_min,
             gathered_per_min,
             spare,
@@ -406,7 +467,7 @@ impl World {
 
     /// Input a minute the player's work at the bench uses.
     fn player_use_per_min(&self, r: ResourceId) -> u32 {
-        let Some(b) = self.station() else {
+        let Some(b) = self.training_bench() else {
             return 0;
         };
         let recipe = self.player_recipe_at(b.id).or_else(|| {
@@ -484,11 +545,7 @@ impl World {
     pub(crate) fn set_training_supply(&mut self, on: bool) -> String {
         self.settlement.training.supply = on;
         if !on {
-            let r = self.training_input();
-            if let Some(id) = self.station().map(|b| b.id) {
-                let held = self.buildings[id].storage.reserved(r);
-                self.buildings[id].storage.release_reserved(r, held);
-            }
+            self.release_bench_stock();
         }
         let msg = if on {
             "Hauling Spirits will keep logs at the bench for your training"
@@ -541,12 +598,12 @@ impl World {
         } else {
             "A Hauling Spirit empties the cache when a load is waiting.".to_string()
         };
-        let spare = self.input_spare(r);
+        let spare = self.any_spare(r);
         let supply_status = if !t.supply {
             "Off: fetch your own logs from Main Storage.".to_string()
         } else if !hauler {
             "No Hauling Spirit to bring them.".to_string()
-        } else if self.station().is_none() {
+        } else if self.training_bench().is_none() {
             "No workshop.".to_string()
         } else if self.bench_shortfall() == 0 {
             "The bench is stocked.".to_string()
@@ -558,7 +615,7 @@ impl World {
         } else {
             format!("{spare} spare {name} available to bring to the bench.")
         };
-        let bench_size = self.station().map_or(0, |b| self.bench_size(b));
+        let bench_size = self.training_bench().map_or(0, |b| self.bench_size(b));
         TrainingReport {
             area: t.area.map(|s| self.defs.site(s).name.clone()),
             cache: self

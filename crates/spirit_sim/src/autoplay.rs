@@ -672,3 +672,261 @@ pub fn storage_wall(profile: &str, limit_minutes: u64) -> Result<StorageWall, St
     wall.seconds = w.tick / tps;
     Ok(wall)
 }
+
+/// One run of a production layout, measured from a scenario's start.
+#[derive(Clone, Debug)]
+pub struct OutpostRun {
+    pub name: String,
+    pub seconds: u64,
+    /// Beams that reached Main Storage, and when the first did.
+    pub beams_home: u32,
+    pub first_beam_home: Option<u64>,
+    /// When Main Storage reached the order's target.
+    pub reached_target: Option<u64>,
+    pub beams_made: u64,
+    pub hardwood_used: u64,
+    pub hardwood_cut: u64,
+    /// Tiles the Hauling Spirits walked, and the trips and units they finished.
+    pub hauler_tiles: u64,
+    pub hauler_trips: u32,
+    pub hauler_units: u32,
+    pub hauler: TimeUse,
+    pub gatherers: TimeUse,
+    pub workers: TimeUse,
+}
+
+/// Runs a world for `minutes` with nobody touching it.
+pub fn run_layout(mut w: World, name: &str, minutes: u64) -> OutpostRun {
+    let tps = w.defs.ticks_per_second as u64;
+    let beams = w.defs.resource_id("beams").expect("beams");
+    let hardwood = w.defs.resource_id("hardwood").expect("hardwood");
+    let before = w.main().storage.get(beams);
+    let start = w.tick;
+    let target = w.order_for(beams).map_or(0, |o| o.target);
+    let mut first = None;
+    let mut reached = None;
+    for _ in 0..minutes * 60 * tps {
+        w.step();
+        let home = w.main().storage.get(beams);
+        if first.is_none() && home > before {
+            first = Some((w.tick - start) / tps);
+        }
+        if reached.is_none() && home >= target {
+            reached = Some((w.tick - start) / tps);
+        }
+    }
+    let of = |job: JobKind| {
+        let mut t = TimeUse::default();
+        for s in w
+            .spirits
+            .iter()
+            .filter(|s| w.defs.role(s.role).has_job(job))
+        {
+            t.add(&s.time.total);
+        }
+        t
+    };
+    let haulers: Vec<_> = w
+        .spirits
+        .iter()
+        .filter(|s| w.defs.role(s.role).has_job(JobKind::Haul))
+        .collect();
+    let ledger =
+        |m: &std::collections::BTreeMap<ResourceId, u64>, r| m.get(&r).copied().unwrap_or(0);
+    OutpostRun {
+        name: name.to_string(),
+        seconds: (w.tick - start) / tps,
+        beams_home: w.main().storage.get(beams) - before,
+        first_beam_home: first,
+        reached_target: reached,
+        beams_made: ledger(&w.ledger.crafted, beams),
+        hardwood_used: ledger(&w.ledger.processed, hardwood),
+        hardwood_cut: ledger(&w.ledger.harvested, hardwood),
+        hauler_tiles: haulers
+            .iter()
+            .map(|s| s.time.total.traveling / s.actor.mover.ticks_per_tile.max(1) as u64)
+            .sum(),
+        hauler_trips: haulers.iter().map(|s| s.trips).sum(),
+        hauler_units: haulers.iter().map(|s| s.units_delivered).sum(),
+        hauler: of(JobKind::Haul),
+        gatherers: of(JobKind::Gather),
+        workers: of(JobKind::Craft),
+    }
+}
+
+/// Moves a finished building, for comparing placements from the same start.
+fn move_building(w: &mut World, id: usize, to: crate::grid::TilePos) {
+    let from = w.buildings[id].pos;
+    w.grid.set_occupied(from, false);
+    w.grid.set_occupied(to, true);
+    w.buildings[id].pos = to;
+}
+
+/// The two approaches, plus what placement and assignment do to the second.
+pub fn compare_layouts(minutes: u64) -> Vec<OutpostRun> {
+    use crate::ScenarioKind::{CentralProduction, RemoteProduction};
+    let central = World::from_scenario(CentralProduction);
+    let remote = World::from_scenario(RemoteProduction);
+    let bench = remote.stations().map(|b| b.id).max().expect("bench");
+    let mut out = vec![
+        run_layout(central, "Central: beams made at home", minutes),
+        run_layout(remote.clone(), "Remote: beams made at Old Growth", minutes),
+    ];
+
+    // The same bench, placed by the bridge instead of beside the store.
+    let mut placed = remote.clone();
+    move_building(&mut placed, bench, crate::grid::TilePos::new(24, 3));
+    out.push(run_layout(placed, "Remote: bench by the bridge", minutes));
+
+    // The same bench, with the worker free to go wherever it likes.
+    let mut free = remote.clone();
+    for s in &mut free.spirits {
+        s.policy.station = None;
+    }
+    out.push(run_layout(free, "Remote: worker not assigned", minutes));
+
+    // A busy plank line at home as well, with one hauler or two. A second
+    // hauler at the outpost is tied to it; in the central layout there's
+    // nothing there to tie it to, so both go wherever they're needed.
+    let site = remote.defs.site_id("old_growth").expect("old growth");
+    let layouts = [
+        (
+            World::from_scenario(CentralProduction),
+            false,
+            "Central, one hauler, planks too",
+        ),
+        (remote.clone(), false, "Remote, one hauler, planks too"),
+        (
+            World::from_scenario(CentralProduction),
+            true,
+            "Central, two haulers, planks too",
+        ),
+        (remote.clone(), true, "Remote, two haulers, planks too"),
+    ];
+    for (mut w, second, name) in layouts {
+        let logs = w.defs.objective.resource;
+        let main = w.main_storage;
+        let stocked = w.buildings[main].storage.deposit(logs, 240);
+        *w.ledger.seeded.entry(logs).or_default() += stocked as u64;
+        w.settlement.order.target = 120;
+        let home = w.stations().map(|b| b.id).min().expect("home bench");
+        let pos = w.main().pos;
+        let at = crate::grid::TilePos::new(pos.x, pos.y + 1);
+        let role = w.defs.role_id("woodworker").expect("woodworker");
+        let id = w.add_spirit(role, 388, at);
+        w.spirits[id].policy.station = Some(home);
+        if second {
+            let role = w.defs.role_id("hauler").expect("hauler");
+            let xp = w.defs.xp_table.xp_for_level(5);
+            let id = w.add_spirit(role, xp, at);
+            if name.starts_with("Remote") {
+                w.spirits[id].policy.site = Some(site);
+            }
+        }
+        out.push(run_layout(w, name, minutes));
+    }
+
+    // Half the gatherers, to show what staffing does.
+    let mut short = remote;
+    let gatherer = short.gatherer_ids()[1];
+    short.spirits[gatherer].policy.focus = Focus::Rest;
+    out.push(run_layout(short, "Remote: one gatherer", minutes));
+    out
+}
+
+/// What it took to set up an outpost from nothing.
+#[derive(Clone, Debug, Default)]
+pub struct Establishment {
+    /// Seconds from the start to each building finishing.
+    pub store_built: u64,
+    pub workshop_built: u64,
+    /// Beams the settlement made so it could build the Workshop.
+    pub beams_for_building: u64,
+    /// Everything construction used up.
+    pub consumed: Vec<(String, u64)>,
+    /// Spirit time on tasks, in percent, while building and afterwards.
+    pub busy_building_pct: u64,
+    pub busy_running_pct: u64,
+    pub beams_home_running: u32,
+    pub seconds_running: u64,
+    /// Commands a person would have given.
+    pub commands: u32,
+}
+
+fn busy_ticks(w: &World) -> (u64, u64) {
+    let mut t = TimeUse::default();
+    for s in &w.spirits {
+        t.add(&s.time.total);
+    }
+    let busy = t.gathering + t.traveling + t.handling + t.building + t.crafting;
+    (busy, t.total())
+}
+
+/// Sets an outpost up through commands alone and leaves it to run.
+pub fn establish_outpost(run_minutes: u64) -> Result<(World, Establishment), String> {
+    let mut w = World::from_scenario(crate::ScenarioKind::OutpostEstablishment);
+    let tps = w.defs.ticks_per_second as u64;
+    let limit = 3600 * tps;
+    let site = w.defs.site_id("old_growth").ok_or("no Old Growth")?;
+    let store = w
+        .defs
+        .building_kind_id("outpost_storage")
+        .ok_or("no store")?;
+    let workshop = w.defs.building_kind_id("workshop").ok_or("no workshop")?;
+    let beams = w.defs.resource_id("beams").ok_or("no beams")?;
+    let mut e = Establishment::default();
+    let finished = |w: &World| w.active_project().is_none();
+    let wait = |w: &mut World| {
+        for _ in 0..limit {
+            if finished(w) {
+                return true;
+            }
+            w.step();
+        }
+        false
+    };
+
+    w.apply(Command::RequestBuildingAt {
+        kind: store,
+        site: crate::grid::TilePos::new(34, 4),
+    })?;
+    e.commands += 1;
+    if !wait(&mut w) {
+        return Err("the store was never finished".into());
+    }
+    e.store_built = w.tick / tps;
+
+    w.apply(Command::RequestBuildingAt {
+        kind: workshop,
+        site: crate::grid::TilePos::new(36, 4),
+    })?;
+    e.commands += 1;
+    if !wait(&mut w) {
+        return Err("the workshop was never finished".into());
+    }
+    e.workshop_built = w.tick / tps;
+    e.beams_for_building = w.ledger.crafted.get(&beams).copied().unwrap_or(0);
+    let (busy, total) = busy_ticks(&w);
+    e.busy_building_pct = busy * 100 / total.max(1);
+    e.consumed = w
+        .ledger
+        .consumed
+        .iter()
+        .map(|(r, n)| (w.defs.resource(*r).name.clone(), *n))
+        .collect();
+
+    w.apply(Command::SetOutpostStaffed { site, on: true })?;
+    e.commands += 1;
+    let home = w.main().storage.get(beams);
+    w.apply(Command::SetOrderTarget {
+        output: beams,
+        target: home + 30,
+    })?;
+    e.commands += 1;
+    w.run_ticks(run_minutes * 60 * tps);
+    let (busy2, total2) = busy_ticks(&w);
+    e.busy_running_pct = (busy2 - busy) * 100 / (total2 - total).max(1);
+    e.beams_home_running = w.main().storage.get(beams).saturating_sub(home);
+    e.seconds_running = run_minutes * 60;
+    Ok((w, e))
+}

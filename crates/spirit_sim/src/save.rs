@@ -19,7 +19,8 @@
 //! time that happens `SaveStore` keeps a copy of the original file. Format 3
 //! (v0.7) only added fields with safe defaults, so a format 2 save needs no
 //! migration: a job under way in one finishes as a single task and the player
-//! then stands idle, because older saves have no session to continue.
+//! then stands idle, because older saves have no session to continue. Format
+//! 4 (v0.8) also only adds defaulted fields, plus definitions after the old ones.
 
 use crate::defs::{GameDefs, ResourceId};
 use crate::entities::{Building, Player, Project, Spirit, Tree};
@@ -39,7 +40,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Bump when the format changes, and add a migration to `decode`.
-pub const SAVE_VERSION: u32 = 3;
+pub const SAVE_VERSION: u32 = 4;
 const MAGIC: &str = "SPIRITSCAPE-SAVE";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -383,6 +384,17 @@ fn validate(defs: &GameDefs, s: &WorldState) -> Result<(), String> {
     }
     if let Some(r) = s.player.recipe {
         check(r.index() < defs.recipes.len(), "chosen recipe")?;
+    }
+    check(
+        s.settlement
+            .training
+            .bench
+            .is_none_or(|b| b < s.buildings.len()),
+        "training bench",
+    )?;
+    for b in &s.buildings {
+        let known = b.keep.keys().all(|r| r.index() < defs.resources.len());
+        check(known, "local stock")?;
     }
     if let Some(session) = &s.player.session {
         match session.kind {

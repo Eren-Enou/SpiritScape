@@ -432,8 +432,11 @@ impl World {
         if def.max_count.is_some_and(|m| count >= m) {
             return Err(format!("The settlement can't have more {name}s"));
         }
-        if self.active_project().is_some() {
-            return Err("Finish the current construction project first".into());
+        if let Some(p) = self.active_project() {
+            return Err(format!(
+                "Finish the current construction project first: the {}",
+                self.defs.building(p.kind).name
+            ));
         }
         Ok(())
     }
@@ -442,8 +445,13 @@ impl World {
         let def = self.defs.building(kind);
         let name = def.name.clone();
         let cost: BTreeMap<_, _> = def.cost.iter().copied().collect();
+        let article = if name.starts_with(['A', 'E', 'I', 'O', 'U']) {
+            "an"
+        } else {
+            "a"
+        };
         let msg = format!(
-            "Ordered a {name} at {site} (cost {})",
+            "Ordered {article} {name} at {site} (cost {})",
             self.defs.describe_amounts(&cost)
         );
         self.create_project(kind, site, "ordered by the player".into());
@@ -502,6 +510,7 @@ impl World {
                     },
             ),
             crafted: 0,
+            keep: BTreeMap::new(),
         });
         self.grid.set_occupied(site, true);
         self.projects.push(Project {

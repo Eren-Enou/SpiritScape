@@ -84,7 +84,7 @@ The last three are development aids.
 | `H` | Hide or show the UI panels |
 | `G` | Switch between the Settlement and Gathering tabs |
 | `P` | Switch to and from the Production tab |
-| `J` / `T` / `O` / `R` | Switch to and from the Progress / Training / Spirits / Soul tab |
+| `J` / `T` / `O` / `R` / `U` | Switch to and from the Progress / Training / Spirits / Soul / Outpost tab |
 | `X` | Stop what you're doing |
 | `V` | Show or hide detail cards |
 | `F6` | Write a play report beside your saves |
@@ -138,6 +138,12 @@ Fast scenarios for testing parts of the skilling loop: `--scenario skilling_sess
 
 ```bash
 cargo run -p spirit_sim --release --example session_report
+```
+
+Outposts have three more scenarios: `--scenario outpost_establishment`, `central_production` and `remote_production`. See [docs/V0.8_OUTPOSTS.md](docs/V0.8_OUTPOSTS.md) for how they work and what was measured.
+
+```bash
+cargo run -p spirit_sim --release --example outpost_report
 ```
 
 ## Tests

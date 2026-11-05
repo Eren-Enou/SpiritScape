@@ -18,6 +18,9 @@
  | metrics   time use, site output, bottleneck report                      |
  | production  plank order, upstream demand, workshop status and report      |
  | training    support for the player's skilling: cache, bench, priorities   |
+ | session     the player's continuous gathering and bench work              |
+ | outpost     remote sites: staffing, local stock, worker states            |
+ | advice      read-only summaries: glance, storage advice, play report      |
  | soul        comparing sacrifices; milestone wording                       |
  | journey     new-game guidance and milestone times                         |
  | save        versioned files, validation, atomic replacement               |
@@ -133,3 +136,15 @@ that adds XP to a spirit.
 A session stores ids, not a plan, and lives on `Player`, so it saves with everything else and a loaded game continues on the same tick. `advice.rs` holds read-only summaries: the settlement glance, storage advice and the play report. The only thing it changes is the flag that keeps the storage notice to once.
 
 `autoplay::play_full_session` drives the whole path through commands, and `examples/session_report.rs` prints it. See [V0.7_GAMEPLAY.md](V0.7_GAMEPLAY.md).
+
+## Multi-facility logistics (v0.8)
+
+An outpost isn't a special kind of thing. It's ordinary buildings in a real place, so every rate is the same wherever a building stands. Any advantage comes from how far things are carried.
+
+All decisions about where things go pass through a few functions in `production.rs`:
+
+- `supply_source`: the nearest storage that can fill a request.
+- `benches_for_input`: which staffed benches should get a material, nearest first. A bench a long trip away gets none while a closer one can use it.
+- `surplus_at` and `held_at`: what a store can send home, after what it's told to keep and what a local bench needs.
+
+Stock is never shared between buildings. Each unit is moved by a task, so conservation is checked the same way it always was. See [V0.8_OUTPOSTS.md](V0.8_OUTPOSTS.md).

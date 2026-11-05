@@ -1107,10 +1107,9 @@ fn optimized_training_pays_only_once_the_investment_is_made() {
     let (_, s) = play_full_session("normal", true, 25).unwrap();
     let get = |m: TrainingMode| &s.modes.iter().find(|(x, _)| *x == m).unwrap().1;
     let manual = get(TrainingMode::Manual);
-    let relaxed = get(TrainingMode::Relaxed);
     let early = get(TrainingMode::Optimized);
     assert!(
-        early.seconds > relaxed.seconds,
+        early.seconds > s.invested.seconds,
         "no shortcut without the work"
     );
     assert!(

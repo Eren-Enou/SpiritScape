@@ -9,7 +9,7 @@
 //! workers do that through tasks.
 
 use crate::defs::{JobKind, RecipeId, ResourceId};
-use crate::entities::{Building, BuildingId, Spirit};
+use crate::entities::{Building, BuildingId, Spirit, SpiritId};
 use crate::metrics::{TimeUse, WaitKind};
 use crate::session::SessionKind;
 use crate::tasks::Task;
@@ -201,6 +201,113 @@ impl World {
             .filter(|s| s.assigned && s.policy.focus.allows(JobKind::Craft))
     }
 
+    /// Tiles between two buildings by the shortest route.
+    pub(crate) fn walk_between(&self, a: BuildingId, b: BuildingId) -> Option<u32> {
+        let field = self.grid.approach_field(self.buildings[a].pos);
+        self.grid.approach_distance(&field, self.buildings[b].pos)
+    }
+
+    /// Whether a carrier's instructions let it serve a building.
+    pub(crate) fn serves(&self, s: &Spirit, b: &Building) -> bool {
+        s.policy.site.is_none_or(|site| self.in_site(b, site))
+    }
+
+    /// What a storage can give to a station. Main Storage keeps its reserve;
+    /// an outpost store gives what it has, since local use is what it's for.
+    fn source_stock(&self, b: &Building, r: ResourceId) -> u32 {
+        if b.id == self.main_storage {
+            self.input_spare(r)
+        } else {
+            b.storage.available(r)
+        }
+    }
+
+    /// Everything the settlement could give to stations, wherever it is.
+    pub(crate) fn any_spare(&self, r: ResourceId) -> u32 {
+        self.input_spare(r) + self.outposts().map(|b| b.storage.available(r)).sum::<u32>()
+    }
+
+    /// The storage to fetch `r` from for a station: the nearest that can fill
+    /// the request, or else the nearest with any. Returns where, how much it
+    /// can give and how far it is.
+    pub(crate) fn supply_source(
+        &self,
+        station: BuildingId,
+        r: ResourceId,
+        want: u32,
+    ) -> Option<(BuildingId, u32, u32)> {
+        let main = self.main();
+        let stocked: Vec<&Building> = std::iter::once(main)
+            .chain(self.outposts())
+            .filter(|b| self.source_stock(b, r) > 0)
+            .collect();
+        let field = self.grid.approach_field(self.buildings[station].pos);
+        stocked
+            .into_iter()
+            .filter_map(|b| {
+                let walk = self.grid.approach_distance(&field, b.pos)?;
+                let stock = self.source_stock(b, r);
+                Some(((stock < want, walk, b.id), stock))
+            })
+            .min()
+            .map(|((_, walk, id), stock)| (id, stock, walk))
+    }
+
+    /// A long trip is worth making for this much, given what's wanted.
+    pub(crate) fn long_trip_load(&self, s: &Spirit, wanted: u32) -> u32 {
+        let pct = self.defs.logistics.long_trip_load_pct;
+        (s.actor.inventory.capacity * pct / 100).min(wanted).max(1)
+    }
+
+    /// Stock a store holds back: what it's told to keep, or a bench's worth
+    /// while a staffed bench at the same site uses this material.
+    fn held_at(&self, b: &Building, r: ResourceId) -> u32 {
+        let told = b.keep.get(&r).copied().unwrap_or(0);
+        let Some(site) = self.defs.site_at(b.pos.x, b.pos.y) else {
+            return told;
+        };
+        let local = self
+            .orders()
+            .iter()
+            .filter(|o| o.enabled && self.uses_input(o.output, r))
+            .flat_map(|o| self.staffed_stations(o.output))
+            .filter(|station| self.in_site(station, site))
+            .map(|station| self.defs.building(station.kind).input_buffer)
+            .max()
+            .unwrap_or(0);
+        told.max(local)
+    }
+
+    /// What a store can send home: the most of any one material above what it
+    /// holds back.
+    pub(crate) fn surplus_at(&self, b: &Building) -> Option<(ResourceId, u32)> {
+        b.storage
+            .contents()
+            .keys()
+            .map(|&r| {
+                let spare = b.storage.available(r).saturating_sub(self.held_at(b, r));
+                (r, spare)
+            })
+            .filter(|(_, n)| *n > 0)
+            .max_by_key(|(r, n)| (*n, std::cmp::Reverse(*r)))
+    }
+
+    /// Everything a store could send home.
+    pub(crate) fn total_surplus(&self, b: &Building) -> u32 {
+        b.storage
+            .contents()
+            .keys()
+            .map(|&r| b.storage.available(r).saturating_sub(self.held_at(b, r)))
+            .sum()
+    }
+
+    /// Stock all stores have been told to keep.
+    fn local_keep(&self, r: ResourceId) -> u32 {
+        self.outposts()
+            .map(|b| b.keep.get(&r).copied().unwrap_or(0))
+            .sum()
+    }
+
     /// Whether a spirit's instructions let it work at a station.
     pub(crate) fn may_work_at(&self, s: &Spirit, station: BuildingId) -> bool {
         s.policy.station.is_none_or(|b| b == station)
@@ -229,7 +336,7 @@ impl World {
     }
 
     /// Output still to be reserved by active projects.
-    fn project_demand(&self, r: ResourceId) -> u32 {
+    pub(crate) fn project_demand(&self, r: ResourceId) -> u32 {
         self.projects
             .iter()
             .filter(|p| p.is_active() && !p.reserved)
@@ -318,6 +425,30 @@ impl World {
             .collect()
     }
 
+    /// Staffed benches that should get a material, nearest to it first. A bench
+    /// a long trip from the material gets none while a closer one can use it,
+    /// so nothing is carried across the map to be made there instead.
+    fn benches_for_input(&self, output: ResourceId, r: ResourceId) -> Vec<&Building> {
+        let stations = self.staffed_stations(output);
+        if stations.len() < 2 {
+            return stations;
+        }
+        let mut near: Vec<(u32, &Building)> = stations
+            .into_iter()
+            .map(|b| {
+                let source = self.supply_source(b.id, r, 1);
+                (source.map_or(u32::MAX, |s| s.2), b)
+            })
+            .collect();
+        near.sort_by_key(|(walk, b)| (*walk, b.id));
+        let closest = near[0].0;
+        let long = self.defs.logistics.long_trip_tiles;
+        near.into_iter()
+            .filter(|(walk, _)| *walk < long || *walk == closest)
+            .map(|(_, b)| b)
+            .collect()
+    }
+
     /// Every delivery stations would take now, most urgent first: where, what
     /// and how much. Bounded by each input buffer and the current shortfall.
     fn input_requests(&self) -> Vec<(BuildingId, ResourceId, u32)> {
@@ -330,7 +461,7 @@ impl World {
             let batches = self.deficit_of(order.output).div_ceil(def.output.1);
             for &(r, n) in &def.inputs {
                 let mut need = batches * n;
-                for b in self.staffed_stations(order.output) {
+                for b in self.benches_for_input(order.output, r) {
                     let buffer = self.defs.building(b.kind).input_buffer;
                     let have = b.storage.available(r) + self.incoming(b.id, r);
                     let want = need.min(buffer).saturating_sub(have).min(b.storage.free());
@@ -344,13 +475,18 @@ impl World {
         requests
     }
 
-    /// The delivery a hauler should make next: the most urgent one that
-    /// Main Storage can fill, or else the most urgent one.
-    pub(crate) fn input_wanted(&self) -> Option<(BuildingId, ResourceId, u32)> {
-        let requests = self.input_requests();
+    /// The delivery this spirit should make next: the most urgent one it
+    /// serves that some storage can fill, or else the most urgent it serves.
+    pub(crate) fn input_wanted(&self, sid: SpiritId) -> Option<(BuildingId, ResourceId, u32)> {
+        let s = &self.spirits[sid];
+        let requests: Vec<_> = self
+            .input_requests()
+            .into_iter()
+            .filter(|(b, ..)| self.serves(s, &self.buildings[*b]))
+            .collect();
         requests
             .iter()
-            .find(|(_, r, _)| self.input_spare(*r) > 0)
+            .find(|(_, r, _)| self.any_spare(*r) > 0)
             .or(requests.first())
             .copied()
     }
@@ -385,12 +521,13 @@ impl World {
             .unwrap_or(0)
     }
 
-    /// What Main Storage can give to production without breaking the reserve.
+    /// What Main Storage can give to production without breaking the reserve
+    /// or taking what a project is waiting for.
     pub(crate) fn input_spare(&self, r: ResourceId) -> u32 {
         self.main()
             .storage
             .available(r)
-            .saturating_sub(self.reserve_of(r))
+            .saturating_sub(self.reserve_of(r) + self.project_demand(r))
     }
 
     /// The stock level of `r` gatherers work toward.
@@ -405,7 +542,13 @@ impl World {
         } else {
             base
         };
-        goal + self.training_gather_demand(r)
+        // Raw materials a project needs come from gatherers directly.
+        let project = if self.order_for(r).is_none() {
+            self.project_demand(r)
+        } else {
+            0
+        };
+        goal + project + self.local_keep(r) + self.training_gather_demand(r)
     }
 
     /// The log level gatherers work toward.
@@ -431,10 +574,11 @@ impl World {
         self.stations().map(|b| self.waiting_at(b)).sum()
     }
 
-    /// The fullest pile of finished goods: where, what and how much.
-    pub(crate) fn output_pile(&self) -> Option<(BuildingId, ResourceId, u32)> {
+    /// The fullest pile of finished goods this spirit serves.
+    pub(crate) fn output_pile(&self, sid: SpiritId) -> Option<(BuildingId, ResourceId, u32)> {
+        let s = &self.spirits[sid];
         let mut best: Option<(BuildingId, ResourceId, u32)> = None;
-        for b in self.stations() {
+        for b in self.stations().filter(|b| self.serves(s, b)) {
             for o in self.orders() {
                 let n = b.storage.available(o.output);
                 if n > 0 && best.is_none_or(|x| n > x.2) {
@@ -453,12 +597,27 @@ impl World {
             || at_bench(self.player.actor.queue.front())
     }
 
-    /// Whether finished goods are worth a trip: a full load, or anything at
-    /// all once nobody is adding to them.
-    pub(crate) fn output_ready(&self, load: u32) -> bool {
-        self.stations().any(|b| {
+    /// Whether finished goods are worth a trip: a load, or anything at all
+    /// once nobody is adding to them. A long trip wants a bigger load.
+    pub(crate) fn output_ready(&self, sid: SpiritId, load: u32) -> bool {
+        let s = &self.spirits[sid];
+        let main = self.main_storage;
+        let long = self.defs.logistics.long_trip_tiles;
+        self.stations().filter(|b| self.serves(s, b)).any(|b| {
             let waiting = self.waiting_at(b);
-            waiting >= load.max(1) || (waiting > 0 && !self.being_worked(b.id))
+            if waiting == 0 {
+                return false;
+            }
+            if !self.being_worked(b.id) {
+                return true;
+            }
+            let far = self.walk_between(b.id, main).is_some_and(|d| d >= long);
+            let need = if far {
+                load.max(self.long_trip_load(s, u32::MAX))
+            } else {
+                load
+            };
+            waiting >= need.max(1)
         })
     }
 
@@ -493,7 +652,9 @@ impl World {
     /// player when they've asked for that.
     pub(crate) fn slot_free_for_spirit(&self, b: &Building) -> bool {
         let slots = self.defs.building(b.kind).slots;
-        let held = self.settlement.training.keep_bench_place || self.player_at_station(b.id);
+        let promised = self.settlement.training.keep_bench_place
+            && self.training_bench().is_some_and(|t| t.id == b.id);
+        let held = promised || self.player_at_station(b.id);
         (self.spirits_at(b.id).count() as u32 + held as u32) < slots
     }
 
@@ -737,7 +898,7 @@ impl World {
                 .any(|b| b.storage.available(r) >= n);
             if !stocked {
                 let input = &self.defs.resource(r).name;
-                return if self.input_spare(r) > 0 {
+                return if self.any_spare(r) > 0 {
                     (
                         format!("{name} waiting: hauling capacity is limiting {input} delivery."),
                         true,

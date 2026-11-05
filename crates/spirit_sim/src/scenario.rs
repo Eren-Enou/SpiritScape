@@ -47,10 +47,16 @@ pub enum ScenarioKind {
     WorkshopRecipes,
     /// Main Storage almost full, to see what the game says about it.
     FullStorage,
+    /// Hardwood travels home to be made into beams.
+    CentralProduction,
+    /// The same spirits make beams beside the trees and send them home.
+    RemoteProduction,
+    /// Nothing built at Old Growth yet: the player sets the outpost up.
+    OutpostEstablishment,
 }
 
 impl ScenarioKind {
-    pub const ALL: [ScenarioKind; 15] = [
+    pub const ALL: [ScenarioKind; 18] = [
         ScenarioKind::NewGame,
         ScenarioKind::Demo,
         ScenarioKind::Regrind,
@@ -66,6 +72,9 @@ impl ScenarioKind {
         ScenarioKind::SkillingSession,
         ScenarioKind::WorkshopRecipes,
         ScenarioKind::FullStorage,
+        ScenarioKind::CentralProduction,
+        ScenarioKind::RemoteProduction,
+        ScenarioKind::OutpostEstablishment,
     ];
 
     pub fn key(self) -> &'static str {
@@ -85,6 +94,9 @@ impl ScenarioKind {
             ScenarioKind::SkillingSession => "skilling_session",
             ScenarioKind::WorkshopRecipes => "workshop_recipes",
             ScenarioKind::FullStorage => "full_storage",
+            ScenarioKind::CentralProduction => "central_production",
+            ScenarioKind::RemoteProduction => "remote_production",
+            ScenarioKind::OutpostEstablishment => "outpost_establishment",
         }
     }
 
@@ -105,6 +117,22 @@ pub struct SpiritSeed {
     /// Starts with the instruction to gather the top tier first.
     #[serde(default)]
     pub prefer_advanced: bool,
+    /// Starts with the instruction to gather only at this site.
+    #[serde(default)]
+    pub site: Option<String>,
+    /// Starts with the instruction to work only at the bench on this tile.
+    #[serde(default)]
+    pub works_at: Option<[i32; 2]>,
+}
+
+/// A building that's already standing when the scenario starts.
+#[derive(Clone, Debug, Deserialize)]
+pub struct PrebuiltSeed {
+    pub building: String,
+    pub at: [i32; 2],
+    /// Stock to leave here, as resource and amount.
+    #[serde(default)]
+    pub keep: BTreeMap<String, u32>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -137,6 +165,9 @@ pub struct ScenarioDef {
     /// this on. The older test scenarios keep one click per tree.
     #[serde(default)]
     pub auto_gather: bool,
+    /// Buildings already standing.
+    #[serde(default)]
+    pub prebuilt: Vec<PrebuiltSeed>,
 }
 
 /// A full-grown tree of `kind`.
@@ -217,6 +248,7 @@ impl World {
                         state: BuildingState::Complete,
                         storage: Storage::new(def.storage_capacity()),
                         crafted: 0,
+                        keep: BTreeMap::new(),
                     });
                     grid.set_occupied(pos, true);
                 }
@@ -310,6 +342,34 @@ impl World {
             let stored = world.buildings[main_storage].storage.deposit(id, n);
             *world.ledger.seeded.entry(id).or_default() += stored as u64;
         }
+        for seed in &scenario.prebuilt {
+            let kind = world
+                .defs
+                .building_kind_id(&seed.building)
+                .ok_or_else(|| format!("unknown building {:?}", seed.building))?;
+            let def = world.defs.building(kind);
+            let pos = TilePos::new(seed.at[0], seed.at[1]);
+            let mut keep = BTreeMap::new();
+            for (res, &n) in &seed.keep {
+                let id = world
+                    .defs
+                    .resource_id(res)
+                    .ok_or_else(|| format!("unknown resource {res:?}"))?;
+                keep.insert(id, n);
+            }
+            let building = Building {
+                id: world.buildings.len(),
+                kind,
+                pos,
+                name: def.name.clone(),
+                state: BuildingState::Complete,
+                storage: Storage::new(def.storage_capacity()),
+                crafted: 0,
+                keep,
+            };
+            world.buildings.push(building);
+            world.grid.set_occupied(pos, true);
+        }
         for seed in &scenario.spirits {
             let role = world
                 .defs
@@ -324,6 +384,18 @@ impl World {
                 .map_or(seed.xp, |l| world.defs.xp_table.xp_for_level(l));
             let id = world.add_spirit(role, xp, pos);
             world.spirits[id].policy.prefer_advanced = seed.prefer_advanced;
+            if let Some(key) = &seed.site {
+                let site = world
+                    .defs
+                    .site_id(key)
+                    .ok_or_else(|| format!("unknown site {key:?}"))?;
+                world.spirits[id].policy.site = Some(site);
+            }
+            if let Some([x, y]) = seed.works_at {
+                let bench = world.building_at(TilePos::new(x, y)).map(|b| b.id);
+                world.spirits[id].policy.station =
+                    Some(bench.ok_or_else(|| format!("no building at ({x}, {y})"))?);
+            }
         }
 
         for (key, &target) in &scenario.extra_targets {

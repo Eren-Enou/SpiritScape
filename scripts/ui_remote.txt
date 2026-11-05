@@ -1,0 +1,14 @@
+# UI test of a running outpost and training at its bench:
+#   cargo run --release -- --scenario remote_production --save-dir target/ui_saves7 --script scripts/ui_remote.txt --capture target/ui_remote
+1.5 key U
+2.0 expect Old Growth
+2.1 expect Running on its own
+2.2 expect keeping 20
+2.3 press 8x
+12.0 expect Made here
+12.1 shot 01_running
+12.2 press 1x
+12.4 key U
+12.8 key T
+13.2 expect Your bench: home
+13.3 exit

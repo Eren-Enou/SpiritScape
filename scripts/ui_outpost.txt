@@ -1,0 +1,48 @@
+# UI test of setting up the Old Growth outpost with the map and panel:
+#   cargo run --release -- --scenario outpost_establishment --save-dir target/ui_saves6 --script scripts/ui_outpost.txt --capture target/ui_outpost
+1.5 key U
+2.0 expect OUTPOST
+2.1 expect Old Growth
+2.2 expect Place an Outpost Storage
+2.3 shot 01_empty
+2.4 key C                 # the whole map, to reach Old Growth
+3.0 press Place Outpost Storage*
+3.3 expect Click a free tile at the outpost
+3.5 tile 34 4
+3.9 expect Ordered an Outpost Storage
+4.0 expect Under construction
+4.1 press 8x
+22.0 expect no bench
+22.1 expect Place a Workshop here
+22.2 shot 02_store_built
+22.3 press Place Workshop*
+22.6 tile 36 4
+23.0 expect WHAT THE PROJECT NEEDS
+23.1 expect Structural Beams
+23.2 shot 03_project_needs
+60.0 expect Staff outpost
+60.1 shot 04_built
+60.2 press Staff outpost
+60.6 expect Release outpost staff
+60.7 expect Running on its own
+60.8 press Keep +5
+61.2 expect keeping 25
+61.3 press Beams +5
+61.7 press Train here
+62.1 expect You train at the Workshop at Old Growth
+62.2 shot 05_running
+62.3 press 1x
+62.6 press Save
+63.0 expect Game saved
+63.2 key F9
+63.8 expect Game loaded
+64.0 key U
+64.4 expect keeping 25
+64.5 expect Release outpost staff
+64.6 key U
+65.0 key O
+65.4 expect INSTRUCTIONS
+65.5 press Next spirit
+65.9 expect Gather at
+66.0 shot 06_instructions
+66.2 exit

@@ -163,6 +163,17 @@ impl RecipeDef {
     }
 }
 
+/// When a long walk is worth it.
+#[derive(Clone, Debug)]
+pub struct LogisticsRules {
+    /// A trip this many tiles or longer counts as a long one.
+    pub long_trip_tiles: u32,
+    /// Batches of material a far bench must hold before a free worker walks there.
+    pub long_trip_batches: u32,
+    /// Share of a carrier's load, in percent, worth a long trip.
+    pub long_trip_load_pct: u32,
+}
+
 /// Settlement production settings that aren't player-adjustable.
 #[derive(Clone, Debug)]
 pub struct ProductionRules {
@@ -182,6 +193,8 @@ pub struct SiteDef {
     pub area: [i32; 4],
     /// Regrowth time of trees here, as a percentage of the tree type's time.
     pub regrow_pct: u32,
+    /// Can be run as a remote production site.
+    pub outpost: bool,
 }
 
 impl SiteDef {
@@ -344,6 +357,7 @@ pub struct GameDefs {
     pub production: ProductionRules,
     pub sites: Vec<SiteDef>,
     pub gathering: GatheringRules,
+    pub logistics: LogisticsRules,
     pub player: PlayerRules,
     pub soul_min_xp: u64,
     pub roles: Vec<RoleDef>,
@@ -371,6 +385,7 @@ struct RawDefs {
     #[serde(default)]
     sites: Vec<RawSite>,
     gathering: RawGathering,
+    logistics: RawLogistics,
     player: RawPlayer,
     roles: Vec<RawRole>,
     buildings: Vec<RawBuilding>,
@@ -455,12 +470,21 @@ struct RawProduction {
 }
 
 #[derive(Deserialize)]
+struct RawLogistics {
+    long_trip_tiles: u32,
+    long_trip_batches: u32,
+    long_trip_load_pct: u32,
+}
+
+#[derive(Deserialize)]
 struct RawSite {
     id: String,
     name: String,
     area: [i32; 4],
     #[serde(default = "hundred")]
     regrow_pct: u32,
+    #[serde(default)]
+    outpost: bool,
 }
 
 #[derive(Deserialize)]
@@ -692,10 +716,16 @@ impl GameDefs {
                 name: s.name,
                 area: s.area,
                 regrow_pct: s.regrow_pct.max(1),
+                outpost: s.outpost,
             })
             .collect();
         let gathering = GatheringRules {
             window_ticks: ticks(raw.gathering.measure_window_seconds).max(1),
+        };
+        let logistics = LogisticsRules {
+            long_trip_tiles: raw.logistics.long_trip_tiles.max(1),
+            long_trip_batches: raw.logistics.long_trip_batches,
+            long_trip_load_pct: raw.logistics.long_trip_load_pct.min(100),
         };
 
         let mut roles = Vec::new();
@@ -851,6 +881,7 @@ impl GameDefs {
             production,
             sites,
             gathering,
+            logistics,
             roles,
             buildings,
             objective,
