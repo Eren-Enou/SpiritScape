@@ -194,6 +194,32 @@ parts = [
     { model = "models/town/roof-point.glb", y = 1.0 },
 ]
 
+[buildings.hearth_foundations]
+stockpile = "models/nature/log_stack.glb"
+site = [{ model = "models/town/planks.glb" }]
+parts = [{ model = "models/nature/stone_largeA.glb", rot = 0 }]
+
+[buildings.hearth_walls]
+stockpile = "models/nature/log_stack.glb"
+site = [{ model = "models/town/planks.glb" }]
+parts = [
+    { model = "models/town/wall-wood.glb", rot = 0 },
+    { model = "models/town/wall-wood.glb", rot = 90 },
+    { model = "models/town/wall-wood.glb", rot = 180 },
+    { model = "models/town/wall-wood.glb", rot = 270 },
+]
+
+[buildings.hearth_of_spirits]
+stockpile = "models/nature/log_stack.glb"
+site = [{ model = "models/town/planks.glb" }]
+parts = [
+    { model = "models/town/wall-wood.glb", rot = 0 },
+    { model = "models/town/wall-wood.glb", rot = 90 },
+    { model = "models/town/wall-wood.glb", rot = 180 },
+    { model = "models/town/wall-wood-door.glb", rot = 270 },
+    { model = "models/town/roof-point.glb", y = 1.0 },
+]
+
 [buildings.workshop_annex]
 stockpile = "models/nature/log_stack.glb"
 site = [{ model = "models/town/planks.glb" }]

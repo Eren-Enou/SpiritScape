@@ -209,6 +209,7 @@ struct GoalRoot;
 /// A card body and what it shows.
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
 enum Card {
+    Ending,
     Ambitions,
     SpiritStory,
     Header,
@@ -567,6 +568,9 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                             ("", UiAction::Plan("ironwood_nursery")),
                             ("", UiAction::Plan("quarry_extension")),
                             ("", UiAction::Plan("mason_yard")),
+                            ("", UiAction::Plan("hearth_foundations")),
+                            ("", UiAction::Plan("hearth_walls")),
+                            ("", UiAction::Plan("hearth_of_spirits")),
                             ("", UiAction::Plan("panelled_warehouse")),
                             ("", UiAction::Plan("carrying_frames")),
                         ],
@@ -694,6 +698,7 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
             });
 
             tab_panel(p, Tab::Progress, |p| {
+                card(p, "YOUR STORY", |c| body(c, Card::Ending));
                 card(p, "AMBITIONS", |c| body(c, Card::Ambitions));
                 card(p, "YOUR SKILLS", |c| body(c, Card::Skills));
                 card(p, "YOUR WORKFORCE", |c| body(c, Card::Workforce));
@@ -1780,6 +1785,7 @@ fn update_cards(
             Card::ProductionLimit => production_limit_lines(&sim.world),
             Card::ChainTime => chain_time_lines(&sim.world),
             Card::Goal => goal_lines(&sim.world),
+            Card::Ending => ending_lines(&sim.world),
             Card::Ambitions => ambition_lines(&sim.world),
             Card::SpiritStory => story_lines(&sim),
             Card::Menu => menu_lines(&sim),
@@ -1834,6 +1840,7 @@ fn header_lines(sim: &Sim) -> Vec<Line> {
         ScenarioKind::ExpandedCentral => "Expanded, central",
         ScenarioKind::ExpandedRemote => "Expanded, remote",
         ScenarioKind::ForestAccess => "Forest access",
+        ScenarioKind::LastStage => "Last stage",
         ScenarioKind::MasonYard => "Mason's Yard",
         ScenarioKind::CaravanYard => "Caravan yard",
         ScenarioKind::FullMap => "Full map",
@@ -2405,6 +2412,16 @@ fn goal_lines(w: &World) -> Vec<Line> {
         ]);
     }
     lines
+}
+
+/// How the game ended, or what it's working toward.
+fn ending_lines(w: &World) -> Vec<Line> {
+    match w.ending_story() {
+        Some(story) => story.into_iter().map(|l| vec![text(l)]).collect(),
+        None => vec![vec![muted(
+            "Somewhere ahead is the Hearth of Spirits. It will take all you can do.",
+        )]],
+    }
 }
 
 /// The selected spirit's life so far.

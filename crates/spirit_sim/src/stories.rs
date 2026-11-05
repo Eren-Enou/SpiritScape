@@ -82,6 +82,38 @@ impl World {
         }
     }
 
+    /// The closing account of a game, once the Hearth is lit.
+    pub fn ending_story(&self) -> Option<Vec<String>> {
+        let at = self.settlement.ended_at?;
+        let tps = self.defs.ticks_per_second as u64;
+        let secs = at / tps;
+        let made: Vec<&Spirit> = self.spirits.iter().filter(|s| s.gift_xp > 0).collect();
+        let given: u64 = made.iter().map(|s| s.gift_xp).sum();
+        let mut lines = vec![
+            format!(
+                "The Hearth of Spirits was lit after {} hours and {} minutes.",
+                secs / 3600,
+                secs / 60 % 60
+            ),
+            format!(
+                "You gave {given} XP of yourself to make {} spirits, and it's still here, in them.",
+                made.len()
+            ),
+        ];
+        for s in self.spirits.iter().filter(|s| !s.deeds.is_empty()).take(6) {
+            let last = s.deeds.last().map(|(d, _)| &self.defs.deeds[*d as usize]);
+            if let Some(deed) = last {
+                lines.push(format!("{}: {}", self.spirit_title(s), deed.text));
+            }
+        }
+        lines.push(format!(
+            "{} Trade Caravans went out, and the settlement knows your name.",
+            self.settlement.caravans
+        ));
+        lines.push("There's nothing left you have to do. The work goes on if you want it.".into());
+        Some(lines)
+    }
+
     /// A spirit's name with the title of its latest deed.
     pub fn spirit_title(&self, s: &Spirit) -> String {
         match s.deeds.last() {

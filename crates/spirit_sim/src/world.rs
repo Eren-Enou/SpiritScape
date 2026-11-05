@@ -90,6 +90,9 @@ pub struct Settlement {
     /// Orders beyond the main one.
     #[serde(default)]
     pub extra_orders: Vec<ProductionOrder>,
+    /// When the Hearth was lit, in ticks.
+    #[serde(default)]
+    pub ended_at: Option<u64>,
     /// Trade Caravans sent so far.
     #[serde(default)]
     pub caravans: u32,

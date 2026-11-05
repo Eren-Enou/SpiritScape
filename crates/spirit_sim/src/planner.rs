@@ -714,6 +714,7 @@ impl World {
         let paves = def.paves.clone();
         let carry_bonus = def.carry_bonus;
         let repeatable = def.repeatable;
+        let ending = def.ending;
         let building = p.building;
         let slot_bonus = def.slot_bonus;
         let site = p.site;
@@ -764,6 +765,13 @@ impl World {
         let gatherers_use_it = def.accepts_gatherer_deposits;
         for [x, y] in opens {
             self.grid.open_crossing(TilePos::new(x, y));
+        }
+        if ending {
+            self.settlement.ended_at.get_or_insert(self.tick);
+            self.notices.push(
+                self.tick,
+                "The Hearth of Spirits is lit. Your story is in the Progress tab (J).",
+            );
         }
         if repeatable {
             // It's gone, and the place it was loaded is free again.

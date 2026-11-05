@@ -303,6 +303,8 @@ pub struct BuildingDef {
     pub carry_bonus: u32,
     /// Leaves when it's finished, so it can be built again and again.
     pub repeatable: bool,
+    /// Finishing this ends the story, though the game carries on.
+    pub ending: bool,
     /// Trade Caravans that must have gone before this can be planned.
     pub needs_caravans: u32,
     /// What the caravan that opens this brings back, in words.
@@ -683,6 +685,8 @@ struct RawBuilding {
     #[serde(default)]
     repeatable: bool,
     #[serde(default)]
+    ending: bool,
+    #[serde(default)]
     needs_caravans: u32,
     #[serde(default)]
     caravan_find: String,
@@ -938,6 +942,7 @@ impl GameDefs {
                 capacity_bonus: b.capacity_bonus,
                 carry_bonus: b.carry_bonus,
                 repeatable: b.repeatable,
+                ending: b.ending,
                 needs_caravans: b.needs_caravans,
                 caravan_find: b.caravan_find,
                 plants: b

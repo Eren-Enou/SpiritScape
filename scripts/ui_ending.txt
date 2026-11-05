@@ -1,0 +1,13 @@
+# UI test of lighting the Hearth and reading the ending:
+#   cargo run --release -- --scenario last_stage --save-dir target/ui_saves25 --script scripts/ui_ending.txt --capture target/ui_ending
+1.5 key B
+2.0 press Plan Hearth of Spirits*
+2.4 expect Hearth of Spirits added to the plan
+2.6 press 8x
+30.0 press 1x
+30.2 expect Hearth of Spirits is lit
+30.3 key J
+30.7 expect YOUR STORY
+30.8 expect The Hearth of Spirits was lit
+30.9 shot 01_ending
+31.2 exit
