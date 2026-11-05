@@ -1,0 +1,10 @@
+# UI test of the Mason's Yard:
+#   cargo run --release -- --scenario mason_yard --save-dir target/ui_saves24 --script scripts/ui_masonry.txt --capture target/ui_masonry
+1.5 expect Masonry
+1.6 key P
+2.0 expect Keystones
+2.02 scroll 1380 600 -30
+2.2 press Keystones +5
+2.3 expect Keystones: normal priority
+2.4 shot 01_orders
+2.6 exit

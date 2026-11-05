@@ -322,7 +322,7 @@ impl World {
             .filter_map(|b| {
                 let level = self
                     .staff()
-                    .filter(|s| self.may_work_at(s, b.id))
+                    .filter(|s| self.may_work_at(s, b.id) && self.can_make(s, output))
                     .map(|s| s.level())
                     .max()?;
                 self.defs

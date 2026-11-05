@@ -40,9 +40,10 @@ const RECENT_NOTICES: usize = 6;
 /// Planned buildings with buttons in the Projects tab.
 const PLAN_ROWS: usize = 4;
 /// Further orders with buttons in the Production tab.
-const EXTRA_ORDER_BUTTONS: usize = 2;
-const EXTRA_ORDER_LESS: [&str; 2] = ["Beams -5", "Panels -5"];
-const EXTRA_ORDER_MORE: [&str; 2] = ["Beams +5", "Panels +5"];
+const EXTRA_ORDER_BUTTONS: usize = 4;
+const EXTRA_ORDER_NAMES: [&str; 4] = ["Beams", "Panels", "Dressed Stone", "Keystones"];
+const EXTRA_ORDER_LESS: [&str; 4] = ["Beams -5", "Panels -5", "Dressed -5", "Keystones -5"];
+const EXTRA_ORDER_MORE: [&str; 4] = ["Beams +5", "Panels +5", "Dressed +5", "Keystones +5"];
 
 /// Screen space covered by the UI: right-hand panel and bottom event log.
 pub const PANEL_WIDTH: f32 = 430.0;
@@ -565,6 +566,7 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                             ("", UiAction::Plan("trade_caravan")),
                             ("", UiAction::Plan("ironwood_nursery")),
                             ("", UiAction::Plan("quarry_extension")),
+                            ("", UiAction::Plan("mason_yard")),
                             ("", UiAction::Plan("panelled_warehouse")),
                             ("", UiAction::Plan("carrying_frames")),
                         ],
@@ -1455,6 +1457,12 @@ fn update_buttons(
             UiAction::Load(_) => !sim.is_journey() && scenario_buttons.0,
             UiAction::Restart | UiAction::ToggleScenarios => !sim.is_journey(),
             UiAction::LeaveLoad => w.load_is_stuck(),
+            // Orders for a bench that hasn't been built are just clutter.
+            UiAction::ExtraTarget(i, _) | UiAction::ExtraPriority(i) => w
+                .settlement
+                .extra_orders
+                .get(*i)
+                .is_some_and(|o| !w.stations_for(o.output).is_empty()),
             UiAction::StopActivity => {
                 w.player.session.is_some() || !w.player.actor.queue.is_empty()
             }
@@ -1610,7 +1618,7 @@ fn update_buttons(
             },
             UiAction::ExtraPriority(i) => match w.settlement.extra_orders.get(*i) {
                 Some(o) => {
-                    let name = ["Beams", "Panels"][*i];
+                    let name = EXTRA_ORDER_NAMES[*i];
                     let when = if o.priority > 0 {
                         "first"
                     } else {
@@ -1826,6 +1834,7 @@ fn header_lines(sim: &Sim) -> Vec<Line> {
         ScenarioKind::ExpandedCentral => "Expanded, central",
         ScenarioKind::ExpandedRemote => "Expanded, remote",
         ScenarioKind::ForestAccess => "Forest access",
+        ScenarioKind::MasonYard => "Mason's Yard",
         ScenarioKind::CaravanYard => "Caravan yard",
         ScenarioKind::FullMap => "Full map",
         ScenarioKind::NoRoomLeft => "No room left",

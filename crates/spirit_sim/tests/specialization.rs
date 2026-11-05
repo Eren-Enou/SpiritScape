@@ -839,7 +839,7 @@ fn an_upgraded_save_gains_the_new_content() {
     assert!(w.settlement.site_open[site.index()]);
     assert_eq!(w.site_stats.len(), w.defs.sites.len());
     assert!(w.trees.iter().filter(|t| t.site == Some(site)).count() >= 6);
-    assert_eq!(w.settlement.extra_orders.len(), 2);
+    assert_eq!(w.settlement.extra_orders.len(), 4);
     assert_eq!(w.settlement.extra_orders[0].target, 0);
     let b = w.station().unwrap();
     assert_eq!(

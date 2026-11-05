@@ -2,6 +2,16 @@
 
 The handoff between development runs. Newest first.
 
+## v0.24 Masonry
+
+**Status:** on branch `v0.24-masonry`, with its PR targeting `v0.23-spirit-stories`. Not merged.
+
+**Shipped:** Masonry, the Mason's Yard, Dressed Stone, Keystones, a Masonry Spirit and a 15th goal.
+
+**Measured:** all 15 goals are met by 13:04 in one game.
+
+**Next:** the ending. Keystones exist for a final project. Also consider a standing Stone target.
+
 ## v0.23 Spirit Stories
 
 **Status:** on branch `v0.23-spirit-stories`, with its PR targeting `v0.22-caravan-finds`. Not merged.
