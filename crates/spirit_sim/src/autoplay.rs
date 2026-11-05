@@ -1784,7 +1784,14 @@ fn stuck_report(w: &World) -> String {
         );
     }
     for b in &w.buildings {
-        out += &format!("\n  bld {} {} {:?}", b.name, b.pos, b.state);
+        out += &format!(
+            "
+  bld {} {} {:?} {:?}",
+            b.name,
+            b.pos,
+            b.state,
+            b.storage.contents()
+        );
     }
     for o in w.order_reports() {
         out += &format!(

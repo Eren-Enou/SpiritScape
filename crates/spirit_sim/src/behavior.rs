@@ -926,7 +926,9 @@ impl World {
         let s = &self.spirits[sid];
         let def = self.defs.building(station.kind);
         let limit = def.capacity.saturating_sub(def.input_buffer);
-        if station.storage.get(output) >= limit || station.storage.free() == 0 {
+        // Stock set aside for the player isn't on the shelf, even if it's the
+        // same good, or a bench holding planks for training could never make any.
+        if station.storage.available(output) >= limit || station.storage.free() == 0 {
             return Err(Blocked::new(
                 WaitKind::Storage,
                 format!("{} output is full", station.name),

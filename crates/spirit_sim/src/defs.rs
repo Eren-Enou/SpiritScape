@@ -108,6 +108,8 @@ pub struct TreeTypeDef {
     pub id: String,
     pub name: String,
     pub map_char: char,
+    /// Follows the seasons: grows faster in spring, and stops in winter.
+    pub seasonal: bool,
     pub resource: ResourceId,
     pub skill: SkillId,
     /// Minimum skill level to cut this tree. Applies to the player and spirits.
@@ -393,6 +395,8 @@ pub struct JourneyRules {
 pub struct GameDefs {
     /// Long-term goals, in the order they're suggested.
     pub ambitions: Vec<crate::ambitions::AmbitionDef>,
+    /// The year, in order.
+    pub seasons: Vec<crate::stories::SeasonDef>,
     /// Old stones to find around the map.
     pub markers: Vec<crate::stories::MarkerDef>,
     /// What spirits made by Soul Separation can be like.
@@ -439,6 +443,8 @@ struct RawDefs {
     journey: JourneyRules,
     #[serde(default)]
     ambitions: Vec<crate::ambitions::AmbitionDef>,
+    #[serde(default)]
+    seasons: Vec<crate::stories::SeasonDef>,
     #[serde(default)]
     markers: Vec<crate::stories::MarkerDef>,
     #[serde(default)]
@@ -498,6 +504,8 @@ struct RawTreeType {
     id: String,
     name: String,
     map_char: String,
+    #[serde(default)]
+    seasonal: bool,
     resource: String,
     skill: String,
     #[serde(default = "one")]
@@ -835,6 +843,7 @@ impl GameDefs {
         for t in raw.tree_types {
             trees.push(TreeTypeDef {
                 map_char: single_char(&t.map_char, &t.id)?,
+                seasonal: t.seasonal,
                 resource: resource_id(&t.resource)?,
                 skill: skill_id(&t.skill)?,
                 level_required: t.level_required.max(1),
@@ -1057,6 +1066,7 @@ impl GameDefs {
 
         Ok(GameDefs {
             ambitions: raw.ambitions,
+            seasons: raw.seasons,
             markers: raw.markers,
             traits: raw.traits,
             deeds: raw.deeds,

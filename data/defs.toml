@@ -283,6 +283,37 @@ at = [56, 9]
 title = "The Last Stone"
 text = "No name on this one. The chisel marks are very neat, the way a helper would make them. We built no hearth. Nobody was left who thought of it."
 
+# The year, for real playthroughs only. Scenarios stay in a season-less world,
+# so what they measure doesn't move. `growth` is how many ticks of regrowth a
+# seasonal tree gets each tick: 2 is twice as fast, and 0 stops it.
+[[seasons]]
+id = "spring"
+name = "Spring"
+minutes = 30
+growth = 2
+text = "Spring. Everything that was cut grows back twice as fast."
+
+[[seasons]]
+id = "summer"
+name = "Summer"
+minutes = 30
+growth = 1
+text = "Summer. Long days, and the woods as they usually are."
+
+[[seasons]]
+id = "autumn"
+name = "Autumn"
+minutes = 30
+growth = 1
+text = "Autumn. Winter is coming: anything you want cut, cut it now."
+
+[[seasons]]
+id = "winter"
+name = "Winter"
+minutes = 30
+growth = 0
+text = "Winter. The woods have stopped growing. The quarry doesn't care, and neither does a bench."
+
 [[resources]]
 id = "logs"
 name = "Logs"
@@ -352,6 +383,7 @@ trainable = true
 [[tree_types]]
 id = "tree"
 name = "Tree"
+seasonal = true
 map_char = "t"
 resource = "logs"
 skill = "woodcutting"
@@ -366,6 +398,7 @@ min_chop_seconds = 1.0
 [[tree_types]]
 id = "oak"
 name = "Oak"
+seasonal = true
 map_char = "T"
 resource = "logs"
 skill = "woodcutting"
@@ -382,6 +415,7 @@ why = "Twice the XP of a Tree for each log, and more logs per tree. A spirit of 
 [[tree_types]]
 id = "ironwood"
 name = "Ironwood"
+seasonal = true
 map_char = "I"
 resource = "hardwood"
 skill = "woodcutting"

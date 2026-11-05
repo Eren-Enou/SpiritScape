@@ -1010,3 +1010,19 @@ fn a_task_for_a_cancelled_site_does_not_linger() {
             .any(|t| matches!(t, Task::DeliverToSite { .. }))
     );
 }
+
+/// Found by a long game: a hauler carrying 20 waited for a full load at a bench
+/// whose shelf stops at 19, and both waited for good.
+#[test]
+fn a_big_hauler_does_not_wait_for_more_than_a_shelf_can_hold() {
+    let mut w = world(ScenarioKind::RemoteProduction);
+    let planks = res(&w, "planks");
+    let bench = w.building_at(BENCH_AT).unwrap().id;
+    let hauler = spirit_of(&w, JobKind::Haul);
+    w.spirits[hauler].actor.inventory.capacity = 30;
+    w.buildings[bench].storage.deposit(planks, 19);
+    *w.ledger.seeded.entry(planks).or_default() += 19;
+    w.apply(Command::SetProductionTarget(200)).unwrap();
+    let start = w.main().storage.get(planks);
+    assert!(run_until(&mut w, 3000, |w| w.main().storage.get(planks) > start));
+}

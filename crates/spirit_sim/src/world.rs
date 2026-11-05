@@ -90,6 +90,9 @@ pub struct Settlement {
     /// Orders beyond the main one.
     #[serde(default)]
     pub extra_orders: Vec<ProductionOrder>,
+    /// The season last announced.
+    #[serde(default)]
+    pub season_seen: Option<String>,
     /// Old stones the player has read, by id.
     #[serde(default)]
     pub markers_read: Vec<String>,
@@ -1126,6 +1129,7 @@ impl World {
     }
 
     fn regrow_trees(&mut self) {
+        self.update_season();
         for t in &mut self.trees {
             if let TreeState::Depleted { regrow_at } = t.state
                 && self.tick >= regrow_at

@@ -376,6 +376,7 @@ impl World {
                 caravans: 0,
                 ended_at: None,
                 markers_read: Vec::new(),
+                season_seen: None,
                 bench_bonus: 0,
                 queue: Vec::new(),
                 next_queue_id: 0,

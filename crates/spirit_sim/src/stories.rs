@@ -3,7 +3,7 @@
 //! Deeds only record what happened, so nothing here changes what a spirit does.
 //! A trait is the one exception, and it's fixed when the spirit is made.
 
-use crate::entities::{Spirit, SpiritId};
+use crate::entities::{Spirit, SpiritId, TreeState};
 use crate::events::EventKind;
 use crate::grid::TilePos;
 use crate::world::World;
@@ -18,6 +18,17 @@ pub struct TraitDef {
     /// More this spirit can carry.
     #[serde(default)]
     pub carry: u32,
+}
+
+/// A part of the year.
+#[derive(Clone, Debug, Deserialize)]
+pub struct SeasonDef {
+    pub id: String,
+    pub name: String,
+    pub minutes: u64,
+    /// Ticks of regrowth a seasonal tree gets each tick.
+    pub growth: u64,
+    pub text: String,
 }
 
 /// An old stone, read by walking up to it.
@@ -66,6 +77,60 @@ impl World {
         let pick = (id as u64 * 7 + tick / 10) as usize % count;
         s.character = Some(pick as u16);
         s.actor.inventory.capacity += self.defs.traits[pick].carry;
+    }
+
+    /// The season now, in a playthrough. It comes from the clock alone, so
+    /// there's nothing to save.
+    pub fn season(&self) -> Option<&SeasonDef> {
+        // Fast development games would spin through the year in minutes.
+        self.journey.as_ref()?;
+        if self.defs.profile.id == "development" {
+            return None;
+        }
+        let tpm = self.defs.ticks_per_second as u64 * 60;
+        let year: u64 = self.defs.seasons.iter().map(|s| s.minutes * tpm).sum();
+        if year == 0 {
+            return None;
+        }
+        let mut left = self.tick % year;
+        for s in &self.defs.seasons {
+            let length = s.minutes * tpm;
+            if left < length {
+                return Some(s);
+            }
+            left -= length;
+        }
+        None
+    }
+
+    /// Moves seasonal regrowth along, and says when the season turns.
+    pub(crate) fn update_season(&mut self) {
+        let Some(s) = self.season() else {
+            return;
+        };
+        let (growth, name, text) = (s.growth, s.id.clone(), s.text.clone());
+        if self.settlement.season_seen.as_deref() != Some(name.as_str()) {
+            if self.settlement.season_seen.is_some() {
+                self.notices.push(self.tick, text);
+            }
+            self.settlement.season_seen = Some(name);
+        }
+        if growth == 1 {
+            return;
+        }
+        for t in &mut self.trees {
+            if !self.defs.trees[t.kind.index()].seasonal {
+                continue;
+            }
+            if let TreeState::Depleted { regrow_at } = &mut t.state {
+                // Each tick already counts for one.
+                *regrow_at = if growth == 0 {
+                    *regrow_at + 1
+                } else {
+                    regrow_at.saturating_sub(growth - 1)
+                };
+            }
+        }
     }
 
     /// Reads a stone the player has walked up to.
