@@ -19,6 +19,7 @@ mod camera;
 mod capture;
 mod cards;
 mod characters;
+mod feedback;
 mod script;
 mod sim_runner;
 mod status;
@@ -110,6 +111,7 @@ fn main() -> AppExit {
         camera::CameraPlugin,
         ui::UiPlugin,
         script::ScriptPlugin,
+        feedback::FeedbackPlugin,
     ))
     .add_systems(Update, capture::capture_system);
     if flag("--fps") {

@@ -2,6 +2,14 @@
 
 The handoff between development runs. Newest first.
 
+## v0.30 Feedback
+
+**Status:** on branch `v0.30-feedback`, with its PR targeting `v0.29-onboarding`. Not merged.
+
+**Shipped:** eight generated sounds, sparks, and `M` for sound.
+
+**Next:** a real ending moment, and seasons on the map.
+
 ## v0.29 Onboarding
 
 **Status:** on branch `v0.29-onboarding`, with its PR targeting `v0.28-visitors`. Not merged.
