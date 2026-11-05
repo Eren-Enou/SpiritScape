@@ -158,6 +158,12 @@ Plank roads add `--scenario plank_surplus`. See [docs/V0.10_PLANK_ROADS.md](docs
 cargo run -p spirit_sim --release --example road_report
 ```
 
+Fitted Panels add `--scenario panel_workshop`. See [docs/V0.11_FITTED_PANELS.md](docs/V0.11_FITTED_PANELS.md).
+
+```bash
+cargo run -p spirit_sim --release --example panel_report
+```
+
 ## Tests
 
 ```bash

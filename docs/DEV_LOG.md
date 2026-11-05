@@ -2,6 +2,18 @@
 
 The handoff between development runs. Newest first.
 
+## v0.11 Fitted Panels
+
+**Status:** on branch `v0.11-fitted-panels`, with its PR targeting `v0.10-plank-roads`. Not merged.
+
+**Shipped:** the Fitted Panels recipe (chosen only, level 7), a panel order, Panelled Warehouse, Carrying Frames, the `panel_workshop` scenario, the `panel_report` example and save format 7.
+
+**Measured:** two more hours of hand training after the route gives 53,725 XP with Main Storage at 722 of 1,350, against 10,350 XP and a full store on planks alone.
+
+**Decided:** panels never get made automatically by the player. Beams stay the top XP recipe.
+
+**Next:** a reference player that follows only what the UI tells it, because the storage advice now has a lot of options. Then rescuing a walled-in builder, then what remote production is for. Panels will eventually pile up, and plank demand doesn't chain from a panel plan.
+
 ## v0.10 Plank Roads
 
 **Status:** on branch `v0.10-plank-roads`, with its PR targeting `v0.9-purposeful-expansion`. Not merged.
@@ -17,8 +29,10 @@ The handoff between development runs. Newest first.
 ## Questions for the user
 
 - Should the player choose a road's route on the map? Fixed routes were the reversible choice.
+- Is 447 XP a minute from panels too fast? Only a playtest can say.
 
 ## Standing notes
 
-- Nobody has played v0.7, v0.8, v0.9 or v0.10.
+- Nobody has played v0.7 through v0.11.
+- Run tests with `--no-fail-fast`. Without it, a failure in one test file hides the rest.
 - To run the UI scripts, use the command in each script's first lines against the release build. Each needs a fresh save directory, except `ui_continue`, which follows `ui_journey` in the same one. `ui_damaged_save` needs a `world.save` containing garbage.
