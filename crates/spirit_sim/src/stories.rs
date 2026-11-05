@@ -5,6 +5,7 @@
 
 use crate::entities::{Spirit, SpiritId};
 use crate::events::EventKind;
+use crate::grid::TilePos;
 use crate::world::World;
 use serde::Deserialize;
 
@@ -17,6 +18,15 @@ pub struct TraitDef {
     /// More this spirit can carry.
     #[serde(default)]
     pub carry: u32,
+}
+
+/// An old stone, read by walking up to it.
+#[derive(Clone, Debug, Deserialize)]
+pub struct MarkerDef {
+    pub id: String,
+    pub at: [i32; 2],
+    pub title: String,
+    pub text: String,
 }
 
 /// A milestone in a spirit's working life.
@@ -56,6 +66,33 @@ impl World {
         let pick = (id as u64 * 7 + tick / 10) as usize % count;
         s.character = Some(pick as u16);
         s.actor.inventory.capacity += self.defs.traits[pick].carry;
+    }
+
+    /// Reads a stone the player has walked up to.
+    pub(crate) fn update_markers(&mut self) {
+        let at = self.player.actor.pos();
+        let near = self.defs.markers.iter().find(|m| {
+            let p = TilePos::new(m.at[0], m.at[1]);
+            p.manhattan(at) <= 1 && !self.settlement.markers_read.contains(&m.id)
+        });
+        let Some(m) = near.cloned() else {
+            return;
+        };
+        self.settlement.markers_read.push(m.id);
+        let msg = format!("{}: {}", m.title, m.text);
+        self.events.push(self.tick, EventKind::Player, msg.clone());
+        self.notices.push(self.tick, msg);
+    }
+
+    /// The stones read so far, as title and text.
+    pub fn markers_read(&self) -> Vec<(String, String)> {
+        let read = &self.settlement.markers_read;
+        self.defs
+            .markers
+            .iter()
+            .filter(|m| read.contains(&m.id))
+            .map(|m| (m.title.clone(), m.text.clone()))
+            .collect()
     }
 
     /// Records deeds as they're earned.
@@ -110,6 +147,9 @@ impl World {
             "{} Trade Caravans went out, and the settlement knows your name.",
             self.settlement.caravans
         ));
+        if self.settlement.markers_read.len() == self.defs.markers.len() {
+            lines.push("Whoever cut those stones built no hearth. You did.".into());
+        }
         lines.push("There's nothing left you have to do. The work goes on if you want it.".into());
         Some(lines)
     }

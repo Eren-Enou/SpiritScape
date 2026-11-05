@@ -1488,6 +1488,21 @@ pub fn play_all_goals(hours: u64) -> Result<(World, AllGoals), String> {
         buy_for_goals(&mut w);
         note(&w, &mut out);
     }
+    // A walk round the old stones.
+    bot.stop(&mut w);
+    for [x, y] in w.defs.markers.iter().map(|m| m.at).collect::<Vec<_>>() {
+        let beside = crate::grid::TilePos::new(x, y + 1);
+        let _ = w.apply(Command::PlayerInteract(beside));
+        for _ in 0..120 * tps {
+            if w.player.actor.pos() == beside {
+                break;
+            }
+            w.step();
+        }
+        w.run_ticks(10);
+    }
+    note(&w, &mut out);
+
     // Whatever's left, while the spirits get on with it.
     while w.next_ambition().is_some() && w.tick < end {
         bot.run(&mut w, Goal::Chop, 60 * tps);

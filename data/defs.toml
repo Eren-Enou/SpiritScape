@@ -152,6 +152,12 @@ hint = "Three stages in Projects (B): Foundations, Walls, and the Hearth itself.
 built = ["hearth_foundations", "hearth_walls", "hearth_of_spirits"]
 
 [[ambitions]]
+id = "markers"
+title = "Read the old stones"
+hint = "Someone was here before you. Six stones are out there, one of them beyond the ravine."
+markers = 6
+
+[[ambitions]]
 id = "master_wood"
 title = "Master Woodworking"
 hint = "Reach Woodworking level 20. It counts even if you give the XP to a spirit later."
@@ -238,6 +244,44 @@ measure = "crafted"
 amount = 1000
 title = "Master Hand"
 text = "It has made a thousand."
+
+# Old stones left by someone who was here before you. Walking up to one reads
+# it. They can be found in any order, so each has to stand on its own.
+[[markers]]
+id = "first"
+at = [2, 5]
+title = "The Worn Stone"
+text = "We came for the trees. I could cut more than anyone, so I gave the first of it away and made a helper. It was the best day."
+
+[[markers]]
+id = "river"
+at = [18, 25]
+title = "The River Stone"
+text = "Ten helpers now. I don't remember how to sharpen an axe. They do it for me. It doesn't seem to matter."
+
+[[markers]]
+id = "forest"
+at = [26, 12]
+title = "The Leaning Stone"
+text = "Someone asked me what I used to be good at. I went to answer, and found I had given it all away."
+
+[[markers]]
+id = "oldgrowth"
+at = [45, 7]
+title = "The Mossed Stone"
+text = "The helpers never stop. They cut and carry and build, and they don't look up. I wonder if any of them remembers being me."
+
+[[markers]]
+id = "south"
+at = [42, 24]
+title = "The Split Stone"
+text = "There is one thing left to give. I think if I give it, the work will go on without anyone to watch it. I think that's what I wanted."
+
+[[markers]]
+id = "hollow"
+at = [56, 9]
+title = "The Last Stone"
+text = "No name on this one. The chisel marks are very neat, the way a helper would make them. We built no hearth. Nobody was left who thought of it."
 
 [[resources]]
 id = "logs"

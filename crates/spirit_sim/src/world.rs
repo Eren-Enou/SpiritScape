@@ -90,6 +90,9 @@ pub struct Settlement {
     /// Orders beyond the main one.
     #[serde(default)]
     pub extra_orders: Vec<ProductionOrder>,
+    /// Old stones the player has read, by id.
+    #[serde(default)]
+    pub markers_read: Vec<String>,
     /// When the Hearth was lit, in ticks.
     #[serde(default)]
     pub ended_at: Option<u64>,
@@ -1110,6 +1113,9 @@ impl World {
         if self.tick.is_multiple_of(SNAPSHOT_TICKS) {
             self.update_ambitions();
             self.update_deeds();
+        }
+        if self.tick.is_multiple_of(5) {
+            self.update_markers();
         }
     }
 
