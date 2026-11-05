@@ -47,7 +47,9 @@ impl World {
                 fixes.push("saw logs at the Workshop: planks take up half the room".to_string());
             }
         } else {
-            fixes.push("lower the plank target in Production (P) and spend planks on building".to_string());
+            fixes.push(
+                "lower the plank target in Production (P) and spend planks on building".to_string(),
+            );
         }
         let storehouse = self
             .defs

@@ -1,0 +1,37 @@
+# UI test of the construction plan: add, reorder, cancel, and watch it finish.
+#   cargo run --release -- --scenario project_queue --save-dir target/ui_saves8 --script scripts/ui_projects.txt --capture target/ui_projects
+1.5 key B
+2.0 expect SETTLEMENT PLAN
+2.1 expect Nothing planned
+2.2 shot 01_empty
+2.3 press Plan Outpost Storage*
+2.8 expect Outpost Storage added to the plan
+2.9 expect Carrying materials
+3.0 press Plan Forest Crossing*
+3.4 expect Forest Crossing added to the plan
+3.5 expect Queued
+3.6 expect A way across the ravine
+3.7 expect Short of 10 Structural Beams
+3.8 press Plan Storehouse*
+4.2 expect Move up: Storehouse
+4.3 shot 02_planned
+4.4 press Move up: Storehouse
+4.8 expect Plan reordered
+4.9 press Cancel: Storehouse
+5.3 expect Storehouse taken off the plan
+5.4 press Save
+5.8 expect Game saved
+6.0 key F9
+6.6 expect Game loaded
+6.8 key B
+7.2 expect Forest Crossing
+7.3 expect Queued
+7.4 shot 03_reloaded
+7.6 key B
+8.0 expect Building
+8.1 expect Outpost Storage
+8.2 press 8x
+24.0 expect Forest Crossing
+24.1 shot 04_settlement
+24.2 press 1x
+24.4 exit

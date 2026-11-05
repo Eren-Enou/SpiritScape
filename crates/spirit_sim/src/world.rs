@@ -736,6 +736,12 @@ impl World {
             if !tree.is_grown() {
                 return Err(format!("The {name} is depleted"));
             }
+            if let Some(k) = tree.site.and_then(|s| self.site_locked_by(s)) {
+                return Err(format!(
+                    "You can't reach it yet: it needs a {}",
+                    self.defs.building(k).name
+                ));
+            }
             (
                 vec![
                     Task::Move {
@@ -1106,11 +1112,12 @@ impl World {
     fn step_player(&mut self, events: &mut Vec<SimEvent>) {
         let level = self.player_task_level();
         let at_station = self.player_output_at_station();
-        let room = matches!(self.player.actor.queue.front(), Some(Task::Deposit { .. })).then(|| {
-            let carried = self.player.actor.inventory.items().keys();
-            let limits = carried.map(|r| (*r, self.player_room_for(*r))).collect();
-            (self.main_storage, limits)
-        });
+        let room =
+            matches!(self.player.actor.queue.front(), Some(Task::Deposit { .. })).then(|| {
+                let carried = self.player.actor.inventory.items().keys();
+                let limits = carried.map(|r| (*r, self.player_room_for(*r))).collect();
+                (self.main_storage, limits)
+            });
         let World {
             defs,
             grid,

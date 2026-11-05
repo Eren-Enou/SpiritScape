@@ -317,6 +317,8 @@ pub struct BuildingDef {
     pub slot_bonus: u32,
     /// What changes when this is finished, in a sentence.
     pub benefit: String,
+    /// The site it goes up in when the player doesn't choose a tile.
+    pub home_site: Option<String>,
 }
 
 impl BuildingDef {
@@ -629,6 +631,8 @@ struct RawBuilding {
     slot_bonus: u32,
     #[serde(default)]
     benefit: String,
+    #[serde(default)]
+    home_site: Option<String>,
     /// Finished goods in the cost follow the profile's improvement cost.
     #[serde(default)]
     scales_goods: bool,
@@ -870,6 +874,7 @@ impl GameDefs {
                 requires: b.requires,
                 slot_bonus: b.slot_bonus,
                 benefit: b.benefit,
+                home_site: b.home_site,
                 id: b.id,
                 name: b.name,
             });

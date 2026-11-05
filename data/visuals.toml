@@ -130,10 +130,12 @@ parts = [
 
 # The walkable span appears as bridge terrain when it's finished.
 [buildings.forest_crossing]
+stockpile = "models/nature/log_stack.glb"
 site = [{ model = "models/town/planks.glb" }]
 parts = [{ model = "models/town/poles.glb", rot = 0 }]
 
 [buildings.workshop_annex]
+stockpile = "models/nature/log_stack.glb"
 site = [{ model = "models/town/planks.glb" }]
 parts = [
     { model = "models/town/wall-wood.glb", rot = 0 },

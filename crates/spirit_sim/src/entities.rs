@@ -51,7 +51,9 @@ impl Tree {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum BuildingState {
-    UnderConstruction { project: ProjectId },
+    UnderConstruction {
+        project: ProjectId,
+    },
     Complete,
     /// Called off before work began. Only its record remains.
     Removed,

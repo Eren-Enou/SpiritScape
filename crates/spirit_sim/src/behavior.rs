@@ -189,7 +189,8 @@ impl World {
                 compared = true;
                 self.best_carry(sid, &role)
             } else {
-                self.plan_job(sid, rule.job).map(|p| (rule.job, rule.when, p))
+                self.plan_job(sid, rule.job)
+                    .map(|p| (rule.job, rule.when, p))
             };
             match chosen {
                 Ok((job, when, plan)) => {
@@ -260,8 +261,8 @@ impl World {
                         let to_pickup = self.grid.approach_distance(&field, pickup).unwrap_or(0);
                         let trip = self.walk_between(c.pickup, c.drop).unwrap_or(0);
                         let walk = (to_pickup + trip + TRIP_OVERHEAD_TILES) as u64;
-                        let weight = rule.priority as u64
-                            * if c.urgent { URGENT_WEIGHT as u64 } else { 1 };
+                        let weight =
+                            rule.priority as u64 * if c.urgent { URGENT_WEIGHT as u64 } else { 1 };
                         c.amount as u64 * weight * 1000 / walk
                     });
                     if best.as_ref().is_none_or(|b| score > b.0) {
@@ -281,12 +282,7 @@ impl World {
 
     /// Goods close to a pickup that can ride along on the same trip home. The
     /// spirit has already walked out here, so taking them costs almost nothing.
-    fn ride_along(
-        &self,
-        sid: SpiritId,
-        from: &Building,
-        mut room: u32,
-    ) -> Vec<Task> {
+    fn ride_along(&self, sid: SpiritId, from: &Building, mut room: u32) -> Vec<Task> {
         let s = &self.spirits[sid];
         let reach = self.defs.logistics.batch_tiles;
         let near = self

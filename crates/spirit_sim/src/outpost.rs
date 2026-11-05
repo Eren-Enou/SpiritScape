@@ -387,6 +387,14 @@ impl World {
         self.spirits[id].policy.station = Some(station);
     }
 
+    pub fn project_demand_for_test(&self, r: ResourceId) -> u32 {
+        self.project_demand(r)
+    }
+
+    pub fn main_room_for_test(&self, r: ResourceId) -> u32 {
+        self.main_room_for(r)
+    }
+
     pub fn player_add_xp_for_test(&mut self, skill: crate::defs::SkillId, xp: u64) {
         self.player.add_xp(skill, xp, &self.defs.xp_table);
     }

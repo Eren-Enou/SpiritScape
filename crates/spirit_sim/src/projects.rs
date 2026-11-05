@@ -119,7 +119,10 @@ impl World {
         }
         let end = self.settlement.queue.len();
         if let Some(need) = def.requires.iter().find(|r| !self.prerequisite_met(r, end)) {
-            let need = self.defs.building_kind_id(need).map(|k| self.defs.building(k));
+            let need = self
+                .defs
+                .building_kind_id(need)
+                .map(|k| self.defs.building(k));
             return Err(format!(
                 "A {name} needs a {} first",
                 need.map_or("?", |d| d.name.as_str())
@@ -177,9 +180,10 @@ impl World {
         let (a, b) = (queue[first].kind, queue[second].kind);
         let needed = self.defs.building(b).requires.iter().any(|r| {
             self.defs.building_kind_id(r) == Some(a)
-                && !self.buildings.iter().any(|x| {
-                    x.kind == a && x.state != BuildingState::Removed
-                })
+                && !self
+                    .buildings
+                    .iter()
+                    .any(|x| x.kind == a && x.state != BuildingState::Removed)
         });
         if needed {
             return Err(format!(
@@ -205,9 +209,10 @@ impl World {
         let dependent = self.settlement.queue[at + 1..].iter().find(|q| {
             self.defs.building(q.kind).requires.contains(&def.id)
                 && self.planned_count(kind) < 2
-                && !self.buildings.iter().any(|b| {
-                    b.kind == kind && b.state != BuildingState::Removed
-                })
+                && !self
+                    .buildings
+                    .iter()
+                    .any(|b| b.kind == kind && b.state != BuildingState::Removed)
         });
         if let Some(q) = dependent {
             return Err(format!(
@@ -285,14 +290,20 @@ impl World {
                 .any(|b| Some(b.kind) == kind && b.is_complete())
         });
         let blocked = if let Some(need) = missing {
-            let name = self.defs.building_kind_id(need).map(|k| self.defs.building(k));
+            let name = self
+                .defs
+                .building_kind_id(need)
+                .map(|k| self.defs.building(k));
             Some(format!(
                 "Needs a finished {}",
                 name.map_or("?", |d| d.name.as_str())
             ))
         } else {
             let site = match head.site {
-                Some(p) => self.site_ready(p).then_some(p).ok_or("the site is occupied".to_string()),
+                Some(p) => self
+                    .site_ready(p)
+                    .then_some(p)
+                    .ok_or("the site is occupied".to_string()),
                 None => self.default_site(head.kind),
             };
             match site {
@@ -317,7 +328,11 @@ impl World {
 
     /// What a planned building still needs, with stock counted once: what
     /// earlier projects will claim isn't available to later ones.
-    fn plan_needs(&self, kind: BuildingKindId, spoken_for: &mut Vec<(ResourceId, u32)>) -> Vec<DemandLine> {
+    fn plan_needs(
+        &self,
+        kind: BuildingKindId,
+        spoken_for: &mut Vec<(ResourceId, u32)>,
+    ) -> Vec<DemandLine> {
         let main = &self.main().storage;
         self.defs
             .building(kind)
@@ -387,7 +402,11 @@ impl World {
             let stage = match p.state {
                 ProjectState::Building => PlanStage::Building,
                 ProjectState::Supplying => PlanStage::Supplying,
-                _ if p.blocked.as_ref().is_some_and(|b| !b.starts_with("Waiting for materials")) => {
+                _ if p
+                    .blocked
+                    .as_ref()
+                    .is_some_and(|b| !b.starts_with("Waiting for materials")) =>
+                {
                     PlanStage::Blocked
                 }
                 _ => PlanStage::GatheringMaterials,
@@ -404,12 +423,17 @@ impl World {
                 }
                 needs
             };
-            let workers = p.assigned.iter().map(|s| self.spirits[*s].name.clone()).collect();
+            let workers = p
+                .assigned
+                .iter()
+                .map(|s| self.spirits[*s].name.clone())
+                .collect();
             let carrying = p.assigned.is_some_and(|sid| {
                 let bag = &self.spirits[sid].actor.inventory;
                 def.cost.iter().any(|(r, _)| bag.get(*r) > 0)
             });
-            let can_cancel = p.delivered.is_empty() && !carrying && p.state != ProjectState::Building;
+            let can_cancel =
+                p.delivered.is_empty() && !carrying && p.state != ProjectState::Building;
             out.push(PlanView {
                 name: def.name.clone(),
                 stage,
@@ -488,7 +512,10 @@ impl World {
             .iter()
             .position(|b| b.unlocks_site.as_ref() == Some(id))
             .map(|i| BuildingKindId(i as u16))?;
-        let open = self.buildings.iter().any(|b| b.kind == kind && b.is_complete());
+        let open = self
+            .buildings
+            .iter()
+            .any(|b| b.kind == kind && b.is_complete());
         (!open).then_some(kind)
     }
 }

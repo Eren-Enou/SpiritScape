@@ -40,6 +40,8 @@ pub struct Sim {
     pub banner: Option<(String, f32)>,
     notices_seen: u64,
     waiting_notices: VecDeque<String>,
+    /// Finished crossings when the map was last drawn.
+    crossings_drawn: usize,
     /// The message being timed, and how long it has been up.
     message_shown: String,
     message_age: f32,
@@ -81,6 +83,7 @@ impl Sim {
             banner: None,
             notices_seen: world.notices.total,
             waiting_notices: VecDeque::new(),
+            crossings_drawn: 0,
             message_shown: String::new(),
             message_age: 0.0,
             autosave_seconds: world.defs.autosave_seconds,
@@ -340,6 +343,7 @@ impl Plugin for SimRunnerPlugin {
             (
                 keyboard_controls,
                 advance_simulation,
+                redraw_changed_land,
                 show_notices,
                 expire_message,
                 autosave,
@@ -347,6 +351,20 @@ impl Plugin for SimRunnerPlugin {
                 .chain(),
         )
         .add_systems(Last, save_on_exit);
+    }
+}
+
+/// A finished crossing changes the land itself, so the map is drawn again.
+fn redraw_changed_land(mut sim: ResMut<Sim>) {
+    let w = &sim.world;
+    let open = w
+        .buildings
+        .iter()
+        .filter(|b| b.is_complete() && !w.defs.building(b.kind).opens.is_empty())
+        .count();
+    if open != sim.crossings_drawn {
+        sim.crossings_drawn = open;
+        sim.generation += 1;
     }
 }
 

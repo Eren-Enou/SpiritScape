@@ -46,7 +46,10 @@ fn main() {
     let at = |t: Option<u64>| t.map_or("not within the run".to_string(), clock);
     println!("Crossing built at {}.", at(p.built_at));
     println!("Caught up with not building it at {}.", at(p.caught_up_at));
-    println!("After 90 minutes: {} beams home without, {} with.", p.without, p.with);
+    println!(
+        "After 90 minutes: {} beams home without, {} with.",
+        p.without, p.with
+    );
 
     println!("\n## A shared hauler\n");
     println!("| Hauler | Tiles | Trips | Units | Walking | First beam home | Target met |");

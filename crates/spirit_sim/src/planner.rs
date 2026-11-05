@@ -405,6 +405,12 @@ impl World {
         if let Some([x, y]) = def.access_site {
             return Ok(TilePos::new(x, y));
         }
+        if let Some(site) = def.home_site.as_ref().and_then(|s| self.defs.site_id(s)) {
+            let (x, y) = self.defs.site(site).center();
+            return self
+                .site_near(TilePos::new(x as i32, y as i32), 0)
+                .ok_or_else(|| "No room there".to_string());
+        }
         if def.slot_bonus > 0 {
             let bench = self.training_bench().ok_or("There's no bench to add to")?;
             return self
@@ -530,7 +536,12 @@ impl World {
             .find(|p| self.keeps_connectivity(*p))
     }
 
-    pub(crate) fn create_project(&mut self, kind: BuildingKindId, site: TilePos, reason: String) -> ProjectId {
+    pub(crate) fn create_project(
+        &mut self,
+        kind: BuildingKindId,
+        site: TilePos,
+        reason: String,
+    ) -> ProjectId {
         let pid = self.projects.len();
         let bid = self.buildings.len();
         let def = self.defs.building(kind);
@@ -695,9 +706,7 @@ impl World {
         let site = p.site;
         let benefit = def.benefit.clone();
         let name = def.name.clone();
-        let notice = if !opens.is_empty() {
-            Some(format!("{name} complete. {benefit}"))
-        } else if slot_bonus > 0 {
+        let notice = if !opens.is_empty() || slot_bonus > 0 {
             Some(format!("{name} complete. {benefit}"))
         } else if is_station {
             Some(format!(

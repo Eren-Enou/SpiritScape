@@ -149,8 +149,19 @@ impl Bot {
         let holding = w.main_room_for(output) == 0 && bag.get(output) >= 14;
         if (bag.is_full() || holding) && logs < 2 {
             // With Main Storage keeping its room, surplus goes to another store.
-            let keep_free = bag.total() + 10;
-            let overflow = w.outposts().find(|b| b.storage.free() > keep_free).map(|b| b.pos);
+            let keep_free = bag.total() + 2;
+            let overflow = w
+                .outposts()
+                .find(|b| b.storage.free() > keep_free)
+                .map(|b| b.pos);
+            // With nowhere left, spend planks, as the game suggests.
+            if overflow.is_none() && w.main_room_for(output) == 0 {
+                let rack = w.defs.building_kind_id("log_rack");
+                if let Some(kind) = rack.filter(|_| w.active_project().is_none()) {
+                    self.click(w, Command::QueueBuilding { kind, site: None });
+                }
+                return;
+            }
             let target = match overflow {
                 Some(p) if w.main_room_for(output) == 0 => p,
                 _ => w.main().pos,
@@ -986,7 +997,11 @@ pub fn steady_rate(mut w: World, name: &str, warm_up: u64, minutes: u64) -> Stea
     w.run_ticks(warm_up * 60 * tps);
     let time_of = |w: &World, job: JobKind| {
         let mut t = TimeUse::default();
-        for s in w.spirits.iter().filter(|s| w.defs.role(s.role).has_job(job)) {
+        for s in w
+            .spirits
+            .iter()
+            .filter(|s| w.defs.role(s.role).has_job(job))
+        {
             t.add(&s.time.total);
         }
         t
@@ -1042,12 +1057,23 @@ fn add_hauler(w: &mut World) {
 
 /// The four settlements, and what a worker does instead of more trees.
 pub fn compare_expansion(warm_up: u64, minutes: u64) -> Vec<SteadyRun> {
-    use crate::ScenarioKind::{CentralProduction, ExpandedCentral, ExpandedRemote, RemoteProduction};
+    use crate::ScenarioKind::{
+        CentralProduction, ExpandedCentral, ExpandedRemote, RemoteProduction,
+    };
     let run = |w: World, name: &str| steady_rate(w, name, warm_up, minutes);
     let mut out = vec![
-        run(World::from_scenario(CentralProduction), "A. Original, central"),
-        run(World::from_scenario(RemoteProduction), "A. Original, remote"),
-        run(World::from_scenario(ExpandedCentral), "B. Expanded, central"),
+        run(
+            World::from_scenario(CentralProduction),
+            "A. Original, central",
+        ),
+        run(
+            World::from_scenario(RemoteProduction),
+            "A. Original, remote",
+        ),
+        run(
+            World::from_scenario(ExpandedCentral),
+            "B. Expanded, central",
+        ),
         run(World::from_scenario(ExpandedRemote), "C. Expanded, remote"),
     ];
     let mut dedicated = World::from_scenario(ExpandedRemote);
@@ -1126,14 +1152,16 @@ pub fn crossing_payback(minutes: u64) -> Payback {
     };
     let mut without = setup();
     let mut with = setup();
-    let kind = with.defs.building_kind_id("forest_crossing").expect("crossing");
+    let kind = with
+        .defs
+        .building_kind_id("forest_crossing")
+        .expect("crossing");
     with.apply(Command::QueueBuilding { kind, site: None })
         .expect("the outpost store is standing");
     let beams = with.defs.resource_id("beams").expect("beams");
     let tps = with.defs.ticks_per_second as u64;
     let delivered = |w: &World| {
-        w.main().storage.get(beams) as u64
-            + w.ledger.consumed.get(&beams).copied().unwrap_or(0)
+        w.main().storage.get(beams) as u64 + w.ledger.consumed.get(&beams).copied().unwrap_or(0)
     };
     let mut payback = Payback {
         built_at: None,
@@ -1145,7 +1173,10 @@ pub fn crossing_payback(minutes: u64) -> Payback {
         without.step();
         with.step();
         if payback.built_at.is_none()
-            && with.buildings.iter().any(|b| b.kind == kind && b.is_complete())
+            && with
+                .buildings
+                .iter()
+                .any(|b| b.kind == kind && b.is_complete())
         {
             payback.built_at = Some(with.tick / tps);
         }
@@ -1196,7 +1227,12 @@ fn stuck_report(w: &World) -> String {
         }
     }
     for s in &w.spirits {
-        out += &format!("\n  {} [{:?}] {}", s.name, w.worker_state(s), s.activity.text());
+        out += &format!(
+            "\n  {} [{:?}] {}",
+            s.name,
+            w.worker_state(s),
+            s.activity.text()
+        );
     }
     for s in &w.spirits {
         out += &format!(
@@ -1222,7 +1258,10 @@ fn stuck_report(w: &World) -> String {
         out += &format!("\n  bld {} {} {:?}", b.name, b.pos, b.state);
     }
     for o in w.order_reports() {
-        out += &format!("\n  order {} {} / {}: {}", o.name, o.in_main, o.goal, o.status);
+        out += &format!(
+            "\n  order {} {} / {}: {}",
+            o.name, o.in_main, o.goal, o.status
+        );
     }
     out
 }
@@ -1239,7 +1278,12 @@ pub fn play_to_expansion(profile: &str) -> Result<(World, ExpansionRoute), Strin
     for (m, t) in &cycle.milestones {
         route.steps.push((m.label().to_string(), *t));
     }
-    let top = w.defs.tree_tiers(bot.wc).last().copied().ok_or("no trees")?;
+    let top = w
+        .defs
+        .tree_tiers(bot.wc)
+        .last()
+        .copied()
+        .ok_or("no trees")?;
     let level = w.defs.tree(top).level_required;
     let need = w.defs.xp_table.xp_for_level(level);
     let mark = |route: &mut ExpansionRoute, w: &World, name: &str| {
@@ -1253,7 +1297,10 @@ pub fn play_to_expansion(profile: &str) -> Result<(World, ExpansionRoute), Strin
     }
     mark(&mut route, &w, "Woodcutting level 10 reached");
     bot.stop(&mut w);
-    w.apply(Command::SoulSeparate { skill: bot.wc, xp: need })?;
+    w.apply(Command::SoulSeparate {
+        skill: bot.wc,
+        xp: need,
+    })?;
     mark(&mut route, &w, "Level 10 Woodcutting Spirit created");
 
     // The same for Woodworking, or beams can't be automated. That makes far
@@ -1282,15 +1329,24 @@ pub fn play_to_expansion(profile: &str) -> Result<(World, ExpansionRoute), Strin
     }
     mark(&mut route, &w, "Woodworking level 10 reached");
     bot.stop(&mut w);
-    w.apply(Command::SoulSeparate { skill: bot.ww, xp: need })?;
+    w.apply(Command::SoulSeparate {
+        skill: bot.ww,
+        xp: need,
+    })?;
     mark(&mut route, &w, "Level 10 Woodworking Spirit created");
 
     // One plan, then back to chopping.
     let workshop = kind(&w, "workshop")?;
     let crossing = kind(&w, "forest_crossing")?;
     bot.chop_until(&mut w, long, |w| w.active_project().is_none());
-    w.apply(Command::QueueBuilding { kind: workshop, site: Some(at(36, 4)) })?;
-    w.apply(Command::QueueBuilding { kind: crossing, site: None })?;
+    w.apply(Command::QueueBuilding {
+        kind: workshop,
+        site: Some(at(36, 4)),
+    })?;
+    w.apply(Command::QueueBuilding {
+        kind: crossing,
+        site: None,
+    })?;
     mark(&mut route, &w, "Outpost and crossing planned");
     let site = w.defs.site_id("old_growth").ok_or("no Old Growth")?;
     let bench = |w: &World| w.outpost_report(site).workshop.is_some();
@@ -1321,21 +1377,30 @@ pub fn play_to_expansion(profile: &str) -> Result<(World, ExpansionRoute), Strin
     let annex = kind(&w, "workshop_annex")?;
     let bench_id = w.outpost_report(site).workshop;
     w.apply(Command::SetTrainingBench(bench_id))?;
-    w.apply(Command::QueueBuilding { kind: annex, site: None })?;
+    w.apply(Command::QueueBuilding {
+        kind: annex,
+        site: None,
+    })?;
     let built = |w: &World| {
         w.buildings
             .iter()
             .any(|b| b.kind == annex && b.is_complete())
     };
     if !bot.chop_until(&mut w, long, built) {
-        return Err(format!("the annex was never finished: {}", stuck_report(&w)));
+        return Err(format!(
+            "the annex was never finished: {}",
+            stuck_report(&w)
+        ));
     }
     mark(&mut route, &w, "Workshop Annex finished");
 
     // Leave it alone and see what it does.
     bot.stop(&mut w);
     let target = w.main().storage.get(beams) + 200;
-    w.apply(Command::SetOrderTarget { output: beams, target })?;
+    w.apply(Command::SetOrderTarget {
+        output: beams,
+        target,
+    })?;
     let (home, cut) = (w.main().storage.get(beams), hardwood_cut(&w));
     route.observed_minutes = 15;
     w.run_ticks(route.observed_minutes * 60 * tps);

@@ -472,6 +472,7 @@ color = [0.70, 0.60, 0.45]
 [[buildings]]
 id = "outpost_storage"
 name = "Outpost Storage"
+home_site = "old_growth"
 capacity = 80
 accepts_gatherer_deposits = true
 manual = true
