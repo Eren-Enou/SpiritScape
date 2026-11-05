@@ -11,7 +11,7 @@ git fetch origin
 ```
 
 ```bash
-git checkout v0.27-seasons
+git checkout v0.28-visitors
 ```
 
 Press `F6` at any time to write a report of your session. Note the time whenever something surprises you.
@@ -28,6 +28,7 @@ cargo run --release -- --new-game --save-dir target/playtest
 - [ ] When did you first want to stop?
 - [ ] Did you find one of the old stones without looking for it?
 - [ ] If you played into winter, did you change what you were doing?
+- [ ] Did you notice the first visitor, and think about their offer?
 - [ ] Did making a spirit feel worth the XP it cost?
 - [ ] Do mouse and keyboard work as you expect? This has never been checked with real input since v0.6.
 

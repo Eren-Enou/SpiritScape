@@ -1,0 +1,6 @@
+# UI test of the visitor card when nobody's here:
+#   cargo run --release -- --new-game --save-dir target/ui_saves28 --script scripts/ui_visitors.txt --capture target/ui_visitors
+1.5 expect ON THE ROAD
+1.6 expect Nobody on the road today
+1.7 shot 01_nobody
+1.9 exit

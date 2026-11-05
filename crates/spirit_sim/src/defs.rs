@@ -194,6 +194,8 @@ pub struct ConstructionRules {
     pub raw_room: u32,
     /// How long a road tile takes, as a percentage of open ground.
     pub road_pct: u32,
+    /// How long a visitor waits for an answer.
+    pub visitor_patience_minutes: u64,
     /// How often to check that nobody's been walled in.
     pub stranded_check_ticks: u64,
 }
@@ -395,6 +397,8 @@ pub struct JourneyRules {
 pub struct GameDefs {
     /// Long-term goals, in the order they're suggested.
     pub ambitions: Vec<crate::ambitions::AmbitionDef>,
+    /// People who pass through, in the order they come.
+    pub visitors: Vec<crate::visitors::VisitorDef>,
     /// The year, in order.
     pub seasons: Vec<crate::stories::SeasonDef>,
     /// Old stones to find around the map.
@@ -443,6 +447,8 @@ struct RawDefs {
     journey: JourneyRules,
     #[serde(default)]
     ambitions: Vec<crate::ambitions::AmbitionDef>,
+    #[serde(default)]
+    visitors: Vec<crate::visitors::VisitorDef>,
     #[serde(default)]
     seasons: Vec<crate::stories::SeasonDef>,
     #[serde(default)]
@@ -589,6 +595,7 @@ struct RawConstruction {
     annex_reach: u32,
     raw_room: u32,
     road_pct: u32,
+    visitor_patience_minutes: u64,
     stranded_check_seconds: f32,
 }
 
@@ -891,6 +898,7 @@ impl GameDefs {
             annex_reach: raw.construction.annex_reach,
             raw_room: raw.construction.raw_room,
             road_pct: raw.construction.road_pct.clamp(1, 100),
+            visitor_patience_minutes: raw.construction.visitor_patience_minutes,
             stranded_check_ticks: ticks(raw.construction.stranded_check_seconds).max(1),
         };
 
@@ -1066,6 +1074,7 @@ impl GameDefs {
 
         Ok(GameDefs {
             ambitions: raw.ambitions,
+            visitors: raw.visitors,
             seasons: raw.seasons,
             markers: raw.markers,
             traits: raw.traits,

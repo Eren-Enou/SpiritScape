@@ -314,6 +314,57 @@ minutes = 30
 growth = 0
 text = "Winter. The woods have stopped growing. The quarry doesn't care, and neither does a bench."
 
+# People who pass through a real game, in order, each once. Every offer costs
+# something, and none should be simply good: turning one down has to make sense.
+[[visitors]]
+id = "pedlar"
+name = "A pedlar"
+after_minutes = 25
+text = "\"Long road, thin axe handles. I'd pay well for good wood, if you've any to spare.\""
+thanks = "The pedlar loads up and leaves you a sack of cut timber, more than you expected."
+wants = [{ resource = "logs", amount = 40 }]
+gives = [{ resource = "planks", amount = 15 }]
+
+[[visitors]]
+id = "surveyor"
+name = "A surveyor"
+after_minutes = 70
+needs_built = "outpost_storage"
+text = "\"Fine country. I'm mapping the river. I could use planks for my stakes, and I'll leave you what I've quarried.\""
+thanks = "The surveyor leaves a neat stack of stone at Main Storage."
+wants = [{ resource = "planks", amount = 40 }]
+gives = [{ resource = "stone", amount = 30 }]
+
+[[visitors]]
+id = "shipwright"
+name = "A shipwright"
+after_minutes = 130
+needs_built = "forest_crossing"
+text = "\"That's Ironwood past your ravine. I'd give a lot for beams like those. I've panels from a yard that closed.\""
+thanks = "The shipwright counts the beams twice, and leaves you the panels."
+wants = [{ resource = "beams", amount = 20 }]
+gives = [{ resource = "panels", amount = 40 }]
+
+[[visitors]]
+id = "mason"
+name = "An old mason"
+after_minutes = 200
+needs_built = "mason_yard"
+text = "\"Someone here knows stone. I can't lift it any more, but I can still cut a keystone. Bring me what I need.\""
+thanks = "The old mason works through the night, and is gone by morning."
+wants = [{ resource = "dressed_stone", amount = 20 }, { resource = "beams", amount = 10 }]
+gives = [{ resource = "keystones", amount = 8 }]
+
+[[visitors]]
+id = "pilgrim"
+name = "A pilgrim"
+after_minutes = 260
+needs_built = "hearth_foundations"
+text = "\"I walked a long way to see the stones. Nobody has ever started one of these. Could you spare what I need to get home?\""
+thanks = "The pilgrim thanks you and doesn't look back. There's a small carved keystone on the step."
+wants = [{ resource = "panels", amount = 30 }]
+gives = [{ resource = "keystones", amount = 1 }]
+
 [[resources]]
 id = "logs"
 name = "Logs"
@@ -628,6 +679,8 @@ raw_room = 100
 # How long a road tile takes to cross, as a percentage of open ground. Spirits
 # and the player both take 0.3 seconds on grass, so this makes it 0.2.
 road_pct = 67
+# How long a visitor waits for an answer, in game minutes.
+visitor_patience_minutes = 10
 # How often to look for anyone walled in, which older saves can contain.
 stranded_check_seconds = 10.0
 

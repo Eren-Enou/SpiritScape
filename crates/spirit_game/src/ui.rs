@@ -117,6 +117,8 @@ enum UiAction {
     /// Stop what the player is doing.
     StopActivity,
     LeaveLoad,
+    VisitorYes,
+    VisitorNo,
     ToggleAutoGather,
     /// Step through the recipes the player can use.
     CycleRecipe,
@@ -209,6 +211,7 @@ struct GoalRoot;
 /// A card body and what it shows.
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
 enum Card {
+    Visitor,
     Markers,
     Ending,
     Ambitions,
@@ -510,7 +513,19 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                     ..default()
                 },
             ))
-            .with_children(|g| card(g, "WHAT'S NEXT", |c| body(c, Card::Goal)));
+            .with_children(|g| {
+                card(g, "WHAT'S NEXT", |c| body(c, Card::Goal));
+                card(g, "ON THE ROAD", |c| {
+                    body(c, Card::Visitor);
+                    button_row(
+                        c,
+                        &[
+                            ("Take the offer", UiAction::VisitorYes),
+                            ("Turn it down", UiAction::VisitorNo),
+                        ],
+                    );
+                });
+            });
 
             p.spawn((
                 OverviewCard,
@@ -1118,6 +1133,8 @@ fn on_button(
         UiAction::SaveGame => sim.save_game(),
         UiAction::StopActivity => sim.command(Command::PlayerStop),
         UiAction::LeaveLoad => sim.command(Command::LeaveLoad),
+        UiAction::VisitorYes => sim.command(Command::AnswerVisitor(true)),
+        UiAction::VisitorNo => sim.command(Command::AnswerVisitor(false)),
         UiAction::Plan(id) => {
             if let Some(kind) = sim.world.defs.building_kind_id(id) {
                 sim.command(Command::QueueBuilding { kind, site: None });
@@ -1464,6 +1481,8 @@ fn update_buttons(
             UiAction::Load(_) => !sim.is_journey() && scenario_buttons.0,
             UiAction::Restart | UiAction::ToggleScenarios => !sim.is_journey(),
             UiAction::LeaveLoad => w.load_is_stuck(),
+            UiAction::VisitorYes => w.visitor().is_some_and(|v| v.can_accept),
+            UiAction::VisitorNo => w.visitor().is_some(),
             // Orders for a bench that hasn't been built are just clutter.
             UiAction::ExtraTarget(i, _) | UiAction::ExtraPriority(i) => w
                 .settlement
@@ -1787,6 +1806,7 @@ fn update_cards(
             Card::ProductionLimit => production_limit_lines(&sim.world),
             Card::ChainTime => chain_time_lines(&sim.world),
             Card::Goal => goal_lines(&sim.world),
+            Card::Visitor => visitor_lines(&sim.world),
             Card::Markers => marker_lines(&sim.world),
             Card::Ending => ending_lines(&sim.world),
             Card::Ambitions => ambition_lines(&sim.world),
@@ -2416,6 +2436,26 @@ fn goal_lines(w: &World) -> Vec<Line> {
             bar(have as f32 / want.max(1) as f32, XP, 180.0),
             muted(format!("{} / {want} {label}", have.min(want))),
         ]);
+    }
+    lines
+}
+
+/// Who's here, if anyone.
+fn visitor_lines(w: &World) -> Vec<Line> {
+    let Some(v) = w.visitor() else {
+        return vec![vec![muted("Nobody on the road today.")]];
+    };
+    let mut lines = vec![
+        vec![text(v.name)],
+        vec![muted(v.text)],
+        vec![text(v.offer)],
+        vec![muted(format!(
+            "They'll wait {} more minutes.",
+            v.minutes_left
+        ))],
+    ];
+    if !v.can_accept {
+        lines.push(vec![muted("Main Storage doesn't have what they want.")]);
     }
     lines
 }
