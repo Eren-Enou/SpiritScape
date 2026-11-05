@@ -2,6 +2,14 @@
 
 The handoff between development runs. Newest first.
 
+## v0.28 Visitors
+
+**Status:** on branch `v0.28-visitors`, with its PR targeting `v0.27-seasons`. Not merged.
+
+**Shipped:** five visitors with offers, and an On the Road card.
+
+**Next:** onboarding, then sound and visual feedback: seasons on the map, a better ending moment, level-ups.
+
 ## v0.27 Seasons
 
 **Status:** on branch `v0.27-seasons`, with its PR targeting `v0.26-old-markers`. Not merged.

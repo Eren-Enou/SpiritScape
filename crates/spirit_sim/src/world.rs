@@ -90,6 +90,14 @@ pub struct Settlement {
     /// Orders beyond the main one.
     #[serde(default)]
     pub extra_orders: Vec<ProductionOrder>,
+    /// Who's at the settlement right now.
+    #[serde(default)]
+    pub visitor: Option<crate::visitors::VisitorHere>,
+    /// Visitors so far, and offers taken.
+    #[serde(default)]
+    pub visitors_met: u32,
+    #[serde(default)]
+    pub offers_taken: u32,
     /// The season last announced.
     #[serde(default)]
     pub season_seen: Option<String>,
@@ -221,6 +229,8 @@ pub enum Command {
     PlayerStop,
     /// Leave what's in the bag behind, when nowhere can take it.
     LeaveLoad,
+    /// Take or turn down what a visitor is offering.
+    AnswerVisitor(bool),
     /// Whether a gathering session moves on to another tree by itself.
     SetAutoGather(bool),
     /// Choose what to make at a bench, or the best available with `None`.
@@ -683,6 +693,7 @@ impl World {
             Command::SetTrainingFirst(on) => Ok(self.set_training_first(on)),
             Command::PlayerStop => Ok(self.player_stop()),
             Command::LeaveLoad => self.leave_load(),
+            Command::AnswerVisitor(accept) => self.answer_visitor(accept),
             Command::SetAutoGather(on) => Ok(self.set_auto_gather(on)),
             Command::SetPlayerRecipe(r) => self.set_player_recipe(r),
             Command::SetTrainingMode(mode) => Ok(self.set_training_mode(mode)),
@@ -1116,6 +1127,7 @@ impl World {
         if self.tick.is_multiple_of(SNAPSHOT_TICKS) {
             self.update_ambitions();
             self.update_deeds();
+            self.update_visitors();
         }
         if self.tick.is_multiple_of(5) {
             self.update_markers();
