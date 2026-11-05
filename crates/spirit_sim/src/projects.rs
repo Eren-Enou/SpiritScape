@@ -110,6 +110,11 @@ impl World {
         if !def.manual {
             return Err(format!("A {name} can't be ordered"));
         }
+        if def.needs_caravans > self.settlement.caravans {
+            return Err(format!(
+                "A Trade Caravan has to bring back what a {name} needs"
+            ));
+        }
         let limit = self.defs.construction.queue_limit as usize;
         if self.settlement.queue.len() >= limit {
             return Err(format!("The plan is full: {limit} projects at most"));

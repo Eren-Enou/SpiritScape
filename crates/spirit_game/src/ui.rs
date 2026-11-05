@@ -562,6 +562,8 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                             ("", UiAction::Plan("forest_road")),
                             ("", UiAction::Plan("stone_causeway")),
                             ("", UiAction::Plan("trade_caravan")),
+                            ("", UiAction::Plan("ironwood_nursery")),
+                            ("", UiAction::Plan("quarry_extension")),
                             ("", UiAction::Plan("panelled_warehouse")),
                             ("", UiAction::Plan("carrying_frames")),
                         ],
