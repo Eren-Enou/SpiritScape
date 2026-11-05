@@ -24,6 +24,9 @@ pub struct AmbitionDef {
     pub made: Option<String>,
     #[serde(default)]
     pub amount: u32,
+    /// Trade Caravans to have sent.
+    #[serde(default)]
+    pub caravans: u32,
 }
 
 /// How a goal stands.
@@ -63,6 +66,11 @@ impl World {
             done &= have >= def.amount as u64;
             let name = self.defs.resource(r).name.clone();
             progress = Some((have, def.amount as u64, name));
+        }
+        if def.caravans > 0 {
+            let sent = self.settlement.caravans;
+            done &= sent >= def.caravans;
+            progress = Some((sent as u64, def.caravans as u64, "sent".to_string()));
         }
         Ambition {
             title: def.title.clone(),

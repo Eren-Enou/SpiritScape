@@ -44,6 +44,8 @@ pub enum StorageFix {
     OrderRoom(BuildingKindId),
     /// Plan more room in the Projects tab.
     PlanRoom(BuildingKindId),
+    /// Send away what's piling up.
+    SendCaravan(BuildingKindId),
     /// The last resort: leave what's in the bag behind.
     LeaveLoad,
 }
@@ -115,6 +117,13 @@ impl World {
                 }
             }
         }
+        let caravan = self.plannable().into_iter().find(|k| {
+            let d = self.defs.building(*k);
+            d.repeatable && d.cost.iter().all(|c| main.available(c.0) >= c.1)
+        });
+        if let Some(k) = caravan {
+            fixes.push(StorageFix::SendCaravan(k));
+        }
         if self.load_is_stuck() {
             fixes.push(StorageFix::LeaveLoad);
         }
@@ -151,6 +160,10 @@ impl World {
                     d.name, d.capacity_bonus
                 )
             }
+            StorageFix::SendCaravan(k) => format!(
+                "send a {} from Projects (B), which takes goods away to trade",
+                self.defs.building(k).name
+            ),
             StorageFix::LeaveLoad => {
                 "leave your load behind with the button under your bag, which loses it".to_string()
             }

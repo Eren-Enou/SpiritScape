@@ -301,6 +301,8 @@ pub struct BuildingDef {
     pub capacity_bonus: u32,
     /// More that every spirit can carry once this stands.
     pub carry_bonus: u32,
+    /// Leaves when it's finished, so it can be built again and again.
+    pub repeatable: bool,
     /// Built on the player's request.
     pub manual: bool,
     /// Room for materials set aside for the player's training at a station.
@@ -659,6 +661,8 @@ struct RawBuilding {
     #[serde(default)]
     carry_bonus: u32,
     #[serde(default)]
+    repeatable: bool,
+    #[serde(default)]
     access_site: Option<[i32; 2]>,
     #[serde(default)]
     opens: Vec<[i32; 2]>,
@@ -907,6 +911,7 @@ impl GameDefs {
                 input_buffer: b.input_buffer,
                 capacity_bonus: b.capacity_bonus,
                 carry_bonus: b.carry_bonus,
+                repeatable: b.repeatable,
                 manual: b.manual,
                 training_buffer: b.training_buffer,
                 training_cache: b.training_cache,

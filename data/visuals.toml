@@ -170,6 +170,11 @@ stockpile = "models/nature/log_stack.glb"
 site = [{ model = "models/town/planks.glb" }]
 parts = [{ model = "models/town/poles.glb", rot = 0 }]
 
+[buildings.trade_caravan]
+stockpile = "models/nature/log_stack.glb"
+site = [{ model = "models/town/planks.glb" }]
+parts = []
+
 [buildings.workshop_annex]
 stockpile = "models/nature/log_stack.glb"
 site = [{ model = "models/town/planks.glb" }]

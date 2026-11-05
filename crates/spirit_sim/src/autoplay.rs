@@ -142,7 +142,9 @@ impl Bot {
                     Command::SetProductionTarget(target.saturating_sub(40).max(10))
                 }
                 Fix::MakeRecipe(r) => Command::SetPlayerRecipe(Some(r)),
-                Fix::PlanRoad(kind) | Fix::PlanRoom(kind) if idle_builder => {
+                Fix::PlanRoad(kind) | Fix::PlanRoom(kind) | Fix::SendCaravan(kind)
+                    if idle_builder =>
+                {
                     Command::QueueBuilding { kind, site: None }
                 }
                 Fix::LeaveLoad if w.player.actor.inventory.is_full() => Command::LeaveLoad,

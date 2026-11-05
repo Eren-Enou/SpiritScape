@@ -2,6 +2,16 @@
 
 The handoff between development runs. Newest first.
 
+## v0.21 Trade Caravans
+
+**Status:** on branch `v0.21-trade-caravans`, with its PR targeting `v0.20-playtest-ready`. Not merged.
+
+**Shipped:** repeatable Trade Caravans, a 13th goal, and the `caravan_yard` scenario.
+
+**Measured:** a long game throws away 2,240 units instead of 6,160.
+
+**Next:** what caravans bring back, then spirits as characters. The user set a new goal: a game with a whole shape, from beginning to ending.
+
 ## v0.20 Ready to Play
 
 **Status:** on branch `v0.20-playtest-ready`, with its PR targeting `v0.19-every-goal`. Not merged.
