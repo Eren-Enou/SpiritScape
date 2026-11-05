@@ -138,6 +138,14 @@ hint = "A Trade Caravan brings back saplings. Then plan an Ironwood Nursery in P
 built = ["ironwood_nursery"]
 
 [[ambitions]]
+id = "keystones"
+title = "Cut 10 Keystones"
+hint = "A third Trade Caravan brings mason's tools. Keystones need Masonry level 8, Dressed Stone and beams."
+built = ["mason_yard"]
+made = "keystones"
+amount = 10
+
+[[ambitions]]
 id = "master_wood"
 title = "Master Woodworking"
 hint = "Reach Woodworking level 20. It counts even if you give the XP to a spirit later."
@@ -252,6 +260,15 @@ name = "Fitted Panels"
 id = "stone"
 name = "Stone"
 
+# Stone worked for building, and the piece that joins stone and timber.
+[[resources]]
+id = "dressed_stone"
+name = "Dressed Stone"
+
+[[resources]]
+id = "keystones"
+name = "Keystones"
+
 [[skills]]
 id = "woodcutting"
 name = "Woodcutting"
@@ -326,6 +343,12 @@ chop_seconds = 4.0
 chop_seconds_per_level = 0.1
 min_chop_seconds = 1.5
 why = "The only source of Hardwood Logs, which Structural Beams are made from."
+
+# The third trade, opened by a Trade Caravan. It's the first to join two chains.
+[[skills]]
+id = "masonry"
+name = "Masonry"
+trainable = true
 
 # Outcrops work like trees: they're worked down, then recover.
 [[tree_types]]
@@ -411,11 +434,42 @@ min_craft_seconds = 2.5
 xp = 90
 why = "Spare planks become the best Woodworking XP you have, and take up a third of the room."
 
+[[recipes]]
+id = "dressed_stone"
+name = "Dressed Stone"
+skill = "masonry"
+station = "mason_yard"
+level_required = 1
+inputs = [{ resource = "stone", amount = 2 }]
+output = { resource = "dressed_stone", amount = 1 }
+craft_seconds = 4.0
+craft_seconds_per_level = 0.1
+min_craft_seconds = 1.8
+xp = 30
+
+# Needs both trades: stone from the quarry and beams from the bench.
+[[recipes]]
+id = "keystones"
+name = "Keystones"
+skill = "masonry"
+station = "mason_yard"
+level_required = 8
+inputs = [
+    { resource = "dressed_stone", amount = 2 },
+    { resource = "beams", amount = 1 },
+]
+output = { resource = "keystones", amount = 1 }
+craft_seconds = 8.0
+craft_seconds_per_level = 0.1
+min_craft_seconds = 4.0
+xp = 160
+why = "Stone and timber joined. Nothing the settlement has built so far needs one of these."
+
 [production]
 # What the settlement's main production order makes.
 output = "planks"
 # Further products with an order of their own.
-more_outputs = ["beams", "panels"]
+more_outputs = ["beams", "panels", "dressed_stone", "keystones"]
 # Most extra logs a production shortfall may ask gatherers for at once.
 upstream_cap = 40
 
@@ -605,6 +659,21 @@ jobs = [
     { job = "deliver", priority = 100, when = "inventory_full" },
     { job = "gather", priority = 50, when = "objective_unmet" },
     { job = "deliver", priority = 20, when = "carrying_any" },
+]
+
+[[roles]]
+id = "mason"
+name = "Masonry Spirit"
+skill = "masonry"
+from_soul_separation = true
+move_seconds_per_tile = 0.3
+carry_capacity = 10
+deliver_to = "main"
+color = [0.80, 0.78, 0.70]
+jobs = [
+    { job = "deliver", priority = 100, when = "carrying_any" },
+    { job = "collect", priority = 60, when = "output_unattended" },
+    { job = "craft", priority = 50, when = "production_wanted" },
 ]
 
 # ---------------------------------------------------------------------------
@@ -983,6 +1052,31 @@ build_seconds_per_level = 0.5
 min_build_seconds = 10.0
 color = [0.60, 0.60, 0.62]
 benefit = "Three more Stone Outcrops in the South Quarry."
+
+[[buildings]]
+id = "mason_yard"
+name = "Mason's Yard"
+capacity = 40
+input_buffer = 20
+training_buffer = 20
+extra_capacity = 40
+slots = 2
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+needs_caravans = 3
+caravan_find = "A set of mason's tools, and someone's notes on using them. Plan a Mason's Yard."
+scales_goods = true
+cost = [
+    { resource = "stone", amount = 30 },
+    { resource = "planks", amount = 30 },
+    { resource = "beams", amount = 6 },
+]
+build_seconds = 30.0
+build_seconds_per_level = 0.5
+min_build_seconds = 12.0
+color = [0.74, 0.72, 0.66]
+benefit = "A place to dress stone and train Masonry, the first trade that needs both wood and stone."
 
 [objective]
 # "Maintain <target> <resource> in the main settlement storage."

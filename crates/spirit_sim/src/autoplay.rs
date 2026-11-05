@@ -1343,6 +1343,54 @@ fn buy_for_goals(w: &mut World) {
     }
 }
 
+/// Cuts stone and dresses it by hand up to Keystones, then gives that to a
+/// spirit. A person would do this with clicks on the quarry and the yard.
+fn train_masonry(w: &mut World, end: u64, note: &mut dyn FnMut(&World)) -> Result<(), String> {
+    let skill = w.defs.skill_id("masonry").ok_or("no masonry")?;
+    let stone = w.defs.resource_id("stone").ok_or("no stone")?;
+    let dressed = w
+        .defs
+        .resource_id("dressed_stone")
+        .ok_or("no dressed stone")?;
+    let need = w.defs.xp_table.xp_for_level(8);
+    let outcrops: Vec<_> = w
+        .trees
+        .iter()
+        .filter(|t| w.defs.tree(t.kind).resource == stone)
+        .map(|t| t.id)
+        .collect();
+    let yard = w
+        .stations_for(dressed)
+        .first()
+        .map(|b| b.pos)
+        .ok_or("no yard")?;
+    let tps = w.defs.ticks_per_second as u64;
+    while w.player.xp(skill) < need && w.tick < end {
+        let idle = w.player.actor.queue.is_empty() && w.player.session.is_none();
+        if idle {
+            let bag = &w.player.actor.inventory;
+            let target = if bag.get(stone) >= 2 {
+                yard
+            } else if bag.total() > 0 {
+                w.main().pos
+            } else {
+                let grown = outcrops.iter().find(|t| w.trees[**t].is_grown());
+                grown.map_or(w.main().pos, |t| w.trees[*t].pos)
+            };
+            let _ = w.apply(Command::PlayerInteract(target));
+        }
+        w.run_ticks(tps);
+        if w.tick.is_multiple_of(60 * tps) {
+            note(w);
+        }
+    }
+    let _ = w.apply(Command::PlayerStop);
+    if w.player.xp(skill) >= need {
+        w.apply(Command::SoulSeparate { skill, xp: need })?;
+    }
+    Ok(())
+}
+
 /// The guided game, carried on until every long-term goal is met or `hours`
 /// run out. It cuts stone, makes panels when there's plenty of planks, buys
 /// what the goals name, and trains both wood skills to the top.
@@ -1409,6 +1457,30 @@ pub fn play_all_goals(hours: u64) -> Result<(World, AllGoals), String> {
     }
     bot.stop(&mut w);
     w.apply(Command::SetPlayerRecipe(None))?;
+
+    // A spirit for the quarry, then the yard once caravans have opened it.
+    w.apply(Command::SoulSeparate {
+        skill: quarrying,
+        xp: enough,
+    })?;
+    let yard = w.defs.building_kind_id("mason_yard").ok_or("no yard")?;
+    let ready = |w: &World| {
+        w.buildings
+            .iter()
+            .any(|b| b.kind == yard && b.is_complete())
+    };
+    while !ready(&w) && w.tick < end {
+        bot.chop_until(&mut w, 60 * tps, ready);
+        buy_for_goals(&mut w);
+        note(&w, &mut out);
+    }
+    bot.stop(&mut w);
+    train_masonry(&mut w, end, &mut |w| note(w, &mut out))?;
+    let keys = w.defs.resource_id("keystones").ok_or("no keystones")?;
+    w.apply(Command::SetOrderTarget {
+        output: keys,
+        target: 10,
+    })?;
 
     // And Woodcutting.
     while w.player.xp(bot.wc) < top && w.tick < end {

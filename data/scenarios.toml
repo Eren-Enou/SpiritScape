@@ -355,6 +355,22 @@ spirits = [
     { role = "builder", xp = 388, spawn = "B" },
 ]
 
+[mason_yard]
+title = "Mason's Yard"
+description = "The yard is ready, with stone and beams in store. Set a Keystones target, or train Masonry yourself by clicking the yard."
+objective_target = 20
+auto_gather = true
+player_xp = { masonry = 388 }
+main_storage = { stone = 120, beams = 20 }
+prebuilt = [
+    { building = "mason_yard", at = [9, 17] },
+]
+spirits = [
+    { role = "mason", xp = 1154, spawn = "B", works_at = [9, 17] },
+    { role = "hauler", xp = 388, spawn = "H" },
+    { role = "builder", xp = 388, spawn = "B" },
+]
+
 [caravan_yard]
 title = "Caravan yard"
 description = "Logs and panels are piling up. Plan a Trade Caravan in the Projects tab (B) and watch it take them away."
