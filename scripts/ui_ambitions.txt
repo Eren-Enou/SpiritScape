@@ -1,0 +1,8 @@
+# UI test of the long-term goals in the Progress tab:
+#   cargo run --release -- --scenario quarry_start --save-dir target/ui_saves16 --script scripts/ui_ambitions.txt --capture target/ui_ambitions
+1.5 key J
+2.0 expect AMBITIONS
+2.1 expect of 12 done
+2.2 expect Set up at Old Growth
+2.3 shot 01_goals
+2.5 exit

@@ -24,6 +24,7 @@
  | advice      read-only summaries: glance, storage advice, play report      |
  | soul        comparing sacrifices; milestone wording                       |
  | journey     new-game guidance and milestone times                         |
+ | ambitions   long-term goals, read from data and worked out from the world |
  | save        versioned files, validation, atomic replacement               |
  | autoplay    a reference player, for tests and pacing measurements         |
  | scenario  new game and demo setup from scenarios.toml                   |

@@ -329,6 +329,14 @@ impl World {
                     )),
                 }
             }
+            Phase::Settled if self.next_ambition().is_some() => {
+                let a = self.next_ambition()?;
+                Guidance {
+                    title: a.title,
+                    hint: a.hint,
+                    progress: a.progress,
+                }
+            }
             Phase::Settled => {
                 let has_hauling = self.has_role_with(JobKind::Haul);
                 Guidance {

@@ -374,6 +374,9 @@ impl World {
         }
         let role = self.defs.role(self.spirits[sid].role);
         if role.has_job(JobKind::Gather) {
+            if !self.basic_in_reach(sid) {
+                return "nothing it gathers is wanted right now".into();
+            }
             let o = &self.settlement.objective;
             return format!(
                 "objective satisfied ({}/{} {})",

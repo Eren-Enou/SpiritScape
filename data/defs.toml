@@ -59,6 +59,86 @@ first_spirit_level = 3
 # Woodworking level to reach before the guidance suggests a Woodworking Spirit.
 woodworking_level = 5
 
+# Long-term goals, in the order they're suggested. They reward nothing and
+# block nothing. Each is met when every condition it gives is met.
+[[ambitions]]
+id = "outpost"
+title = "Set up at Old Growth"
+hint = "Plan an Outpost Storage in Projects (B), so a site far from home has somewhere to keep what it gathers."
+built = ["outpost_storage"]
+
+[[ambitions]]
+id = "ironwood"
+title = "Cut Ironwood"
+hint = "Ironwood needs Woodcutting level 10, and it's the only source of Hardwood Logs."
+skill = "woodcutting"
+level = 10
+
+[[ambitions]]
+id = "beams"
+title = "Make Structural Beams"
+hint = "Beams need Woodworking level 10. A level 10 spirit will make them for good."
+skill = "woodworking"
+level = 10
+
+[[ambitions]]
+id = "first_road"
+title = "Lay your first road"
+hint = "Plan Grove Lane in Projects (B). Everyone walks a third faster on it."
+built = ["grove_lane"]
+
+[[ambitions]]
+id = "crossing"
+title = "Open the Hollow Grove"
+hint = "Plan the Forest Crossing in Projects (B). It opens six more Ironwood trees."
+built = ["forest_crossing"]
+
+[[ambitions]]
+id = "panels"
+title = "Make 20 Fitted Panels"
+hint = "At Woodworking 7, choose Fitted Panels at your bench in the Training tab (T). They use up spare planks."
+made = "panels"
+amount = 20
+
+[[ambitions]]
+id = "quarry"
+title = "Open the quarry"
+hint = "Stone Outcrops are south of home. Reach Quarrying level 5, or make a Quarrying Spirit from the Soul tab (R)."
+skill = "quarrying"
+level = 5
+
+[[ambitions]]
+id = "causeway"
+title = "Bridge the river in stone"
+hint = "Plan the Stone Causeway in Projects (B). You'll need Stone coming in."
+built = ["stone_causeway"]
+
+[[ambitions]]
+id = "all_roads"
+title = "Join the settlement by road"
+hint = "Lay Grove Lane, the North Road, the Old Growth Road and the Forest Road."
+built = ["grove_lane", "north_road", "old_growth_road", "forest_road"]
+
+[[ambitions]]
+id = "warehouse"
+title = "Build a Panelled Warehouse"
+hint = "Plan one in Projects (B). It holds twice what a Storehouse does."
+built = ["panelled_warehouse"]
+
+[[ambitions]]
+id = "master_wood"
+title = "Master Woodworking"
+hint = "Reach Woodworking level 20. It counts even if you give the XP to a spirit later."
+skill = "woodworking"
+level = 20
+
+[[ambitions]]
+id = "master_axe"
+title = "Master Woodcutting"
+hint = "Reach Woodcutting level 20."
+skill = "woodcutting"
+level = 20
+
 [[resources]]
 id = "logs"
 name = "Logs"
