@@ -785,6 +785,47 @@ pub fn compare_layouts(minutes: u64) -> Vec<OutpostRun> {
     }
     out.push(run_layout(free, "Remote: worker not assigned", minutes));
 
+    // A busy plank line at home as well, with one hauler or two. A second
+    // hauler at the outpost is tied to it; in the central layout there's
+    // nothing there to tie it to, so both go wherever they're needed.
+    let site = remote.defs.site_id("old_growth").expect("old growth");
+    let layouts = [
+        (
+            World::from_scenario(CentralProduction),
+            false,
+            "Central, one hauler, planks too",
+        ),
+        (remote.clone(), false, "Remote, one hauler, planks too"),
+        (
+            World::from_scenario(CentralProduction),
+            true,
+            "Central, two haulers, planks too",
+        ),
+        (remote.clone(), true, "Remote, two haulers, planks too"),
+    ];
+    for (mut w, second, name) in layouts {
+        let logs = w.defs.objective.resource;
+        let main = w.main_storage;
+        let stocked = w.buildings[main].storage.deposit(logs, 240);
+        *w.ledger.seeded.entry(logs).or_default() += stocked as u64;
+        w.settlement.order.target = 120;
+        let home = w.stations().map(|b| b.id).min().expect("home bench");
+        let pos = w.main().pos;
+        let at = crate::grid::TilePos::new(pos.x, pos.y + 1);
+        let role = w.defs.role_id("woodworker").expect("woodworker");
+        let id = w.add_spirit(role, 388, at);
+        w.spirits[id].policy.station = Some(home);
+        if second {
+            let role = w.defs.role_id("hauler").expect("hauler");
+            let xp = w.defs.xp_table.xp_for_level(5);
+            let id = w.add_spirit(role, xp, at);
+            if name.starts_with("Remote") {
+                w.spirits[id].policy.site = Some(site);
+            }
+        }
+        out.push(run_layout(w, name, minutes));
+    }
+
     // Half the gatherers, to show what staffing does.
     let mut short = remote;
     let gatherer = short.gatherer_ids()[1];

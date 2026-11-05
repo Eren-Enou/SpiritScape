@@ -445,8 +445,13 @@ impl World {
         let def = self.defs.building(kind);
         let name = def.name.clone();
         let cost: BTreeMap<_, _> = def.cost.iter().copied().collect();
+        let article = if name.starts_with(['A', 'E', 'I', 'O', 'U']) {
+            "an"
+        } else {
+            "a"
+        };
         let msg = format!(
-            "Ordered a {name} at {site} (cost {})",
+            "Ordered {article} {name} at {site} (cost {})",
             self.defs.describe_amounts(&cost)
         );
         self.create_project(kind, site, "ordered by the player".into());

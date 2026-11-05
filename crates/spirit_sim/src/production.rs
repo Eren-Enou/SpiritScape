@@ -425,6 +425,30 @@ impl World {
             .collect()
     }
 
+    /// Staffed benches that should get a material, nearest to it first. A bench
+    /// a long trip from the material gets none while a closer one can use it,
+    /// so nothing is carried across the map to be made there instead.
+    fn benches_for_input(&self, output: ResourceId, r: ResourceId) -> Vec<&Building> {
+        let stations = self.staffed_stations(output);
+        if stations.len() < 2 {
+            return stations;
+        }
+        let mut near: Vec<(u32, &Building)> = stations
+            .into_iter()
+            .map(|b| {
+                let source = self.supply_source(b.id, r, 1);
+                (source.map_or(u32::MAX, |s| s.2), b)
+            })
+            .collect();
+        near.sort_by_key(|(walk, b)| (*walk, b.id));
+        let closest = near[0].0;
+        let long = self.defs.logistics.long_trip_tiles;
+        near.into_iter()
+            .filter(|(walk, _)| *walk < long || *walk == closest)
+            .map(|(_, b)| b)
+            .collect()
+    }
+
     /// Every delivery stations would take now, most urgent first: where, what
     /// and how much. Bounded by each input buffer and the current shortfall.
     fn input_requests(&self) -> Vec<(BuildingId, ResourceId, u32)> {
@@ -437,15 +461,7 @@ impl World {
             let batches = self.deficit_of(order.output).div_ceil(def.output.1);
             for &(r, n) in &def.inputs {
                 let mut need = batches * n;
-                // The bench nearest the material gets it first.
-                let mut stations = self.staffed_stations(order.output);
-                if stations.len() > 1 {
-                    stations.sort_by_key(|b| {
-                        let source = self.supply_source(b.id, r, 1);
-                        (source.map_or(u32::MAX, |s| s.2), b.id)
-                    });
-                }
-                for b in stations {
+                for b in self.benches_for_input(order.output, r) {
                     let buffer = self.defs.building(b.kind).input_buffer;
                     let have = b.storage.available(r) + self.incoming(b.id, r);
                     let want = need.min(buffer).saturating_sub(have).min(b.storage.free());

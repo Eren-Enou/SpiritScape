@@ -368,6 +368,14 @@ impl World {
         self.slot_free_for_spirit(b)
     }
 
+    pub fn add_worker_for_test(&mut self, station: BuildingId) {
+        let role = self.defs.role_id("woodworker").expect("woodworker");
+        let pos = self.main().pos;
+        let at = crate::grid::TilePos::new(pos.x, pos.y + 1);
+        let id = self.add_spirit(role, 388, at);
+        self.spirits[id].policy.station = Some(station);
+    }
+
     pub fn player_add_xp_for_test(&mut self, skill: crate::defs::SkillId, xp: u64) {
         self.player.add_xp(skill, xp, &self.defs.xp_table);
     }

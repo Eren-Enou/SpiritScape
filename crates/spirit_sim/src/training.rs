@@ -80,6 +80,8 @@ impl TrainingMode {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TrainingPlan {
     pub mode: TrainingMode,
+    /// What the player's training uses.
+    pub material: String,
     /// Logs a minute the player's sawing uses at their level.
     pub use_per_min: u32,
     /// Logs a minute gatherers delivered lately.
@@ -454,6 +456,7 @@ impl World {
         ];
         TrainingPlan {
             mode,
+            material: name,
             use_per_min,
             gathered_per_min,
             spare,

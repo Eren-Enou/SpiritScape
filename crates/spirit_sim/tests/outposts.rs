@@ -116,7 +116,14 @@ fn an_outpost_store_costs_real_materials_and_a_builder_carries_them() {
 fn the_outpost_store_is_a_place_the_player_can_use() {
     let mut w = remote();
     let hardwood = res(&w, "hardwood");
+    let beams = res(&w, "beams");
     let id = id_at(&w, STORE_AT);
+    // With no order running, nothing else has a claim on the stock.
+    w.apply(Command::SetOrderEnabled {
+        output: beams,
+        enabled: false,
+    })
+    .unwrap();
     w.buildings[id].storage.deposit(hardwood, 12);
     *w.ledger.seeded.entry(hardwood).or_default() += 12;
     w.apply(Command::PlayerInteract(STORE_AT)).unwrap();
@@ -274,14 +281,66 @@ fn geography_decides_how_far_the_hauler_walks() {
 }
 
 #[test]
-fn assignment_changes_the_result() {
+fn an_outpost_pays_off_once_it_has_its_own_hauler() {
+    let runs = compare_layouts(20);
+    let tiles = |name: &str| runs.iter().find(|r| r.name == name).unwrap().hauler_tiles;
+    // One hauler split between both ends of the map walks further for it.
+    assert!(
+        tiles("Remote, one hauler, planks too") > tiles("Central, one hauler, planks too"),
+        "a lone shared hauler favours central production"
+    );
+    // A second one posted there turns that around.
+    assert!(
+        tiles("Remote, two haulers, planks too") < tiles("Central, two haulers, planks too"),
+        "a posted hauler favours remote production"
+    );
+}
+
+#[test]
+fn staffing_changes_how_fast_the_target_is_met() {
     let runs = compare_layouts(20);
     let get = |name: &str| runs.iter().find(|r| r.name.contains(name)).unwrap();
-    let assigned = get("made at Old Growth");
-    let free = get("not assigned");
-    assert_ne!(free.hauler_tiles, assigned.hauler_tiles);
-    let one = get("one gatherer");
-    assert!(one.reached_target.unwrap_or(u64::MAX) > assigned.reached_target.unwrap());
+    let full = get("made at Old Growth").reached_target.unwrap();
+    let one = get("one gatherer").reached_target.unwrap();
+    assert!(one > full);
+}
+
+#[test]
+fn logs_are_not_carried_to_a_far_bench_while_a_near_one_can_use_them() {
+    let mut w = remote();
+    let logs = res(&w, "logs");
+    let far = id_at(&w, BENCH_AT);
+    let home = id_at(&w, TilePos::new(3, 16));
+    let main = w.main_storage;
+    let stocked = w.buildings[main].storage.deposit(logs, 200);
+    *w.ledger.seeded.entry(logs).or_default() += stocked as u64;
+    w.apply(Command::SetProductionTarget(60)).unwrap();
+    // A second worker at home. The outpost's worker could make planks too.
+    let second = spirit_of(&w, JobKind::Craft);
+    let mut outpost = w.spirits[second].policy;
+    outpost.station = None;
+    w.apply(Command::SetSpiritPolicy {
+        spirit: second,
+        policy: outpost,
+    })
+    .unwrap();
+    let mut policy = w.spirits[second].policy;
+    policy.station = Some(far);
+    w.apply(Command::SetSpiritPolicy {
+        spirit: second,
+        policy,
+    })
+    .unwrap();
+    w.add_worker_for_test(home);
+    for _ in 0..6000 {
+        w.step();
+        assert_eq!(
+            w.buildings[far].storage.get(logs),
+            0,
+            "logs went the wrong way"
+        );
+    }
+    assert!(w.buildings[home].crafted > 0, "planks were made at home");
 }
 
 // ---------------------------------------------------------------------------

@@ -119,6 +119,15 @@ enum UiAction {
     /// Choose the nth recipe at the bench.
     ChooseRecipe(usize),
     SetMode(TrainingMode),
+    /// Step through the benches to train at.
+    CycleBench,
+    PlaceStore,
+    /// Send everyone who can to the outpost, or release them.
+    ToggleOutpost,
+    /// Change what the outpost store keeps.
+    LocalStock(i32),
+    /// Train at the outpost's bench.
+    TrainHere,
     /// Show or hide the detail cards.
     ToggleDetails,
     /// Show or hide the development scenario buttons.
@@ -136,6 +145,7 @@ enum Tab {
     Training,
     Spirits,
     Soul,
+    Outpost,
 }
 
 /// Show routine spirit events in the log too.
@@ -212,6 +222,8 @@ enum Card {
     Recipes,
     TrainingPlan,
     PlayReport,
+    Outpost,
+    ProjectNeeds,
 }
 
 /// Clipping box that holds the event log lines.
@@ -449,6 +461,12 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                     ("Skilling", UiAction::Load(ScenarioKind::SkillingSession)),
                     ("Recipes", UiAction::Load(ScenarioKind::WorkshopRecipes)),
                     ("Full storage", UiAction::Load(ScenarioKind::FullStorage)),
+                    ("Central", UiAction::Load(ScenarioKind::CentralProduction)),
+                    ("Remote", UiAction::Load(ScenarioKind::RemoteProduction)),
+                    (
+                        "Outpost",
+                        UiAction::Load(ScenarioKind::OutpostEstablishment),
+                    ),
                 ],
             );
 
@@ -496,9 +514,37 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                     ("Training (T)", UiAction::ShowTab(Tab::Training)),
                     ("Spirits (O)", UiAction::ShowTab(Tab::Spirits)),
                     ("Soul (R)", UiAction::ShowTab(Tab::Soul)),
+                    ("Outpost (U)", UiAction::ShowTab(Tab::Outpost)),
                     ("", UiAction::ToggleDetails),
                 ],
             );
+
+            tab_panel(p, Tab::Outpost, |p| {
+                card(p, "OUTPOST", |c| {
+                    body(c, Card::Outpost);
+                    button_row(
+                        c,
+                        &[("", UiAction::PlaceStore), ("", UiAction::PlaceWorkshop)],
+                    );
+                    button_row(
+                        c,
+                        &[
+                            ("", UiAction::ToggleOutpost),
+                            ("Train here", UiAction::TrainHere),
+                        ],
+                    );
+                    button_row(
+                        c,
+                        &[
+                            ("Keep -5", UiAction::LocalStock(-5)),
+                            ("Keep +5", UiAction::LocalStock(5)),
+                            ("Beams -5", UiAction::ExtraTarget(0, -5)),
+                            ("Beams +5", UiAction::ExtraTarget(0, 5)),
+                        ],
+                    );
+                });
+                card(p, "WHAT THE PROJECT NEEDS", |c| body(c, Card::ProjectNeeds));
+            });
 
             tab_panel(p, Tab::Soul, |p| {
                 card(p, "SOUL SEPARATION", |c| {
@@ -633,6 +679,7 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                     body(c, Card::TrainingPlan);
                 });
                 card(p, "WHAT YOU MAKE AT THE BENCH", |c| {
+                    button_row(c, &[("", UiAction::CycleBench)]);
                     button_row(c, &recipe_buttons);
                     body(c, Card::Recipes);
                 });
@@ -845,7 +892,13 @@ fn show_tab(
             _ => Tab::Soul,
         };
     }
-    let tall = matches!(*tab, Tab::Soul | Tab::Training);
+    if keys.just_pressed(KeyCode::KeyU) {
+        *tab = match *tab {
+            Tab::Outpost => Tab::Settlement,
+            _ => Tab::Outpost,
+        };
+    }
+    let tall = matches!(*tab, Tab::Soul | Tab::Training | Tab::Outpost);
     let display = if tall { Display::None } else { Display::Flex };
     for mut node in &mut overview {
         if node.display != display {
@@ -991,6 +1044,50 @@ fn on_button(
     match action {
         UiAction::SaveGame => sim.save_game(),
         UiAction::StopActivity => sim.command(Command::PlayerStop),
+        UiAction::CycleBench => {
+            let ids: Vec<usize> = sim.world.stations().map(|b| b.id).collect();
+            let now = sim.world.training_bench().map(|b| b.id);
+            let at = now.and_then(|b| ids.iter().position(|i| *i == b));
+            let next = at.map_or(0, |i| (i + 1) % ids.len().max(1));
+            if let Some(&bench) = ids.get(next) {
+                sim.command(Command::SetTrainingBench(Some(bench)));
+            }
+        }
+        UiAction::PlaceStore => {
+            let kind = sim.world.defs.building_kind_id("outpost_storage");
+            sim.placing = if sim.placing.is_some() { None } else { kind };
+            sim.message = if sim.placing.is_some() {
+                "Click a free tile at the outpost to place it (C shows the whole map)".into()
+            } else {
+                String::new()
+            };
+        }
+        UiAction::ToggleOutpost => {
+            if let Some(site) = sim.world.outpost_sites().first().copied() {
+                let on = !sim.world.outpost_report(site).staffed;
+                sim.command(Command::SetOutpostStaffed { site, on });
+            }
+        }
+        UiAction::LocalStock(d) => {
+            if let Some(site) = sim.world.outpost_sites().first().copied() {
+                let r = sim.world.outpost_report(site);
+                if let (Some(building), Some(resource)) = (r.store, r.resource) {
+                    let amount = (r.keep as i32 + d).max(0) as u32;
+                    sim.command(Command::SetLocalStock {
+                        building,
+                        resource,
+                        amount,
+                    });
+                }
+            }
+        }
+        UiAction::TrainHere => {
+            let site = sim.world.outpost_sites().first().copied();
+            match site.and_then(|s| sim.world.outpost_report(s).workshop) {
+                Some(b) => sim.command(Command::SetTrainingBench(Some(b))),
+                None => sim.message = "There's no workshop at the outpost yet".into(),
+            }
+        }
         UiAction::ToggleAutoGather => {
             let on = !sim.world.player.auto_gather;
             sim.command(Command::SetAutoGather(on));
@@ -1254,6 +1351,8 @@ fn update_buttons(
     let selected = w.spirits.get(sim.selected_spirit);
     let selected_role = selected.map(|s| w.defs.role(s.role));
     let selected_gathers = selected_role.is_some_and(|r| r.has_job(JobKind::Gather));
+    let selected_hauls = selected_role.is_some_and(|r| r.has_job(JobKind::Haul));
+    let outpost = w.outpost_sites().first().map(|s| w.outpost_report(*s));
     let selected_crafts = selected_role.is_some_and(|r| r.has_job(JobKind::Craft));
     let cache_built = w
         .training_cache_kind()
@@ -1273,7 +1372,13 @@ fn update_buttons(
             UiAction::MenuContinue => has_save,
             UiAction::MenuBack => sim.started,
             UiAction::BuildCache => !cache_built,
-            UiAction::CycleSite | UiAction::ToggleAdvanced => selected_gathers,
+            UiAction::CycleSite => selected_gathers || selected_hauls,
+            UiAction::ToggleAdvanced => selected_gathers,
+            UiAction::CycleBench => w.stations().count() > 1,
+            UiAction::PlaceStore => outpost.as_ref().is_some_and(|o| o.store.is_none()),
+            UiAction::ToggleOutpost => outpost.is_some(),
+            UiAction::TrainHere => outpost.as_ref().is_some_and(|o| o.workshop.is_some()),
+            UiAction::LocalStock(_) => outpost.as_ref().is_some_and(|o| o.store.is_some()),
             UiAction::CycleStation => selected_crafts,
             UiAction::CycleFocus => !w.spirits.is_empty(),
             _ => true,
@@ -1314,6 +1419,12 @@ fn update_buttons(
             UiAction::RecipeAuto => w.player.recipe.is_none(),
             UiAction::ChooseRecipe(i) => recipes.get(*i).is_some_and(|o| o.selected),
             UiAction::SetMode(m) => w.training_mode() == *m,
+            UiAction::ToggleOutpost => outpost.as_ref().is_some_and(|o| o.staffed),
+            UiAction::TrainHere => {
+                let bench = w.training_bench().map(|b| b.id);
+                outpost.as_ref().is_some_and(|o| o.workshop == bench)
+            }
+            UiAction::PlaceStore => sim.placing.is_some(),
             UiAction::ToggleDetails => details.0,
             UiAction::ToggleScenarios => scenario_buttons.0,
             _ => false,
@@ -1433,10 +1544,45 @@ fn update_buttons(
                 Some(s) => format!("Focus: {}", s.policy.focus.label()),
                 None => continue,
             },
-            UiAction::CycleSite => match selected.and_then(|s| s.policy.site) {
-                Some(site) => format!("Gather at: {}", w.defs.site(site).name),
-                None => "Gather at: anywhere".into(),
+            UiAction::CycleSite => {
+                let verb = if selected_hauls {
+                    "Carry for"
+                } else {
+                    "Gather at"
+                };
+                match selected.and_then(|s| s.policy.site) {
+                    Some(site) => format!("{verb}: {}", w.defs.site(site).name),
+                    None => format!("{verb}: anywhere"),
+                }
+            }
+            UiAction::CycleBench => match w.training_bench() {
+                Some(b) => {
+                    let place = w.defs.site_at(b.pos.x, b.pos.y);
+                    let at = place.map_or("home".to_string(), |s| w.defs.site(s).name.clone());
+                    format!("Your bench: {at}")
+                }
+                None => continue,
             },
+            UiAction::PlaceStore => {
+                if sim.placing.is_some() {
+                    "Cancel placing".into()
+                } else {
+                    match w.defs.building_kind_id("outpost_storage") {
+                        Some(kind) => {
+                            let cost = w.defs.building(kind).cost.iter().copied().collect();
+                            format!("Place Outpost Storage: {}", w.defs.describe_amounts(&cost))
+                        }
+                        None => continue,
+                    }
+                }
+            }
+            UiAction::ToggleOutpost => {
+                if outpost.as_ref().is_some_and(|o| o.staffed) {
+                    "Release outpost staff".into()
+                } else {
+                    "Staff outpost".into()
+                }
+            }
             UiAction::CycleStation => match selected.and_then(|s| s.policy.station) {
                 Some(b) => format!("Work at: {} #{b}", w.buildings[b].name),
                 None => "Work at: any bench".into(),
@@ -1519,6 +1665,8 @@ fn update_cards(
             Card::Recipes => recipe_lines(&sim.world),
             Card::TrainingPlan => training_plan_lines(&sim.world),
             Card::PlayReport => report_lines(&sim.world),
+            Card::Outpost => outpost_lines(&sim.world),
+            Card::ProjectNeeds => need_lines(&sim.world),
         };
         if rendered.changed(&lines) {
             cards::rebuild(&mut commands, entity, &lines);
@@ -1715,7 +1863,9 @@ fn glance_lines(w: &World) -> Vec<Line> {
             Item::Dot(BAD),
             muted(format!("{} blocked", g.blocked)),
             Item::Dot(Status::Idle.color()),
-            muted(format!("{} idle", g.idle)),
+            muted(format!("{} done", g.idle - g.unassigned)),
+            Item::Dot(MUTED),
+            muted(format!("{} free", g.unassigned)),
         ]);
     }
     lines.push(vec![
@@ -1768,8 +1918,8 @@ fn training_plan_lines(w: &World) -> Vec<Line> {
         vec![text(p.mode.trade())],
         vec![colored(p.limit, INFO)],
         vec![muted(format!(
-            "You use {} logs/min  |  gatherers bring {}/min  |  {} spare",
-            p.use_per_min, p.gathered_per_min, p.spare
+            "You use {} {}/min  |  gatherers bring {}/min  |  {} spare",
+            p.use_per_min, p.material, p.gathered_per_min, p.spare
         ))],
     ];
     if p.mode == TrainingMode::Optimized {
@@ -1780,6 +1930,84 @@ fn training_plan_lines(w: &World) -> Vec<Line> {
                 chip("missing", WARN)
             };
             lines.push(vec![muted(name), Item::Spacer, mark]);
+        }
+    }
+    lines
+}
+
+fn outpost_lines(w: &World) -> Vec<Line> {
+    let Some(site) = w.outpost_sites().first().copied() else {
+        return vec![vec![muted("No site can hold an outpost.")]];
+    };
+    let r = w.outpost_report(site);
+    let built = |ok: bool, name: &str| {
+        if ok {
+            chip(name.to_string(), GOOD)
+        } else {
+            chip(format!("no {name}"), MUTED)
+        }
+    };
+    let mut lines = vec![
+        vec![
+            big(r.name.clone(), TEXT),
+            Item::Spacer,
+            built(r.store.is_some(), "store"),
+            built(r.workshop.is_some(), "bench"),
+        ],
+        vec![colored(r.status.clone(), INFO)],
+    ];
+    if r.store.is_some() {
+        let name = r
+            .resource
+            .map_or(String::new(), |x| w.defs.resource(x).name.clone());
+        lines.push(vec![
+            text(name),
+            bar(r.stock as f32 / r.keep.max(1) as f32, GOLD, 110.0),
+            text(format!("{} here, keeping {}", r.stock, r.keep)),
+        ]);
+    }
+    let names = |list: &[String]| {
+        if list.is_empty() {
+            "nobody".to_string()
+        } else {
+            list.join(", ")
+        }
+    };
+    lines.push(vec![muted(format!("Gathering: {}", names(&r.gatherers)))]);
+    lines.push(vec![muted(format!("At the bench: {}", names(&r.workers)))]);
+    lines.push(vec![muted(format!(
+        "Carrying only for here: {}",
+        names(&r.haulers)
+    ))]);
+    if r.workshop.is_some() {
+        lines.push(vec![muted(format!("Made here: {}", r.made))]);
+    }
+    lines
+}
+
+fn need_lines(w: &World) -> Vec<Line> {
+    let needs = w.project_needs();
+    if needs.is_empty() {
+        let text = match w.active_project() {
+            Some(_) => "Everything is reserved. The builder is on it.",
+            None => "No project under way.",
+        };
+        return vec![vec![muted(text)]];
+    }
+    let mut lines = Vec::new();
+    for n in needs {
+        let done = n.have >= n.need;
+        lines.push(vec![
+            text(n.name),
+            bar(
+                n.have as f32 / n.need.max(1) as f32,
+                if done { GOOD } else { WARN },
+                100.0,
+            ),
+            text(format!("{} / {}", n.have, n.need)),
+        ]);
+        if !done {
+            lines.push(vec![muted(format!("     {}", n.status))]);
         }
     }
     lines
@@ -1945,7 +2173,10 @@ fn spirit_order_lines(sim: &Sim) -> Vec<Line> {
             Item::Spacer,
             colored(word, status.color()),
         ],
-        vec![muted(s.activity.text().to_string())],
+        vec![
+            chip(w.worker_state(s).label(), status.color()),
+            muted(s.activity.text().to_string()),
+        ],
     ];
     let t = s.time.recent();
     let total = t.total().max(1);
@@ -2173,7 +2404,7 @@ fn training_lines(w: &World) -> Vec<Line> {
     lines.push(vec![
         text("Bench"),
         bar(r.bench.0 as f32 / r.bench.1.max(1) as f32, GOLD, 150.0),
-        text(format!("{} / {} logs for you", r.bench.0, r.bench.1)),
+        text(format!("{} / {} set aside for you", r.bench.0, r.bench.1)),
     ]);
     lines.push(vec![muted(r.supply_status)]);
     lines
