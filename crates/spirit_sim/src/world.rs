@@ -4,8 +4,8 @@ use crate::defs::{
     BuildingKindId, GameDefs, JobKind, RecipeId, ResourceId, RoleId, SiteId, SkillId, TreeKindId,
 };
 use crate::entities::{
-    Activity, Actor, Building, BuildingId, Player, Project, Spirit, SpiritId, SpiritPolicy, Tree,
-    TreeState,
+    Activity, Actor, Building, BuildingId, BuildingState, Player, Project, ProjectId, Spirit,
+    SpiritId, SpiritPolicy, Tree, TreeState,
 };
 use crate::events::{EventKind, EventLog, Notices};
 use crate::grid::{Grid, TilePos};
@@ -74,6 +74,11 @@ pub struct Settlement {
     /// Room added at stations for logs set aside for the player.
     #[serde(default)]
     pub bench_bonus: u32,
+    /// Buildings planned after the current project.
+    #[serde(default)]
+    pub queue: Vec<crate::projects::QueuedProject>,
+    #[serde(default)]
+    pub next_queue_id: u32,
 }
 
 /// What a Soul Separation would do, shown before the player confirms.
@@ -195,6 +200,20 @@ pub enum Command {
         site: SiteId,
         on: bool,
     },
+    /// Add a building to the end of the construction plan.
+    QueueBuilding {
+        kind: BuildingKindId,
+        site: Option<TilePos>,
+    },
+    /// Move a planned building one place up or down.
+    MoveQueued {
+        id: u32,
+        up: bool,
+    },
+    /// Take a building off the plan.
+    CancelQueued(u32),
+    /// Call off a project nobody has started on.
+    CancelProject(ProjectId),
 }
 
 #[derive(Clone, Debug)]
@@ -263,7 +282,9 @@ impl World {
     }
 
     pub fn building_at(&self, p: TilePos) -> Option<&Building> {
-        self.buildings.iter().find(|b| b.pos == p)
+        self.buildings
+            .iter()
+            .find(|b| b.pos == p && b.state != BuildingState::Removed)
     }
 
     pub fn spirit_level_name(&self, s: &Spirit) -> String {
@@ -433,6 +454,9 @@ impl World {
         }
         for p in &self.projects {
             (p.site, p.state as u8, p.build_progress).hash(&mut h);
+        }
+        for q in &self.settlement.queue {
+            (q.id, q.kind, q.site).hash(&mut h);
         }
         self.ledger.crafted.hash(&mut h);
         self.ledger.batches.hash(&mut h);
@@ -624,6 +648,10 @@ impl World {
                 amount,
             } => self.set_local_stock(building, resource, amount),
             Command::SetOutpostStaffed { site, on } => self.set_outpost_staffed(site, on),
+            Command::QueueBuilding { kind, site } => self.queue_building(kind, site),
+            Command::MoveQueued { id, up } => self.move_queued(id, up),
+            Command::CancelQueued(id) => self.cancel_queued(id),
+            Command::CancelProject(id) => self.cancel_project(id),
         }
     }
 
@@ -675,13 +703,15 @@ impl World {
             Crafting(usize),
             Nothing,
         }
-        let log = &mut self.player.log;
         let tree_here = self.trees.iter().any(|t| t.pos == p);
-        let building_here = self.buildings.iter().find(|b| b.pos == p);
-        match building_here {
+        let station_here = self
+            .building_at(p)
+            .map(|b| self.defs.building(b.kind).is_station);
+        let log = &mut self.player.log;
+        match station_here {
             _ if tree_here => log.gather_interactions += 1,
-            Some(b) if self.defs.building(b.kind).is_station => log.workshop_interactions += 1,
-            Some(_) => log.storage_interactions += 1,
+            Some(true) => log.workshop_interactions += 1,
+            Some(false) => log.storage_interactions += 1,
             None => log.walk_interactions += 1,
         }
         let (tasks, activity, starts) = if let Some(tree) = self.tree_at(p) {
@@ -717,7 +747,10 @@ impl World {
                 format!("Chopping {name}"),
                 Starts::Gathering(tree.id),
             )
-        } else if let Some(b) = self.building_at(p) {
+        } else if let Some(b) = self
+            .building_at(p)
+            .filter(|b| !(b.is_complete() && self.grid.is_walkable(b.pos)))
+        {
             if !b.is_complete() {
                 return Err(format!("{} is still under construction", b.name));
             }
@@ -1001,6 +1034,7 @@ impl World {
                 s.time.snapshot(self.tick, window);
             }
         }
+        self.update_queue();
         self.update_projects();
         if self
             .tick

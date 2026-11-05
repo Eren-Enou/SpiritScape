@@ -100,7 +100,10 @@ impl World {
     fn improved(&self) -> bool {
         self.projects
             .iter()
-            .any(|p| !p.is_active() && self.defs.building(p.kind).capacity_bonus > 0)
+            .any(|p| {
+                p.state == crate::entities::ProjectState::Complete
+                    && self.defs.building(p.kind).capacity_bonus > 0
+            })
     }
 
     /// Some skill has been sacrificed and is back at its best.

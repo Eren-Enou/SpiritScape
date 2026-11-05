@@ -191,6 +191,30 @@ impl Grid {
         }
     }
 
+    /// Turns a tile into a walkable crossing.
+    pub fn open_crossing(&mut self, p: TilePos) {
+        if self.in_bounds(p) {
+            let i = self.idx(p);
+            self.terrain[i] = Terrain::Bridge;
+            self.occupied[i] = false;
+        }
+    }
+
+    /// This grid on a larger map, for older saves. Everything already on the
+    /// old map stays exactly where it was.
+    pub fn grown(&self, layout: &MapLayout) -> Grid {
+        let mut bigger = Grid::new(layout);
+        for y in 0..self.height.min(bigger.height) {
+            for x in 0..self.width.min(bigger.width) {
+                let p = TilePos::new(x, y);
+                let (from, to) = (self.idx(p), bigger.idx(p));
+                bigger.terrain[to] = self.terrain[from];
+                bigger.occupied[to] = self.occupied[from];
+            }
+        }
+        bigger
+    }
+
     pub fn is_walkable(&self, p: TilePos) -> bool {
         self.in_bounds(p) && self.terrain[self.idx(p)].walkable() && !self.occupied[self.idx(p)]
     }

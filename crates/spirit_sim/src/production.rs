@@ -335,15 +335,27 @@ impl World {
         self.recipe_for(self.settlement.order.output)
     }
 
-    /// Output still to be reserved by active projects.
+    /// What the plan still has to claim: projects not yet reserved, and
+    /// everything queued. Reserved stock is already out of `available`, so
+    /// nothing is counted twice. The queue's limit keeps this bounded.
     pub(crate) fn project_demand(&self, r: ResourceId) -> u32 {
-        self.projects
+        let waiting = self
+            .projects
             .iter()
             .filter(|p| p.is_active() && !p.reserved)
-            .flat_map(|p| self.defs.building(p.kind).cost.iter())
+            .map(|p| p.kind);
+        let queued = self.settlement.queue.iter().map(|q| q.kind);
+        waiting
+            .chain(queued)
+            .flat_map(|k| self.defs.building(k).cost.iter())
             .filter(|(res, _)| *res == r)
             .map(|(_, n)| *n)
             .sum()
+    }
+
+    /// Workers that fit at a bench, counting annexes.
+    pub fn slots_of(&self, b: &Building) -> u32 {
+        self.defs.building(b.kind).slots + b.extra_slots
     }
 
     /// The stock an order aims for: its target plus unreserved project needs.
@@ -651,7 +663,7 @@ impl World {
     /// Whether a spirit may take a place here. One place stays free for the
     /// player when they've asked for that.
     pub(crate) fn slot_free_for_spirit(&self, b: &Building) -> bool {
-        let slots = self.defs.building(b.kind).slots;
+        let slots = self.slots_of(b);
         let promised = self.settlement.training.keep_bench_place
             && self.training_bench().is_some_and(|t| t.id == b.id);
         let held = promised || self.player_at_station(b.id);
@@ -662,7 +674,7 @@ impl World {
     /// that arrived last steps away. Otherwise a full station says so.
     pub(crate) fn claim_player_slot(&mut self, id: BuildingId) -> Result<(), String> {
         let b = &self.buildings[id];
-        let slots = self.defs.building(b.kind).slots;
+        let slots = self.slots_of(b);
         if self.player_at_station(id) || (self.spirits_at(id).count() as u32) < slots {
             return Ok(());
         }
@@ -952,7 +964,7 @@ impl World {
                 id: b.id,
                 name: b.name.clone(),
                 occupied: self.slots_used(b.id),
-                slots: self.defs.building(b.kind).slots,
+                slots: self.slots_of(b),
                 crafted: b.crafted,
                 workers: self.spirits_at(b.id).map(|s| s.name.clone()).collect(),
             })

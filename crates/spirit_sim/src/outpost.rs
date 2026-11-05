@@ -91,9 +91,20 @@ impl World {
         }
     }
 
-    /// Whether a building stands inside a site.
+    /// The site a place belongs to for instructions: a grove reached through
+    /// a site counts as part of it.
+    pub(crate) fn post_of(&self, site: SiteId) -> SiteId {
+        self.defs.site(site).region.unwrap_or(site)
+    }
+
+    /// Whether a place falls under a posting to `post`.
+    pub(crate) fn within_post(&self, place: Option<SiteId>, post: SiteId) -> bool {
+        place.is_some_and(|s| self.post_of(s) == self.post_of(post))
+    }
+
+    /// Whether a building stands inside a site or its region.
     pub(crate) fn in_site(&self, b: &Building, site: SiteId) -> bool {
-        self.defs.site_at(b.pos.x, b.pos.y) == Some(site)
+        self.within_post(self.defs.site_at(b.pos.x, b.pos.y), site)
     }
 
     /// Sites that can be run as outposts.

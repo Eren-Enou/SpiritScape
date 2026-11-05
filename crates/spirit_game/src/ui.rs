@@ -1698,6 +1698,11 @@ fn header_lines(sim: &Sim) -> Vec<Line> {
         ScenarioKind::CentralProduction => "Central production",
         ScenarioKind::RemoteProduction => "Remote production",
         ScenarioKind::OutpostEstablishment => "Outpost",
+        ScenarioKind::ExpandedCentral => "Expanded, central",
+        ScenarioKind::ExpandedRemote => "Expanded, remote",
+        ScenarioKind::ForestAccess => "Forest access",
+        ScenarioKind::ProjectQueue => "Project plan",
+        ScenarioKind::SharedHauler => "Shared hauler",
     };
     let speed = if sim.paused {
         colored("PAUSED", WARN)
@@ -1902,7 +1907,7 @@ fn recipe_lines(w: &World) -> Vec<Line> {
         ))]);
     }
     if let Some(b) = w.station() {
-        let slots = w.defs.building(b.kind).slots;
+        let slots = w.slots_of(b);
         lines.push(vec![muted(format!(
             "{}: {} of {slots} places in use",
             b.name,

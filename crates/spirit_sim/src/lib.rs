@@ -17,6 +17,7 @@ pub mod metrics;
 pub mod outpost;
 pub mod planner;
 pub mod production;
+pub mod projects;
 pub mod save;
 pub mod scenario;
 pub mod session;

@@ -53,6 +53,8 @@ impl Tree {
 pub enum BuildingState {
     UnderConstruction { project: ProjectId },
     Complete,
+    /// Called off before work began. Only its record remains.
+    Removed,
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -69,6 +71,9 @@ pub struct Building {
     /// Stock haulers leave here for local use.
     #[serde(default)]
     pub keep: BTreeMap<ResourceId, u32>,
+    /// Places added at this bench by annexes beside it.
+    #[serde(default)]
+    pub extra_slots: u32,
 }
 
 impl Building {
@@ -471,6 +476,8 @@ pub enum ProjectState {
     /// All materials on site; the builder is assembling the building.
     Building,
     Complete,
+    /// Called off before work began.
+    Cancelled,
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -496,6 +503,6 @@ pub struct Project {
 
 impl Project {
     pub fn is_active(&self) -> bool {
-        self.state != ProjectState::Complete
+        !matches!(self.state, ProjectState::Complete | ProjectState::Cancelled)
     }
 }

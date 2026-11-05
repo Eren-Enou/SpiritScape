@@ -770,7 +770,7 @@ impl World {
 
     fn bench_note(&self, building: BuildingId) -> Option<String> {
         let b = &self.buildings[building];
-        let slots = self.defs.building(b.kind).slots;
+        let slots = self.slots_of(b);
         Some(format!(
             "{} of {slots} places in use",
             self.slots_used(building)

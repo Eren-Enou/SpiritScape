@@ -219,7 +219,7 @@ impl World {
         s.policy.site.is_none_or(|p| {
             self.trees
                 .iter()
-                .any(|t| t.kind == kind && t.site == Some(p))
+                .any(|t| t.kind == kind && self.within_post(t.site, p))
         })
     }
 
@@ -468,7 +468,7 @@ impl World {
         let suits = |t: &Tree| {
             wanted(t.kind)
                 && first_choice.is_none_or(|r| self.defs.tree(t.kind).resource == r)
-                && s.policy.site.is_none_or(|p| t.site == Some(p))
+                && s.policy.site.is_none_or(|p| self.within_post(t.site, p))
         };
 
         let mut any_cuttable = false;
