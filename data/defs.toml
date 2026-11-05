@@ -365,6 +365,80 @@ thanks = "The pilgrim thanks you and doesn't look back. There's a small carved k
 wants = [{ resource = "panels", amount = 30 }]
 gives = [{ resource = "keystones", amount = 1 }]
 
+# Teaching each system when it first matters, in real games only. `opens` keeps
+# a tab or skill off the screen until the tip has been said. See tips.rs for
+# what `when` can say.
+[[tips]]
+id = "soul"
+when = "phase:first_spirit"
+opens = "soul"
+text = "The Soul tab (R) has opened. Soul Separation trades your XP for a spirit that works for good."
+
+[[tips]]
+id = "progress"
+when = "phase:first_spirit"
+opens = "progress"
+text = "The Progress tab (J) has opened. It keeps your long-term goals, and what you've found."
+
+[[tips]]
+id = "spirits"
+when = "phase:first_craft"
+opens = "spirits"
+text = "The Spirits tab (O) has opened. You can give each spirit instructions, and read its story."
+
+[[tips]]
+id = "gathering"
+when = "phase:first_craft"
+opens = "gathering"
+text = "The Gathering tab (G) has opened. It shows what each site gives, and why spirits are waiting."
+
+[[tips]]
+id = "woodworking"
+when = "phase:first_craft"
+opens = "woodworking"
+text = "Woodworking is your second skill. Take logs from Main Storage and click the Workshop."
+
+[[tips]]
+id = "production"
+when = "phase:automation"
+opens = "production"
+text = "The Production tab (P) has opened. It shows what's being made, and what's holding it up."
+
+[[tips]]
+id = "projects"
+when = "phase:improvement"
+opens = "projects"
+text = "The Projects tab (B) has opened. Plan buildings there, and your spirits make what they need."
+
+[[tips]]
+id = "training"
+when = "phase:return"
+opens = "training"
+text = "The Training tab (T) has opened. Spirits can carry for you while you train, and you can choose what to make."
+
+[[tips]]
+id = "outpost"
+when = "level:woodcutting:10"
+opens = "outpost"
+text = "The Outpost tab (U) has opened. Ironwood is a long way from home, and a site out there can work on its own."
+
+[[tips]]
+id = "quarrying"
+when = "phase:settled"
+opens = "quarrying"
+text = "There's stone south of home, past the Workshop. Quarrying is a skill of its own, and it starts from nothing."
+
+[[tips]]
+id = "masonry"
+when = "caravans:3"
+opens = "masonry"
+text = "Masonry is your fourth skill: it joins stone to timber at a Mason's Yard."
+
+[[tips]]
+id = "first_winter"
+when = "season:winter"
+text = "The trees won't grow back until spring. It's a good time for the bench, the quarry or the plan."
+
 [[resources]]
 id = "logs"
 name = "Logs"

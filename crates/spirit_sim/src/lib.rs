@@ -26,6 +26,7 @@ pub mod skills;
 pub mod soul;
 pub mod stories;
 pub mod tasks;
+pub mod tips;
 pub mod training;
 pub mod visitors;
 pub mod world;
