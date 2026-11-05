@@ -126,6 +126,7 @@ xp_per_log = 30
 chop_seconds = 3.0
 chop_seconds_per_level = 0.1
 min_chop_seconds = 0.8
+why = "Twice the XP of a Tree for each log, and more logs per tree. A spirit of this level gathers it for good."
 
 # Slow to cut and slow to regrow, but it's the only source of Hardwood Logs.
 [[tree_types]]
@@ -141,6 +142,7 @@ xp_per_log = 60
 chop_seconds = 4.0
 chop_seconds_per_level = 0.1
 min_chop_seconds = 1.5
+why = "The only source of Hardwood Logs, which Structural Beams are made from."
 
 # ---------------------------------------------------------------------------
 # Recipes: timed processing at a station building. The player and spirits use
@@ -175,6 +177,7 @@ craft_seconds = 4.0
 craft_seconds_per_level = 0.1
 min_craft_seconds = 1.8
 xp = 45
+why = "Two planks from three logs instead of one from two, so the same logs build more."
 
 # The first recipe that doesn't use ordinary logs at all.
 [[recipes]]
@@ -189,6 +192,7 @@ craft_seconds = 6.0
 craft_seconds_per_level = 0.1
 min_craft_seconds = 3.0
 xp = 120
+why = "Further Workshops are built with these, so this is how production grows."
 
 [production]
 # What the settlement's main production order makes.
@@ -232,6 +236,14 @@ measure_window_seconds = 120.0
 [player]
 move_seconds_per_tile = 0.25
 carry_capacity = 28
+# A gathering session moves to another tree at most this far, in tiles walked,
+# so it never sets off across the map on its own.
+gather_reach_tiles = 12
+# How long a session stands by for a tree to regrow. If nothing will be ready
+# in this time it stops and says so.
+gather_wait_seconds = 120.0
+# How long a crafting session stands by for spirits to bring what it needs.
+craft_wait_seconds = 60.0
 
 # ---------------------------------------------------------------------------
 # Spirit roles. Each role lists prioritized job rules: every time a spirit

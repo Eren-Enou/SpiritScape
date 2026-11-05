@@ -12,6 +12,7 @@ plank_target = 30
 log_reserve = 10
 player_xp = {}
 main_storage = {}
+auto_gather = true
 # Hauling and Construction skills do not exist yet, so the settlement starts
 # with founding spirits for those roles. Given by level, because this scenario
 # is played under both progression profiles.
@@ -186,5 +187,43 @@ spirits = [
     { role = "woodcutter", xp = 388, spawn = "W" },
     { role = "hauler", xp = 388, spawn = "H" },
     { role = "woodworker", xp = 388, spawn = "B" },
+    { role = "builder", xp = 388, spawn = "B" },
+]
+
+# Fast scenarios for testing one part of v0.7 by hand. They start with
+# automatic targeting on, the way a real game does.
+
+[skilling_session]
+title = "Skilling session"
+description = "Click a tree and leave it: you keep chopping nearby trees until your bag is full. Press X or move to stop."
+objective_target = 40
+auto_gather = true
+player_xp = { woodcutting = 388 }
+main_storage = { logs = 20 }
+spirits = [
+    { role = "hauler", xp = 388, spawn = "H" },
+    { role = "builder", xp = 388, spawn = "B" },
+]
+
+[workshop_recipes]
+title = "Workshop recipes"
+description = "You know every recipe. Choose one in the Training tab, take its materials from Main Storage and click the Workshop."
+objective_target = 20
+auto_gather = true
+player_xp = { woodworking = 1154 }
+main_storage = { logs = 120, hardwood = 40 }
+spirits = [
+    { role = "hauler", xp = 388, spawn = "H" },
+]
+
+[full_storage]
+title = "Full storage"
+description = "Main Storage is almost full. See what the game suggests, and try sawing logs or ordering a Storehouse."
+objective_target = 20
+auto_gather = true
+player_xp = { woodcutting = 388 }
+main_storage = { logs = 285, planks = 5 }
+spirits = [
+    { role = "hauler", xp = 388, spawn = "H" },
     { role = "builder", xp = 388, spawn = "B" },
 ]

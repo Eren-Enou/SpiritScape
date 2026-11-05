@@ -234,7 +234,7 @@ impl World {
                 } else if bag.total() > 0 {
                     "Keep chopping, or click Main Storage to deposit what you have."
                 } else {
-                    "Click a tree in the Starting Grove to walk over and chop it."
+                    "Click a tree in the Starting Grove. You'll keep chopping nearby trees until your bag is full."
                 };
                 Guidance {
                     title: format!("Reach Woodcutting level {goal}"),
@@ -269,7 +269,7 @@ impl World {
                 } else if bag.total() > 0 {
                     "Click Main Storage to store what you're carrying."
                 } else {
-                    "Click Main Storage with empty hands to take logs, then click the Workshop."
+                    "Click Main Storage with empty hands to take logs, then click the Workshop. You'll keep sawing until they run out."
                 };
                 Guidance {
                     title: format!("Train Woodworking to level {goal}"),
@@ -342,6 +342,11 @@ impl World {
                 }
             }
         };
+        // Nothing else matters much while there's nowhere to put logs.
+        let mut g = g;
+        if let Some(advice) = self.storage_advice() {
+            g.hint = advice;
+        }
         Some(g)
     }
 }

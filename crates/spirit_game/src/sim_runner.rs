@@ -13,6 +13,10 @@ pub const SPEEDS: [u32; 4] = [1, 2, 4, 8];
 const MAX_TICKS_PER_FRAME: u32 = 200;
 /// How long a milestone message stays up, in seconds.
 const NOTICE_SECONDS: f32 = 3.5;
+/// Extra time for each further line of a longer message.
+const NOTICE_LINE_SECONDS: f32 = 3.0;
+/// How long the reply to a command stays up.
+const MESSAGE_SECONDS: f32 = 6.0;
 /// Messages waiting to be shown. Older ones are skipped; the log has them.
 const MAX_WAITING_NOTICES: usize = 3;
 
@@ -36,6 +40,9 @@ pub struct Sim {
     pub banner: Option<(String, f32)>,
     notices_seen: u64,
     waiting_notices: VecDeque<String>,
+    /// The message being timed, and how long it has been up.
+    message_shown: String,
+    message_age: f32,
     pub store: SaveStore,
     /// Real seconds between autosaves; 0 turns autosave off.
     pub autosave_seconds: f32,
@@ -74,6 +81,8 @@ impl Sim {
             banner: None,
             notices_seen: world.notices.total,
             waiting_notices: VecDeque::new(),
+            message_shown: String::new(),
+            message_age: 0.0,
             autosave_seconds: world.defs.autosave_seconds,
             autosave_timer: 0.0,
             store,
@@ -304,6 +313,16 @@ You can no longer make {} - retrain to regain it",
         self.banner = Some((text, 6.0));
     }
 
+    /// Writes the play report beside the saves.
+    pub fn write_report(&mut self) {
+        let path = self.store.dir().join("play_report.txt");
+        let dir = std::fs::create_dir_all(self.store.dir());
+        self.message = match dir.and_then(|_| std::fs::write(&path, self.world.play_report())) {
+            Ok(()) => format!("Play report written to {}", path.display()),
+            Err(e) => format!("Couldn't write the play report: {e}"),
+        };
+    }
+
     pub fn command(&mut self, cmd: Command) {
         self.message = match self.world.apply(cmd) {
             Ok(msg) => msg,
@@ -322,6 +341,7 @@ impl Plugin for SimRunnerPlugin {
                 keyboard_controls,
                 advance_simulation,
                 show_notices,
+                expire_message,
                 autosave,
             )
                 .chain(),
@@ -340,6 +360,20 @@ fn advance_simulation(time: Res<Time>, mut sim: ResMut<Sim>) {
     sim.accumulator = (sim.accumulator - ticks as f32).min(MAX_TICKS_PER_FRAME as f32);
     for _ in 0..ticks {
         sim.world.step();
+    }
+}
+
+/// Clears the reply to a command once it's had time to be read, so an old
+/// answer never sits beside what's happening now.
+fn expire_message(time: Res<Time>, mut sim: ResMut<Sim>) {
+    if sim.message != sim.message_shown {
+        sim.message_shown = sim.message.clone();
+        sim.message_age = 0.0;
+    } else if !sim.message.is_empty() {
+        sim.message_age += time.delta_secs();
+        if sim.message_age >= MESSAGE_SECONDS {
+            sim.message.clear();
+        }
     }
 }
 
@@ -363,7 +397,8 @@ fn show_notices(mut sim: ResMut<Sim>) {
     if sim.banner.is_none()
         && let Some(text) = sim.waiting_notices.pop_front()
     {
-        sim.banner = Some((text, NOTICE_SECONDS));
+        let lines = text.lines().count().max(1) as f32;
+        sim.banner = Some((text, NOTICE_SECONDS + (lines - 1.0) * NOTICE_LINE_SECONDS));
     }
 }
 
@@ -410,5 +445,8 @@ fn keyboard_controls(keys: Res<ButtonInput<KeyCode>>, mut sim: ResMut<Sim>) {
     }
     if keys.just_pressed(KeyCode::F9) {
         sim.load_manual();
+    }
+    if keys.just_pressed(KeyCode::F6) {
+        sim.write_report();
     }
 }

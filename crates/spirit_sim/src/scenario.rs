@@ -41,10 +41,16 @@ pub enum ScenarioKind {
     ExpandedProduction,
     /// Retrain with spirits and infrastructure behind you.
     SupportedRetraining,
+    /// A few minutes of continuous gathering, with Oak already open.
+    SkillingSession,
+    /// Every recipe unlocked and materials for each, to compare them.
+    WorkshopRecipes,
+    /// Main Storage almost full, to see what the game says about it.
+    FullStorage,
 }
 
 impl ScenarioKind {
-    pub const ALL: [ScenarioKind; 12] = [
+    pub const ALL: [ScenarioKind; 15] = [
         ScenarioKind::NewGame,
         ScenarioKind::Demo,
         ScenarioKind::Regrind,
@@ -57,6 +63,9 @@ impl ScenarioKind {
         ScenarioKind::ProductionBottleneck,
         ScenarioKind::ExpandedProduction,
         ScenarioKind::SupportedRetraining,
+        ScenarioKind::SkillingSession,
+        ScenarioKind::WorkshopRecipes,
+        ScenarioKind::FullStorage,
     ];
 
     pub fn key(self) -> &'static str {
@@ -73,6 +82,9 @@ impl ScenarioKind {
             ScenarioKind::ProductionBottleneck => "production_bottleneck",
             ScenarioKind::ExpandedProduction => "expanded_production",
             ScenarioKind::SupportedRetraining => "supported_retraining",
+            ScenarioKind::SkillingSession => "skilling_session",
+            ScenarioKind::WorkshopRecipes => "workshop_recipes",
+            ScenarioKind::FullStorage => "full_storage",
         }
     }
 
@@ -121,6 +133,10 @@ pub struct ScenarioDef {
     /// Stock of each further product to maintain.
     #[serde(default)]
     pub extra_targets: BTreeMap<String, u32>,
+    /// Gathering moves on to the next tree by itself. Real games start with
+    /// this on. The older test scenarios keep one click per tree.
+    #[serde(default)]
+    pub auto_gather: bool,
 }
 
 /// A full-grown tree of `kind`.
@@ -278,6 +294,7 @@ impl World {
             product_stats: BTreeMap::new(),
         };
 
+        world.player.auto_gather = scenario.auto_gather;
         for (skill, &xp) in &scenario.player_xp {
             let id = world
                 .defs

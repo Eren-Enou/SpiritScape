@@ -31,11 +31,12 @@ impl World {
             return match best {
                 Some(k) => {
                     let def = self.defs.tree(k);
-                    format!(
+                    let rate = format!(
                         "Cuts about {} logs/min from {} while chopping",
                         tpm / def.chop_ticks_at(level).max(1),
                         def.name
-                    )
+                    );
+                    with_reason(rate, &def.why)
                 }
                 None => "Too weak to cut anything".into(),
             };
@@ -50,11 +51,12 @@ impl World {
                 Some(r) => {
                     let def = self.defs.recipe(r);
                     let out = &self.defs.resource(def.output.0).name;
-                    format!(
+                    let rate = format!(
                         "Makes about {} {out}/min at the bench ({})",
                         tpm * def.output.1 / def.craft_ticks_at(level).max(1),
                         def.name
-                    )
+                    );
+                    with_reason(rate, &def.why)
                 }
                 None => "Too weak to make anything".into(),
             };
@@ -116,24 +118,97 @@ impl World {
             .collect()
     }
 
-    /// The short message shown when a spirit awakens.
+    /// The short message shown when a spirit awakens: what it gives, then
+    /// what it took from the player.
     pub(crate) fn spirit_notice(&self, role: RoleId, p: &SoulPreview) -> String {
         let def = self.defs.role(role);
-        if let Some(best) = p.spirit_recipes.last() {
-            return format!(
+        let gained = if let Some(best) = p.spirit_recipes.last() {
+            format!(
                 "Your {} can produce {}.",
                 def.name,
                 self.defs.recipe(*best).name
-            );
-        }
-        if !p.spirit_can_cut.is_empty() {
-            return format!(
+            )
+        } else if !p.spirit_can_cut.is_empty() {
+            format!(
                 "Your {} can cut {}.",
                 def.name,
                 self.tree_names(&p.spirit_can_cut)
-            );
+            )
+        } else {
+            format!("Your {} has awakened.", def.name)
+        };
+        let mut lines = vec![gained];
+        for k in &p.lost {
+            let d = self.defs.tree(*k);
+            lines.push(format!(
+                "You can't cut {} until {} level {}. Your spirit can, for good.",
+                d.name,
+                self.defs.skill(d.skill).name,
+                d.level_required
+            ));
         }
-        format!("Your {} has awakened.", def.name)
+        for r in &p.lost_recipes {
+            let d = self.defs.recipe(*r);
+            lines.push(format!(
+                "You can't make {} until {} level {}. Your spirit can, for good.",
+                d.name,
+                self.defs.skill(d.skill).name,
+                d.level_required
+            ));
+        }
+        lines.join("\n")
+    }
+
+    /// Where a tree type grows.
+    fn tree_sites(&self, kind: TreeKindId) -> String {
+        let mut names: Vec<&str> = Vec::new();
+        for t in self.trees.iter().filter(|t| t.kind == kind) {
+            if let Some(site) = t.site {
+                let name = self.defs.site(site).name.as_str();
+                if !names.contains(&name) {
+                    names.push(name);
+                }
+            }
+        }
+        names.join(" and ")
+    }
+
+    /// Where to find a new tree, what it gives and why it matters.
+    fn tree_unlock(&self, kind: TreeKindId) -> String {
+        let d = self.defs.tree(kind);
+        with_reason(
+            format!(
+                "{}: in {}. {} {} a tree, {} XP each.",
+                d.name,
+                self.tree_sites(kind),
+                d.logs,
+                self.defs.resource(d.resource).name,
+                d.xp_per_log
+            ),
+            &d.why,
+        )
+    }
+
+    /// Where to make a new recipe, what it gives and why it matters.
+    fn recipe_unlock(&self, recipe: RecipeId) -> String {
+        let d = self.defs.recipe(recipe);
+        let inputs: Vec<String> = d
+            .inputs
+            .iter()
+            .map(|(r, n)| format!("{n} {}", self.defs.resource(*r).name))
+            .collect();
+        with_reason(
+            format!(
+                "{}: at the {}. {} makes {} {}, {} XP.",
+                d.name,
+                self.defs.building(d.station).name,
+                inputs.join(" and "),
+                d.output.1,
+                self.defs.resource(d.output.0).name,
+                d.xp
+            ),
+            &d.why,
+        )
     }
 
     /// The short message for a level gained or regained.
@@ -168,6 +243,22 @@ impl World {
                 self.recipe_names(recipes)
             ));
         }
-        parts.join(" ")
+        let mut text = parts.join(" ");
+        for k in trees {
+            text += &format!("\n{}", self.tree_unlock(*k));
+        }
+        for r in recipes {
+            text += &format!("\n{}", self.recipe_unlock(*r));
+        }
+        text
+    }
+}
+
+/// A sentence with the reason behind it, when there is one.
+fn with_reason(text: String, why: &str) -> String {
+    if why.is_empty() {
+        text
+    } else {
+        format!("{text} {why}")
     }
 }

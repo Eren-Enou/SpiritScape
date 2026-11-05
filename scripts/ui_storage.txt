@@ -1,0 +1,7 @@
+# UI test of what the game says when storage runs short:
+#   cargo run --release -- --scenario full_storage --save-dir target/ui_saves5 --script scripts/ui_storage.txt --capture target/ui_storage
+1.5 expect nearly full
+1.6 expect Storehouse
+1.7 expect saw logs
+1.8 shot 01_nearly_full
+2.0 exit

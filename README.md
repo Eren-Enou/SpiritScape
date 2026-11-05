@@ -77,17 +77,20 @@ The last three are development aids.
 |---|---|
 | `W` `A` `S` `D` / arrow keys | Walk one tile at a time (hold to keep walking) |
 | `E` | Use what you're facing or standing next to: chop a tree, or deposit at a storage |
-| Left click on a tree | Walk to it and chop until your inventory is full or the tree is depleted |
+| Left click on a tree | Walk to it and keep chopping nearby trees until your bag is full (the **Next tree** button turns moving on off) |
 | Left click on a storage | Walk to it and deposit your logs |
 | Left click on grass | Walk there |
 | Mouse wheel / `C` | Zoom / toggle the whole-map overview (the demo starts in overview) |
 | `H` | Hide or show the UI panels |
 | `G` | Switch between the Settlement and Gathering tabs |
 | `P` | Switch to and from the Production tab |
-| `J` / `T` / `O` | Switch to and from the Progress / Training / Spirits tab |
+| `J` / `T` / `O` / `R` | Switch to and from the Progress / Training / Spirits / Soul tab |
+| `X` | Stop what you're doing |
+| `V` | Show or hide detail cards |
+| `F6` | Write a play report beside your saves |
 | `F5` / `F9` | Save / go back to the last manual save |
 | Click Main Storage with empty hands | Take logs |
-| Click the Workshop | Saw planks until you run out of logs |
+| Click the Workshop | Make your chosen recipe until something runs out (choose in the Training tab) |
 | Mouse wheel over the panel | Scroll the panel |
 | Hover a tree or building | Describe it: tier, level needed, logs left, regrowth time |
 | `Space` / `1`-`4` | Pause / speed |
@@ -129,6 +132,12 @@ a gathering report is printed every minute):
 ```bash
 cargo run -p spirit_sim --example headless_demo -- 600 demo
 cargo run -p spirit_sim --example regrind_playtest -- 400
+```
+
+Fast scenarios for testing parts of the skilling loop: `--scenario skilling_session`, `workshop_recipes` and `full_storage`. See [docs/V0.7_GAMEPLAY.md](docs/V0.7_GAMEPLAY.md) for how v0.7 plays, what was measured and a playtest checklist.
+
+```bash
+cargo run -p spirit_sim --release --example session_report
 ```
 
 ## Tests

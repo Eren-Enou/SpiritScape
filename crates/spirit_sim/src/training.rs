@@ -31,6 +31,64 @@ pub struct TrainingSupport {
     pub keep_bench_place: bool,
 }
 
+/// A named way of training, each a set of the options above.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TrainingMode {
+    /// The player handles their own materials.
+    Manual,
+    /// Spirits fetch and carry when production can spare them.
+    Relaxed,
+    /// Spirits put the player first, and the settlement is built for it.
+    Optimized,
+}
+
+impl TrainingMode {
+    pub const ALL: [TrainingMode; 3] = [
+        TrainingMode::Manual,
+        TrainingMode::Relaxed,
+        TrainingMode::Optimized,
+    ];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            TrainingMode::Manual => "Manual",
+            TrainingMode::Relaxed => "Relaxed",
+            TrainingMode::Optimized => "Optimized",
+        }
+    }
+
+    /// The trade this mode makes, in a sentence.
+    pub fn trade(self) -> &'static str {
+        match self {
+            TrainingMode::Manual => {
+                "You fetch and carry. Most clicks, and the steadiest pace until your settlement is built up."
+            }
+            TrainingMode::Relaxed => {
+                "Spirits bring logs and take planks away when production can spare them. Fewest clicks, but you often wait, so less XP each minute."
+            }
+            TrainingMode::Optimized => {
+                "Spirits serve your training first, so production slows. Fastest of all once everything below is in place, and slower than Relaxed until it is."
+            }
+        }
+    }
+}
+
+/// What supported training looks like right now, and what limits it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TrainingPlan {
+    pub mode: TrainingMode,
+    /// Logs a minute the player's sawing uses at their level.
+    pub use_per_min: u32,
+    /// Logs a minute gatherers delivered lately.
+    pub gathered_per_min: u32,
+    /// Logs in Main Storage above the reserve.
+    pub spare: u32,
+    /// The current limit, in a sentence.
+    pub limit: String,
+    /// What Optimized training wants, and whether it's in place.
+    pub checks: Vec<(String, bool)>,
+}
+
 /// How training support stands right now.
 #[derive(Clone, Debug)]
 pub struct TrainingReport {
@@ -230,6 +288,144 @@ impl World {
             reserve: Some((main.id, resource, amount)),
             ..Default::default()
         })
+    }
+
+    /// Which named way of training the current options amount to.
+    pub fn training_mode(&self) -> TrainingMode {
+        let t = &self.settlement.training;
+        if !t.collect && !t.supply {
+            TrainingMode::Manual
+        } else if t.supply && t.training_first {
+            TrainingMode::Optimized
+        } else {
+            TrainingMode::Relaxed
+        }
+    }
+
+    /// Sets the options for a way of training. Optimized gives one hauler and
+    /// one gatherer the My training focus; the others hand them back.
+    pub(crate) fn set_training_mode(&mut self, mode: TrainingMode) -> String {
+        let on = mode != TrainingMode::Manual;
+        let first = mode == TrainingMode::Optimized;
+        self.set_training_collect(on);
+        self.set_training_supply(on);
+        self.set_training_first(first);
+        self.settlement.training.keep_bench_place = first;
+        let mut named = Vec::new();
+        for s in &mut self.spirits {
+            if s.policy.focus == Focus::Training {
+                s.policy.focus = Focus::Anything;
+            }
+        }
+        if first {
+            for job in [JobKind::TrainingSupply, JobKind::Gather] {
+                let pick = self.spirits.iter().position(|s| {
+                    self.defs.role(s.role).has_job(job) && s.policy.focus == Focus::Anything
+                });
+                if let Some(i) = pick {
+                    self.spirits[i].policy.focus = Focus::Training;
+                    named.push(self.spirits[i].name.clone());
+                }
+            }
+        }
+        let mut msg = format!("{} training: {}", mode.label(), mode.trade());
+        if !named.is_empty() {
+            msg += &format!(" {} now works for you first.", named.join(" and "));
+        }
+        self.events.push(self.tick, EventKind::Player, msg.clone());
+        msg
+    }
+
+    /// What's limiting training support right now, and what Optimized training
+    /// would want. Rates are measured or worked out from the rules: nothing
+    /// here changes what happens.
+    pub fn training_plan(&self) -> TrainingPlan {
+        let mode = self.training_mode();
+        let r = self.training_input();
+        let name = self.defs.resource(r).name.clone();
+        let spare = self.input_spare(r);
+        let use_per_min = self.player_use_per_min(r);
+        let gathered: f32 = self
+            .gathering_report()
+            .sites
+            .iter()
+            .map(|s| s.measured_per_min)
+            .sum();
+        let gathered_per_min = gathered as u32;
+        let hauler = self.has_worker_for(JobKind::TrainingSupply);
+        let t = &self.settlement.training;
+        let limit = if mode == TrainingMode::Manual {
+            "You're carrying everything yourself, so your own walking is the limit.".to_string()
+        } else if !hauler {
+            "No Hauling Spirit can carry for you, so nothing changes until one can.".to_string()
+        } else if spare == 0 {
+            format!(
+                "No spare {name}: Main Storage is at the reserve of {}. Gather more or lower the reserve in Production (P).",
+                self.reserve_of(r)
+            )
+        } else if gathered_per_min < use_per_min && spare < use_per_min * 3 {
+            format!(
+                "{name} supply is the limit: you use about {use_per_min} a minute, gatherers bring about {gathered_per_min}, and {spare} spare won't last long."
+            )
+        } else if !t.training_first {
+            "Haulers do production work first, so your bench waits its turn. Optimized puts you first.".to_string()
+        } else {
+            format!("Supply is keeping up: {spare} spare {name} to draw on.")
+        };
+        let racks = self.settlement.bench_bonus > 0;
+        let dedicated = |job: JobKind| {
+            self.spirits
+                .iter()
+                .any(|s| self.defs.role(s.role).has_job(job) && s.policy.focus == Focus::Training)
+        };
+        let bench = self.station().map_or(0, |b| self.bench_size(b));
+        let checks = vec![
+            (
+                "A Hauling Spirit serving you first".to_string(),
+                dedicated(JobKind::TrainingSupply),
+            ),
+            (
+                "A Woodcutting Spirit serving you first".to_string(),
+                dedicated(JobKind::Gather),
+            ),
+            ("A Log Rack at the bench".to_string(), racks),
+            (
+                format!("A standing stock ({} spare {name})", bench * 3),
+                spare >= bench * 3,
+            ),
+        ];
+        TrainingPlan {
+            mode,
+            use_per_min,
+            gathered_per_min,
+            spare,
+            limit,
+            checks,
+        }
+    }
+
+    /// Input a minute the player's work at the bench uses.
+    fn player_use_per_min(&self, r: ResourceId) -> u32 {
+        let Some(b) = self.station() else {
+            return 0;
+        };
+        let recipe = self.player_recipe_at(b.id).or_else(|| {
+            let level = self.player_station_level(b);
+            self.defs.best_recipe(b.kind, level, |_| u32::MAX)
+        });
+        let Some(id) = recipe else {
+            return 0;
+        };
+        let d = self.defs.recipe(id);
+        let level = self.player.level(d.skill, &self.defs.xp_table);
+        let tpm = self.defs.ticks_per_second * 60;
+        let per_batch: u32 = d
+            .inputs
+            .iter()
+            .filter(|(i, _)| *i == r)
+            .map(|(_, n)| *n)
+            .sum();
+        per_batch * tpm / d.craft_ticks_at(level).max(1)
     }
 
     pub(crate) fn set_training_area(&mut self, site: Option<SiteId>) -> Result<String, String> {

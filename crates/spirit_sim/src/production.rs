@@ -11,6 +11,7 @@
 use crate::defs::{JobKind, RecipeId, ResourceId};
 use crate::entities::{Building, BuildingId, Spirit};
 use crate::metrics::{TimeUse, WaitKind};
+use crate::session::SessionKind;
 use crate::tasks::Task;
 use crate::world::World;
 
@@ -375,7 +376,7 @@ impl World {
     }
 
     /// Stock of `r` the orders using it have told production to leave alone.
-    fn reserve_of(&self, r: ResourceId) -> u32 {
+    pub(crate) fn reserve_of(&self, r: ResourceId) -> u32 {
         self.orders()
             .iter()
             .filter(|o| self.uses_input(o.output, r))
@@ -473,11 +474,14 @@ impl World {
 
     /// The player has a job at this station.
     pub(crate) fn player_at_station(&self, id: BuildingId) -> bool {
-        self.player
-            .actor
-            .queue
-            .iter()
-            .any(|t| matches!(t, Task::Craft { building, .. } if *building == id))
+        let session = self.player.session.as_ref().map(|s| &s.kind);
+        matches!(session, Some(SessionKind::Crafting { building }) if *building == id)
+            || self
+                .player
+                .actor
+                .queue
+                .iter()
+                .any(|t| matches!(t, Task::Craft { building, .. } if *building == id))
     }
 
     /// Places at a station in use, counting the player's.

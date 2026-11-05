@@ -13,8 +13,9 @@ use crate::journey::Journey;
 use crate::metrics::{SNAPSHOT_TICKS, SiteStats, WaitKind};
 use crate::planner::PlannerState;
 use crate::production::ProductionOrder;
+use crate::session::SessionEnd;
 use crate::tasks::{self, Budgets, Goal, SimEvent, StepResult, Task, TaskCtx, Who};
-use crate::training::TrainingSupport;
+use crate::training::{TrainingMode, TrainingSupport};
 use std::collections::BTreeMap;
 use std::hash::{Hash, Hasher};
 
@@ -173,6 +174,14 @@ pub enum Command {
     SetTrainingSupply(bool),
     /// Put training support ahead of production for Hauling Spirits.
     SetTrainingFirst(bool),
+    /// Stop what the player is doing, where they stand.
+    PlayerStop,
+    /// Whether a gathering session moves on to another tree by itself.
+    SetAutoGather(bool),
+    /// Choose what to make at a bench, or the best available with `None`.
+    SetPlayerRecipe(Option<RecipeId>),
+    /// Set the training-support options to a named way of training.
+    SetTrainingMode(TrainingMode),
 }
 
 #[derive(Clone, Debug)]
@@ -395,6 +404,14 @@ impl World {
         for s in &self.spirits {
             actor(&s.actor);
         }
+        let session = self.player.session.as_ref();
+        (
+            session.map(|s| (s.started, s.waiting_since, s.units, s.xp)),
+            self.player.auto_gather,
+            self.player.recipe,
+            self.player.log.sessions,
+        )
+            .hash(&mut h);
         for s in &self.spirits {
             s.time.total.hash(&mut h);
         }
@@ -420,7 +437,13 @@ impl World {
 
     pub fn apply(&mut self, cmd: Command) -> Result<String, String> {
         match cmd {
-            Command::PlayerInteract(p) => self.player_interact(p),
+            Command::PlayerInteract(p) => {
+                let result = self.player_interact(p);
+                if result.is_err() {
+                    self.player.log.refused_interactions += 1;
+                }
+                result
+            }
             Command::PlayerStep { dx, dy } => self.player_step(dx, dy),
             Command::SoulSeparate { skill, xp } => self
                 .soul_separate(skill, xp)
@@ -577,6 +600,10 @@ impl World {
             Command::SetTrainingCollect(on) => Ok(self.set_training_collect(on)),
             Command::SetTrainingSupply(on) => Ok(self.set_training_supply(on)),
             Command::SetTrainingFirst(on) => Ok(self.set_training_first(on)),
+            Command::PlayerStop => Ok(self.player_stop()),
+            Command::SetAutoGather(on) => Ok(self.set_auto_gather(on)),
+            Command::SetPlayerRecipe(r) => self.set_player_recipe(r),
+            Command::SetTrainingMode(mode) => Ok(self.set_training_mode(mode)),
         }
     }
 
@@ -602,6 +629,9 @@ impl World {
         if !self.grid.is_walkable(target) {
             return Err("Blocked".into());
         }
+        // Walking away is how a player leaves whatever they were doing.
+        self.end_session(SessionEnd::Player, String::new());
+        let actor = &mut self.player.actor;
         actor.queue.clear();
         actor.action_ticks = 0;
         // Pre-fill the route so there is no pause at tile boundaries.
@@ -619,16 +649,39 @@ impl World {
         if !self.grid.in_bounds(p) {
             return Err("Outside the map".into());
         }
-        let (tasks, activity) = if let Some(tree) = self.tree_at(p) {
+        // What the click starts: the session ends if it's none of these.
+        enum Starts {
+            Gathering(usize),
+            Crafting(usize),
+            Nothing,
+        }
+        let log = &mut self.player.log;
+        let tree_here = self.trees.iter().any(|t| t.pos == p);
+        let building_here = self.buildings.iter().find(|b| b.pos == p);
+        match building_here {
+            _ if tree_here => log.gather_interactions += 1,
+            Some(b) if self.defs.building(b.kind).is_station => log.workshop_interactions += 1,
+            Some(_) => log.storage_interactions += 1,
+            None => log.walk_interactions += 1,
+        }
+        let (tasks, activity, starts) = if let Some(tree) = self.tree_at(p) {
             let def = self.defs.tree(tree.kind);
             let name = &def.name;
             if !self.player_can_cut(tree.kind) {
                 let level = self.player.level(def.skill, &self.defs.xp_table);
-                return Err(format!(
+                let mut msg = format!(
                     "You need {} level {} to cut {name} (you are level {level})",
                     self.defs.skill(def.skill).name,
                     def.level_required
-                ));
+                );
+                let cutter = self
+                    .spirits
+                    .iter()
+                    .find(|s| self.spirit_can_cut(s, tree.kind));
+                if let Some(s) = cutter {
+                    msg += &format!(". {} can cut it for you", s.name);
+                }
+                return Err(msg);
             }
             if !tree.is_grown() {
                 return Err(format!("The {name} is depleted"));
@@ -642,6 +695,7 @@ impl World {
                     Task::Chop { tree: tree.id },
                 ],
                 format!("Chopping {name}"),
+                Starts::Gathering(tree.id),
             )
         } else if let Some(b) = self.building_at(p) {
             if !b.is_complete() {
@@ -650,7 +704,7 @@ impl World {
             let id = b.id;
             let def = self.defs.building(b.kind).clone();
             if def.is_station {
-                self.player_station_activity(&self.buildings[id])?;
+                self.player_station_activity(id)?;
                 self.claim_player_slot(id)?;
             }
             let b = &self.buildings[id];
@@ -661,12 +715,12 @@ impl World {
             let logs = self.player_takes(b);
             let bag = &self.player.actor.inventory;
             if def.is_station {
-                let activity = self.player_station_activity(b)?;
+                let activity = self.player_station_activity(b.id)?;
                 let craft = Task::Craft {
                     building: b.id,
                     output: None,
                 };
-                (vec![walk, craft], activity)
+                (vec![walk, craft], activity, Starts::Crafting(b.id))
             } else if def.capacity == 0 {
                 return Err(format!(
                     "The {} adds {} to Main Storage's capacity",
@@ -685,11 +739,13 @@ impl World {
                 (
                     vec![walk, task],
                     format!("Taking {amount} {name} from {}", b.name),
+                    Starts::Nothing,
                 )
             } else {
                 (
                     vec![walk, Task::Deposit { building: b.id }],
                     format!("Depositing at {}", b.name),
+                    Starts::Nothing,
                 )
             }
         } else if self.grid.is_walkable(p) {
@@ -699,10 +755,16 @@ impl World {
                     label: p.to_string(),
                 }],
                 format!("Walking to {p}"),
+                Starts::Nothing,
             )
         } else {
             return Err("You can't walk there".into());
         };
+        match starts {
+            Starts::Gathering(tree) => self.begin_gathering(tree),
+            Starts::Crafting(building) => self.begin_crafting(building),
+            Starts::Nothing => self.end_session(SessionEnd::Player, String::new()),
+        }
         // Repeated clicks on the same target keep the current order going.
         if self.player.actor.redirect(tasks) {
             self.player.activity = activity.clone();
@@ -710,9 +772,17 @@ impl World {
         Ok(activity)
     }
 
-    /// What empty hands pick up at a storage: the input of the best recipe
-    /// the player can make from what's there, or else ordinary logs.
+    /// What empty hands pick up at a storage: what the chosen recipe needs,
+    /// or the input of the best recipe the player can make from what's
+    /// there, or else ordinary logs.
     fn player_takes(&self, b: &Building) -> ResourceId {
+        if let Some(r) = self.player.recipe {
+            let inputs = &self.defs.recipe(r).inputs;
+            let stocked = inputs.iter().find(|(res, _)| b.storage.available(*res) > 0);
+            if let Some((res, _)) = stocked.or(inputs.first()) {
+                return *res;
+            }
+        }
         let mut recipes: Vec<_> = self.defs.recipes.iter().collect();
         recipes.sort_by_key(|d| std::cmp::Reverse(d.level_required));
         recipes
@@ -724,32 +794,12 @@ impl World {
     }
 
     /// What the player would make at a station, or why they can't.
-    fn player_station_activity(&self, b: &Building) -> Result<String, String> {
-        let recipes = self.defs.station_recipes(b.kind);
-        let first = recipes.first().map(|r| self.defs.recipe(*r));
-        let first = first.ok_or_else(|| format!("Nothing can be made at {}", b.name))?;
-        let level = self.player.level(first.skill, &self.defs.xp_table);
-        if level < first.level_required {
-            return Err(format!(
-                "You need {} level {} to make {} (you are level {level})",
-                self.defs.skill(first.skill).name,
-                first.level_required,
-                first.name
-            ));
+    fn player_station_activity(&self, id: BuildingId) -> Result<String, String> {
+        let b = &self.buildings[id];
+        if self.defs.station_recipes(b.kind).is_empty() {
+            return Err(format!("Nothing can be made at {}", b.name));
         }
-        let bag = &self.player.actor.inventory;
-        let have = |r| bag.get(r) + b.storage.get(r);
-        match self.defs.best_recipe(b.kind, level, have) {
-            Some(r) => Ok(format!("Making {} at {}", self.defs.recipe(r).name, b.name)),
-            None => {
-                let (r, n) = first.inputs[0];
-                Err(format!(
-                    "You need {n} {} to make {}: take some from Main Storage",
-                    self.defs.resource(r).name,
-                    first.name
-                ))
-            }
-        }
+        self.bench_ready(id)
     }
 
     /// The player's level in the skill used at a station.
@@ -847,11 +897,22 @@ impl World {
         }
         self.player.record_sacrifice(skill, xp);
         self.ledger.xp_separated += xp;
-        // A level drop can make the current chop target illegal.
-        if matches!(self.player.actor.queue.front(), Some(Task::Chop { tree }) if !self.player_can_cut(self.trees[*tree].kind))
-        {
+        self.track_regain(skill, preview.current_level, xp);
+        // A level drop can make the tree being cut, or walked to, illegal.
+        let illegal = self.player.actor.queue.iter().find_map(|t| match t {
+            Task::Chop { tree } if !self.player_can_cut(self.trees[*tree].kind) => {
+                Some(self.trees[*tree].kind)
+            }
+            _ => None,
+        });
+        if let Some(kind) = illegal {
             self.player.actor.clear_tasks();
             self.player.activity = "Idle".into();
+            let name = self.defs.tree(kind).name.clone();
+            self.end_session(
+                SessionEnd::Blocked,
+                format!("You can no longer cut {name}, so you stopped chopping."),
+            );
         }
         let pos = self.player.actor.pos();
         let id = self.add_spirit(role, xp, pos);
@@ -927,6 +988,9 @@ impl World {
         for e in events {
             self.handle_event(e);
         }
+        self.update_session();
+        self.update_play_log();
+        self.update_storage_warning();
         self.update_journey();
     }
 
@@ -959,6 +1023,7 @@ impl World {
         tick: u64,
         events: &'a mut Vec<SimEvent>,
         player_output_at_station: bool,
+        player_recipe: Option<RecipeId>,
     ) -> TaskCtx<'a> {
         TaskCtx {
             defs,
@@ -970,6 +1035,7 @@ impl World {
             tick,
             events,
             player_output_at_station,
+            player_recipe,
         }
     }
 
@@ -990,9 +1056,11 @@ impl World {
         if player.actor.queue.is_empty() {
             return;
         }
+        let recipe = player.recipe;
         let mut ctx = Self::task_ctx(
-            defs, grid, trees, buildings, projects, ledger, *tick, events, at_station,
+            defs, grid, trees, buildings, projects, ledger, *tick, events, at_station, recipe,
         );
+        let mut failure = None;
         match tasks::step(&mut player.actor, Who::Player, level, None, &mut ctx) {
             StepResult::Continue => {}
             StepResult::Done => {
@@ -1006,9 +1074,20 @@ impl World {
                 }
             }
             StepResult::Failed(reason) => {
+                // A spirit finishing the tree isn't a reason to stop.
+                let gone = matches!(
+                    player.actor.queue.front(),
+                    Some(Task::Chop { tree }) if !trees[*tree].is_grown()
+                );
                 player.actor.clear_tasks();
-                player.activity = reason;
+                player.activity = reason.clone();
+                if !gone {
+                    failure = Some(reason);
+                }
             }
+        }
+        if let Some(reason) = failure {
+            self.end_session(SessionEnd::Blocked, reason);
         }
     }
 
@@ -1060,7 +1139,7 @@ impl World {
             }
             let level = spirit.level();
             let mut ctx = Self::task_ctx(
-                defs, grid, trees, buildings, projects, ledger, *tick, events, false,
+                defs, grid, trees, buildings, projects, ledger, *tick, events, false, None,
             );
             match tasks::step(
                 &mut spirit.actor,
@@ -1109,6 +1188,10 @@ impl World {
         let highest_before = self.player.history(skill).highest_level;
         self.player.add_xp(skill, xp, &self.defs.xp_table);
         self.ledger.xp_earned += xp;
+        *self.player.log.xp_earned.entry(skill).or_default() += xp;
+        if let Some(s) = &mut self.player.session {
+            s.xp += xp;
+        }
         let after = self.player.level(skill, &self.defs.xp_table);
         if after <= before {
             return;
@@ -1151,10 +1234,18 @@ impl World {
                 }
                 match who {
                     Who::Player => {
+                        if let Some(s) = &mut self.player.session {
+                            s.units += 1;
+                        }
                         self.player_earned_xp(self.defs.tree(self.trees[tree].kind).skill, xp)
                     }
                     // Spirits harvest but never gain experience.
-                    Who::Spirit(sid) => self.spirits[sid].units_gathered += 1,
+                    Who::Spirit(sid) => {
+                        self.spirits[sid].units_gathered += 1;
+                        if self.player.session.is_some() {
+                            self.player.log.spirit_gathered += 1;
+                        }
+                    }
                 }
             }
             SimEvent::Deposited {
@@ -1215,9 +1306,19 @@ impl World {
                     }
                 }
                 match who {
-                    Who::Player => self.player_earned_xp(skill, xp),
+                    Who::Player => {
+                        if let Some(s) = &mut self.player.session {
+                            s.units += amount;
+                        }
+                        self.player_earned_xp(skill, xp)
+                    }
                     // Spirits produce but never gain experience.
-                    Who::Spirit(sid) => self.spirits[sid].units_crafted += amount,
+                    Who::Spirit(sid) => {
+                        self.spirits[sid].units_crafted += amount;
+                        if self.player.session.is_some() {
+                            self.player.log.spirit_crafted += amount;
+                        }
+                    }
                 }
             }
         }

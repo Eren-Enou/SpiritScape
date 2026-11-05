@@ -15,6 +15,7 @@
 6.0 key G               # back to Settlement
 6.5 press Showing important events
 7.0 expect Showing all events
+7.3 key R
 7.5 press All           # Soul Separation
 8.0 expect Lv 4 -> Lv 1
 8.1 shot 06_soul_preview

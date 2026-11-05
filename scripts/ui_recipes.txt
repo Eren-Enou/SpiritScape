@@ -1,0 +1,28 @@
+# UI test of choosing a recipe and repeating it at the bench:
+#   cargo run --release -- --scenario workshop_recipes --save-dir target/ui_saves4 --script scripts/ui_recipes.txt --capture target/ui_recipes
+1.5 key T
+2.0 expect WHAT YOU MAKE AT THE BENCH
+2.1 expect Structural Beams
+2.2 expect XP/min
+2.3 shot 01_recipes
+2.4 tile 3 16             # the bench with empty hands
+2.8 expect You need
+2.9 press Rough Planks
+3.3 expect You'll make Rough Planks
+3.4 tile 5 14             # empty hands at storage: takes what the recipe needs
+5.0 expect 28 Logs
+5.1 tile 3 16
+6.3 expect Making Rough Planks
+6.4 expect places in use
+6.5 expect Making: Rough Planks
+6.6 shot 02_making
+6.7 press Making: Rough Planks
+7.1 expect Making: Precise Planks
+7.2 press 8x
+12.5 expect You need 3 Logs
+12.6 expect stopped
+12.7 shot 03_out_of_logs
+12.8 press 1x
+13.0 press Best available
+13.4 expect You'll make the best recipe
+13.5 exit
