@@ -71,6 +71,9 @@ pub struct Settlement {
     /// Orders beyond the main one.
     #[serde(default)]
     pub extra_orders: Vec<ProductionOrder>,
+    /// More that every spirit can carry, from what's been built.
+    #[serde(default)]
+    pub carry_bonus: u32,
     /// Room added at stations for logs set aside for the player.
     #[serde(default)]
     pub bench_bonus: u32,
@@ -255,7 +258,8 @@ impl World {
             None => format!("Spirit {}", id + 1),
         };
         let level = self.defs.xp_table.level_for_xp(xp);
-        let actor = Actor::new(pos, role_def.move_ticks, role_def.capacity_at(level));
+        let capacity = role_def.capacity_at(level) + self.settlement.carry_bonus;
+        let actor = Actor::new(pos, role_def.move_ticks, capacity);
         let spirit = Spirit::new(
             id,
             name,
@@ -848,6 +852,7 @@ impl World {
         recipes.sort_by_key(|d| std::cmp::Reverse(d.level_required));
         recipes
             .into_iter()
+            .filter(|d| !d.chosen_only)
             .filter(|d| self.player.level(d.skill, &self.defs.xp_table) >= d.level_required)
             .flat_map(|d| d.inputs.iter())
             .find(|(r, n)| b.storage.available(*r) >= *n)

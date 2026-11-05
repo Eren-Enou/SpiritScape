@@ -24,6 +24,7 @@
 //! Format 5 (v0.9) makes the map bigger, so older saves go through `migrate_map`.
 //! Format 6 (v0.10) adds road terrain. It only adds defaulted fields, but older
 //! games can't read a road, so the number moves.
+//! Format 7 (v0.11) adds a product, so older saves get an order for it.
 
 use crate::defs::{GameDefs, ResourceId};
 use crate::entities::{Building, Player, Project, Spirit, Tree};
@@ -43,7 +44,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Bump when the format changes, and add a migration to `decode`.
-pub const SAVE_VERSION: u32 = 6;
+pub const SAVE_VERSION: u32 = 7;
 const MAGIC: &str = "SPIRITSCAPE-SAVE";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -308,11 +309,23 @@ pub fn decode(text: &str) -> Result<(World, SaveMeta), SaveError> {
     if body.meta.version < 2 {
         migrate_v1(&defs, &mut body.state);
     }
+    add_missing_orders(&defs, &mut body.state);
     validate(&defs, &body.state).map_err(SaveError::Corrupt)?;
     let meta = body.meta;
     let world = World::from_state(defs, body.state);
     world.check_conservation().map_err(SaveError::Corrupt)?;
     Ok((world, meta))
+}
+
+/// A product added since the save was made has an order like any other, with
+/// no target, so nothing changes until the player wants some.
+fn add_missing_orders(defs: &GameDefs, s: &mut WorldState) {
+    let orders = &mut s.settlement.extra_orders;
+    for fresh in extra_orders(&defs.production.more_outputs) {
+        if !orders.iter().any(|o| o.output == fresh.output) {
+            orders.push(fresh);
+        }
+    }
 }
 
 /// Any format before 5 to 5: moves the world onto the current map. Everything

@@ -712,11 +712,13 @@ impl World {
         let is_station = def.is_station;
         let opens = def.opens.clone();
         let paves = def.paves.clone();
+        let carry_bonus = def.carry_bonus;
         let slot_bonus = def.slot_bonus;
         let site = p.site;
         let benefit = def.benefit.clone();
         let name = def.name.clone();
-        let notice = if !opens.is_empty() || !paves.is_empty() || slot_bonus > 0 {
+        let notice = if !opens.is_empty() || !paves.is_empty() || slot_bonus > 0 || carry_bonus > 0
+        {
             Some(format!("{name} complete. {benefit}"))
         } else if is_station {
             Some(format!(
@@ -744,6 +746,12 @@ impl World {
         let gatherers_use_it = def.accepts_gatherer_deposits;
         for [x, y] in opens {
             self.grid.open_crossing(TilePos::new(x, y));
+        }
+        if carry_bonus > 0 {
+            self.settlement.carry_bonus += carry_bonus;
+            for s in &mut self.spirits {
+                s.actor.inventory.capacity += carry_bonus;
+            }
         }
         if !paves.is_empty() {
             // The works are over: the place they stood is road like the rest.

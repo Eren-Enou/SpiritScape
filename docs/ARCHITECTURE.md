@@ -165,3 +165,7 @@ Crossings change terrain, which is saved with the world. The front end redraws t
 A road is a building whose `paves` list becomes `Terrain::Road` when it's finished, so paying for one goes through the same plan, demand and builder as anything else. `Grid` keeps `road_pct`, which stays 0 until the first road is laid. While it's 0, `find_path` is the original breadth-first search, so worlds without roads repeat exactly. After that it uses `quickest_path`, a Dijkstra search with ties settled by discovery order.
 
 `Mover.stride` is the length of the current step, so roads can shorten it and the front end can still interpolate. `DistanceField` still counts tiles: job choices are about distance, and only walking knows about speed. See [V0.10_PLANK_ROADS.md](V0.10_PLANK_ROADS.md).
+
+## Recipes that use finished goods (v0.11)
+
+`chosen_only` recipes stay out of `best_recipe`, and out of anything that guesses what a player or spirit wants from what's lying around. They run only when the player picks one or an order asks for one. Any new code that scans recipes by input needs the same check. A good can now be an output and an input at one bench, so `used_at_bench` stops haulers taking away what the bench is about to use. See [V0.11_FITTED_PANELS.md](V0.11_FITTED_PANELS.md).

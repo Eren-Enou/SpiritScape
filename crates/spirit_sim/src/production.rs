@@ -270,6 +270,7 @@ impl World {
             .orders()
             .iter()
             .filter(|o| o.enabled && self.uses_input(o.output, r))
+            .filter(|o| !self.only_when_chosen(o.output) || self.deficit_of(o.output) > 0)
             .flat_map(|o| self.staffed_stations(o.output))
             .filter(|station| self.in_site(station, site))
             .map(|station| self.defs.building(station.kind).input_buffer)
@@ -559,6 +560,13 @@ impl World {
             .min(self.defs.production.upstream_cap)
     }
 
+    /// Whether `output` is only made on request, so holding materials for it
+    /// makes no sense until someone wants some.
+    fn only_when_chosen(&self, output: ResourceId) -> bool {
+        let mut made = self.defs.recipes.iter().filter(|d| d.output.0 == output);
+        made.all(|d| d.chosen_only)
+    }
+
     /// Whether any recipe for `output` uses `input`.
     fn uses_input(&self, output: ResourceId, input: ResourceId) -> bool {
         self.defs
@@ -631,12 +639,32 @@ impl World {
     }
 
     /// The fullest pile of finished goods this spirit serves.
+    /// Stock of `r` a bench is holding as an input for another order.
+    fn used_at_bench(&self, b: &Building, r: ResourceId) -> u32 {
+        let wanted = self.orders().into_iter().any(|o| {
+            o.output != r
+                && self.deficit_of(o.output) > 0
+                && self
+                    .recipe_for(o.output)
+                    .is_some_and(|id| self.defs.recipe(id).inputs.iter().any(|i| i.0 == r))
+        });
+        if wanted {
+            self.defs.building(b.kind).input_buffer
+        } else {
+            0
+        }
+    }
+
     pub(crate) fn output_pile(&self, sid: SpiritId) -> Option<(BuildingId, ResourceId, u32)> {
         let s = &self.spirits[sid];
         let mut best: Option<(BuildingId, ResourceId, u32)> = None;
         for b in self.stations().filter(|b| self.serves(s, b)) {
             for o in self.orders() {
-                let n = b.storage.available(o.output);
+                // What the bench is about to use isn't there to be taken away.
+                let n = b
+                    .storage
+                    .available(o.output)
+                    .saturating_sub(self.used_at_bench(b, o.output));
                 let room = self.main_room_for(o.output) > 0;
                 if n > 0 && room && best.is_none_or(|x| n > x.2) {
                     best = Some((b.id, o.output, n));

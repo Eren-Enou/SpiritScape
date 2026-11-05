@@ -150,6 +150,8 @@ pub struct RecipeDef {
     pub xp: u64,
     /// Why this recipe matters, for the moment it's unlocked.
     pub why: String,
+    /// Made only when someone asks for it by name.
+    pub chosen_only: bool,
 }
 
 impl RecipeDef {
@@ -295,6 +297,8 @@ pub struct BuildingDef {
     pub input_buffer: u32,
     /// Added to Main Storage's capacity when this building is completed.
     pub capacity_bonus: u32,
+    /// More that every spirit can carry once this stands.
+    pub carry_bonus: u32,
     /// Built on the player's request.
     pub manual: bool,
     /// Room for materials set aside for the player's training at a station.
@@ -497,6 +501,8 @@ struct RawRecipe {
     xp: u64,
     #[serde(default)]
     why: String,
+    #[serde(default)]
+    chosen_only: bool,
 }
 
 #[derive(Deserialize)]
@@ -643,6 +649,8 @@ struct RawBuilding {
     slots: u32,
     #[serde(default)]
     training_bonus: u32,
+    #[serde(default)]
+    carry_bonus: u32,
     #[serde(default)]
     access_site: Option<[i32; 2]>,
     #[serde(default)]
@@ -890,6 +898,7 @@ impl GameDefs {
                 is_station: false,
                 input_buffer: b.input_buffer,
                 capacity_bonus: b.capacity_bonus,
+                carry_bonus: b.carry_bonus,
                 manual: b.manual,
                 training_buffer: b.training_buffer,
                 training_cache: b.training_cache,
@@ -944,6 +953,7 @@ impl GameDefs {
                 min_craft_ticks: ticks(r.min_craft_seconds) as u32,
                 xp: r.xp,
                 why: r.why,
+                chosen_only: r.chosen_only,
                 id: r.id,
                 name: r.name,
             });
@@ -1096,7 +1106,9 @@ impl GameDefs {
     ) -> Option<RecipeId> {
         self.station_recipes(station).into_iter().rev().find(|&r| {
             let def = self.recipe(r);
-            level >= def.level_required && def.inputs.iter().all(|&(res, n)| have(res) >= n)
+            !def.chosen_only
+                && level >= def.level_required
+                && def.inputs.iter().all(|&(res, n)| have(res) >= n)
         })
     }
 

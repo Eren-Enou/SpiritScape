@@ -59,6 +59,8 @@ pub enum ScenarioKind {
     ExpandedRemote,
     /// An outpost that can make what the crossing needs, but hasn't yet.
     ForestAccess,
+    /// A skilled player with planks to spare and things to make from them.
+    PanelWorkshop,
     /// Main Storage clogged with planks and the roads still to be laid.
     PlankSurplus,
     /// A small plan to set going and leave alone.
@@ -68,7 +70,7 @@ pub enum ScenarioKind {
 }
 
 impl ScenarioKind {
-    pub const ALL: [ScenarioKind; 24] = [
+    pub const ALL: [ScenarioKind; 25] = [
         ScenarioKind::NewGame,
         ScenarioKind::Demo,
         ScenarioKind::Regrind,
@@ -90,6 +92,7 @@ impl ScenarioKind {
         ScenarioKind::ExpandedCentral,
         ScenarioKind::ExpandedRemote,
         ScenarioKind::ForestAccess,
+        ScenarioKind::PanelWorkshop,
         ScenarioKind::PlankSurplus,
         ScenarioKind::ProjectQueue,
         ScenarioKind::SharedHauler,
@@ -118,6 +121,7 @@ impl ScenarioKind {
             ScenarioKind::ExpandedCentral => "expanded_central",
             ScenarioKind::ExpandedRemote => "expanded_remote",
             ScenarioKind::ForestAccess => "forest_access",
+            ScenarioKind::PanelWorkshop => "panel_workshop",
             ScenarioKind::PlankSurplus => "plank_surplus",
             ScenarioKind::ProjectQueue => "project_queue",
             ScenarioKind::SharedHauler => "shared_hauler",
@@ -339,6 +343,7 @@ impl World {
                 order,
                 training: TrainingSupport::default(),
                 extra_orders: extra_orders(&defs_orders),
+                carry_bonus: 0,
                 bench_bonus: 0,
                 queue: Vec::new(),
                 next_queue_id: 0,
