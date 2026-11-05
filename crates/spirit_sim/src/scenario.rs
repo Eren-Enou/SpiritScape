@@ -59,6 +59,8 @@ pub enum ScenarioKind {
     ExpandedRemote,
     /// An outpost that can make what the crossing needs, but hasn't yet.
     ForestAccess,
+    /// The last stage of the Hearth, ready to go.
+    LastStage,
     /// A working yard, for trying Masonry.
     MasonYard,
     /// Goods piled up, with a caravan's worth to send away.
@@ -82,7 +84,7 @@ pub enum ScenarioKind {
 }
 
 impl ScenarioKind {
-    pub const ALL: [ScenarioKind; 31] = [
+    pub const ALL: [ScenarioKind; 32] = [
         ScenarioKind::NewGame,
         ScenarioKind::Demo,
         ScenarioKind::Regrind,
@@ -104,6 +106,7 @@ impl ScenarioKind {
         ScenarioKind::ExpandedCentral,
         ScenarioKind::ExpandedRemote,
         ScenarioKind::ForestAccess,
+        ScenarioKind::LastStage,
         ScenarioKind::MasonYard,
         ScenarioKind::CaravanYard,
         ScenarioKind::FullMap,
@@ -139,6 +142,7 @@ impl ScenarioKind {
             ScenarioKind::ExpandedCentral => "expanded_central",
             ScenarioKind::ExpandedRemote => "expanded_remote",
             ScenarioKind::ForestAccess => "forest_access",
+            ScenarioKind::LastStage => "last_stage",
             ScenarioKind::MasonYard => "mason_yard",
             ScenarioKind::CaravanYard => "caravan_yard",
             ScenarioKind::FullMap => "full_map",
@@ -370,6 +374,7 @@ impl World {
                 carry_bonus: 0,
                 ambitions_seen: None,
                 caravans: 0,
+                ended_at: None,
                 bench_bonus: 0,
                 queue: Vec::new(),
                 next_queue_id: 0,

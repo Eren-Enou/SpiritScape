@@ -146,6 +146,12 @@ made = "keystones"
 amount = 10
 
 [[ambitions]]
+id = "hearth"
+title = "Light the Hearth of Spirits"
+hint = "Three stages in Projects (B): Foundations, Walls, and the Hearth itself. It takes all three trades."
+built = ["hearth_foundations", "hearth_walls", "hearth_of_spirits"]
+
+[[ambitions]]
 id = "master_wood"
 title = "Master Woodworking"
 hint = "Reach Woodworking level 20. It counts even if you give the XP to a spirit later."
@@ -1077,6 +1083,72 @@ build_seconds_per_level = 0.5
 min_build_seconds = 12.0
 color = [0.74, 0.72, 0.66]
 benefit = "A place to dress stone and train Masonry, the first trade that needs both wood and stone."
+
+# The end of the game: three stages that take everything the settlement can do.
+# Every spirit you've made came out of you. This is the place built for them.
+[[buildings]]
+id = "hearth_foundations"
+name = "Hearth Foundations"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+access_site = [12, 18]
+requires = ["mason_yard"]
+scales_goods = true
+cost = [
+    { resource = "stone", amount = 120 },
+    { resource = "dressed_stone", amount = 30 },
+    { resource = "beams", amount = 20 },
+]
+build_seconds = 60.0
+build_seconds_per_level = 0.5
+min_build_seconds = 30.0
+color = [0.62, 0.62, 0.66]
+benefit = "The first stage of the Hearth of Spirits: a place built for those who came out of you."
+
+[[buildings]]
+id = "hearth_walls"
+name = "Hearth Walls"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+access_site = [13, 18]
+requires = ["hearth_foundations"]
+scales_goods = true
+cost = [
+    { resource = "logs", amount = 200 },
+    { resource = "panels", amount = 40 },
+    { resource = "beams", amount = 30 },
+]
+build_seconds = 60.0
+build_seconds_per_level = 0.5
+min_build_seconds = 30.0
+color = [0.70, 0.56, 0.42]
+benefit = "The second stage of the Hearth of Spirits."
+
+[[buildings]]
+id = "hearth_of_spirits"
+name = "Hearth of Spirits"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+access_site = [12, 19]
+requires = ["hearth_walls"]
+ending = true
+scales_goods = true
+cost = [
+    { resource = "keystones", amount = 12 },
+    { resource = "panels", amount = 20 },
+    { resource = "dressed_stone", amount = 20 },
+]
+build_seconds = 90.0
+build_seconds_per_level = 0.5
+min_build_seconds = 45.0
+color = [0.95, 0.70, 0.35]
+benefit = "The last stage. Light it, and see what your settlement became."
 
 [objective]
 # "Maintain <target> <resource> in the main settlement storage."

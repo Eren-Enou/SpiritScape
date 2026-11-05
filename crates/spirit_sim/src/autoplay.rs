@@ -1488,6 +1488,12 @@ pub fn play_all_goals(hours: u64) -> Result<(World, AllGoals), String> {
         buy_for_goals(&mut w);
         note(&w, &mut out);
     }
+    // Whatever's left, while the spirits get on with it.
+    while w.next_ambition().is_some() && w.tick < end {
+        bot.run(&mut w, Goal::Chop, 60 * tps);
+        buy_for_goals(&mut w);
+        note(&w, &mut out);
+    }
     note(&w, &mut out);
     out.missed = w
         .ambitions()

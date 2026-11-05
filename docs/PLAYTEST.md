@@ -11,7 +11,7 @@ git fetch origin
 ```
 
 ```bash
-git checkout v0.24-masonry
+git checkout v0.25-the-long-work
 ```
 
 Press `F6` at any time to write a report of your session. Note the time whenever something surprises you.
@@ -110,6 +110,16 @@ cargo run --release -- --scenario mason_yard
 ```
 
 - [ ] Could you work out what the yard is for?
+
+## 10. The ending (5 minutes)
+
+```bash
+cargo run --release -- --scenario last_stage
+```
+
+Press `B`, plan the Hearth of Spirits and wait. Then press `J`.
+
+- [ ] Did that feel like an ending?
 
 ## Four decisions only you can make
 

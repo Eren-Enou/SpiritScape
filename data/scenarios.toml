@@ -355,6 +355,22 @@ spirits = [
     { role = "builder", xp = 388, spawn = "B" },
 ]
 
+[last_stage]
+title = "Last stage"
+description = "Two stages are done. Plan the Hearth of Spirits in the Projects tab (B), and light it."
+objective_target = 20
+auto_gather = true
+main_storage = { keystones = 12, panels = 20, dressed_stone = 20 }
+prebuilt = [
+    { building = "mason_yard", at = [9, 17] },
+    { building = "hearth_foundations", at = [12, 18] },
+    { building = "hearth_walls", at = [13, 18] },
+]
+spirits = [
+    { role = "builder", xp = 388, spawn = "B" },
+    { role = "hauler", xp = 388, spawn = "H" },
+]
+
 [mason_yard]
 title = "Mason's Yard"
 description = "The yard is ready, with stone and beams in store. Set a Keystones target, or train Masonry yourself by clicking the yard."

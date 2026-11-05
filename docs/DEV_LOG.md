@@ -2,6 +2,16 @@
 
 The handoff between development runs. Newest first.
 
+## v0.25 The Hearth
+
+**Status:** on branch `v0.25-the-long-work`, with its PR targeting `v0.24-masonry`. Not merged.
+
+**Shipped:** the three-stage Hearth of Spirits, a Your Story card, and a 16th goal.
+
+**Measured:** the reference player lights it at 11:03.
+
+**Next:** a new region to discover, seasons, events and visitors, onboarding, then sound and visual feedback for big moments, including the ending.
+
 ## v0.24 Masonry
 
 **Status:** on branch `v0.24-masonry`, with its PR targeting `v0.23-spirit-stories`. Not merged.
