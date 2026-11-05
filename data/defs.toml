@@ -289,6 +289,8 @@ raw_room = 100
 # How long a road tile takes to cross, as a percentage of open ground. Spirits
 # and the player both take 0.3 seconds on grass, so this makes it 0.2.
 road_pct = 67
+# How often to look for anyone walled in, which older saves can contain.
+stranded_check_seconds = 10.0
 
 [gathering]
 # Window for measured throughput and time-use shares.

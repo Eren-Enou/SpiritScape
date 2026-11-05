@@ -355,6 +355,23 @@ spirits = [
     { role = "builder", xp = 388, spawn = "B" },
 ]
 
+[walled_in]
+title = "Walled in"
+description = "Older saves can hold a Construction Spirit shut in by what it built. Within a few seconds it climbs out and gets back to work."
+objective_target = 20
+auto_gather = true
+main_storage = { logs = 60, planks = 60 }
+prebuilt = [
+    { building = "log_rack", at = [6, 15] },
+    { building = "log_rack", at = [7, 16] },
+    { building = "log_rack", at = [6, 17] },
+    { building = "log_rack", at = [5, 16] },
+]
+spirits = [
+    { role = "builder", xp = 388, spawn = "B" },
+    { role = "hauler", xp = 388, spawn = "W" },
+]
+
 [panel_workshop]
 title = "Panel workshop"
 description = "You're a skilled woodworker with planks to spare. Go to the Workshop and choose Fitted Panels in the Training tab (T), then plan something from the Projects tab (B)."

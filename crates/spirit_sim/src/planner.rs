@@ -800,6 +800,42 @@ impl World {
 }
 
 impl World {
+    /// Anyone cut off from the main stretch of open ground steps out to its
+    /// nearest edge. Buildings can't do this any more, but older saves can
+    /// hold a spirit walled in for good. What they were doing is left alone:
+    /// a walk simply finds its route again from the new place.
+    pub(crate) fn free_the_stranded(&mut self) {
+        let land = self.grid.mainland();
+        let stuck = |w: &World, p: TilePos| !w.grid.on_land(&land, p);
+        let player = self.player.actor.pos();
+        if stuck(self, player)
+            && let Some(to) = self.grid.nearest_land(&land, player)
+        {
+            let m = &mut self.player.actor.mover;
+            (m.pos, m.progress) = (to, 0);
+            m.path.clear();
+            self.notices
+                .push(self.tick, "You climbed out of a walled-in corner.");
+        }
+        for id in 0..self.spirits.len() {
+            let at = self.spirits[id].actor.pos();
+            if !stuck(self, at) {
+                continue;
+            }
+            let Some(to) = self.grid.nearest_land(&land, at) else {
+                continue;
+            };
+            let s = &mut self.spirits[id];
+            let m = &mut s.actor.mover;
+            (m.pos, m.progress) = (to, 0);
+            m.path.clear();
+            s.next_think = self.tick;
+            let msg = format!("{} was walled in, and climbed out at {to}", s.name);
+            self.events.push(self.tick, EventKind::Spirit, msg.clone());
+            self.notices.push(self.tick, msg);
+        }
+    }
+
     /// Clone-free accessor for UI: delivery samples currently considered.
     pub fn planner_samples(&self) -> Vec<DeliverySample> {
         self.recent_samples()

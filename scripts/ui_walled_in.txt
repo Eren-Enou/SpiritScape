@@ -1,0 +1,8 @@
+# UI test of a walled-in builder getting out:
+#   cargo run --release -- --scenario walled_in --save-dir target/ui_saves13 --script scripts/ui_walled_in.txt --capture target/ui_walled_in
+1.0 shot 01_shut_in
+1.2 press 8x
+3.0 expect climbed out
+3.1 press 1x
+3.3 shot 02_out
+3.5 exit

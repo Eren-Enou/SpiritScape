@@ -1047,6 +1047,12 @@ impl World {
                 s.time.snapshot(self.tick, window);
             }
         }
+        if self
+            .tick
+            .is_multiple_of(self.defs.construction.stranded_check_ticks)
+        {
+            self.free_the_stranded();
+        }
         self.update_queue();
         self.update_projects();
         if self

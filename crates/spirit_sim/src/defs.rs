@@ -192,6 +192,8 @@ pub struct ConstructionRules {
     pub raw_room: u32,
     /// How long a road tile takes, as a percentage of open ground.
     pub road_pct: u32,
+    /// How often to check that nobody's been walled in.
+    pub stranded_check_ticks: u64,
 }
 
 /// Settlement production settings that aren't player-adjustable.
@@ -547,6 +549,7 @@ struct RawConstruction {
     annex_reach: u32,
     raw_room: u32,
     road_pct: u32,
+    stranded_check_seconds: f32,
 }
 
 #[derive(Deserialize)]
@@ -837,6 +840,7 @@ impl GameDefs {
             annex_reach: raw.construction.annex_reach,
             raw_room: raw.construction.raw_room,
             road_pct: raw.construction.road_pct.clamp(1, 100),
+            stranded_check_ticks: ticks(raw.construction.stranded_check_seconds).max(1),
         };
 
         let mut roles = Vec::new();

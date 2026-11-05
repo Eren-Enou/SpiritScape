@@ -1812,6 +1812,7 @@ fn header_lines(sim: &Sim) -> Vec<Line> {
         ScenarioKind::ExpandedCentral => "Expanded, central",
         ScenarioKind::ExpandedRemote => "Expanded, remote",
         ScenarioKind::ForestAccess => "Forest access",
+        ScenarioKind::WalledIn => "Walled in",
         ScenarioKind::PanelWorkshop => "Panel workshop",
         ScenarioKind::PlankSurplus => "Plank surplus",
         ScenarioKind::ProjectQueue => "Project plan",
