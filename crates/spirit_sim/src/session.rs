@@ -696,13 +696,18 @@ impl World {
                 SessionKind::Crafting { building } => self.bench_note(building),
                 SessionKind::Gathering { .. } => self.gathering_note(s),
             };
+            // The words chosen at the click can be out of date by now.
+            let title = match s.kind {
+                SessionKind::Crafting { building } if !waiting => self.making_text(building),
+                _ => p.activity.clone(),
+            };
             return ActivityReport {
                 state: if waiting {
                     ActivityState::Waiting
                 } else {
                     ActivityState::Working
                 },
-                title: p.activity.clone(),
+                title,
                 detail,
                 progress: Some(progress),
             };

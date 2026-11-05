@@ -365,7 +365,7 @@ impl World {
             )
         } else if gathered_per_min < use_per_min && spare < use_per_min * 3 {
             format!(
-                "{name} is the limit: you use about {use_per_min} a minute, gatherers bring about {gathered_per_min}, and {spare} spare won't last long."
+                "{name} supply is the limit: you use about {use_per_min} a minute, gatherers bring about {gathered_per_min}, and {spare} spare won't last long."
             )
         } else if !t.training_first {
             "Haulers do production work first, so your bench waits its turn. Optimized puts you first.".to_string()

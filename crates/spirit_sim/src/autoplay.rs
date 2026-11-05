@@ -12,6 +12,7 @@ use crate::entities::{Focus, TreeId};
 use crate::journey::{Milestone, Phase};
 use crate::metrics::TimeUse;
 use crate::tasks::Task;
+use crate::training::TrainingMode;
 use crate::world::{Command, World};
 
 /// Seconds between finishing one action and starting the next.
@@ -258,7 +259,13 @@ fn enable_area(w: &mut World, bot: &mut Bot, limit: u64) {
 
 /// Plays the intended first cycle under a profile and reports how it went.
 pub fn play_first_cycle(profile: &str) -> Result<(World, PacingReport), String> {
+    play_cycle(profile, true)
+}
+
+/// The first cycle, with automatic targeting on or off.
+fn play_cycle(profile: &str, auto_gather: bool) -> Result<(World, PacingReport), String> {
     let mut w = World::new_journey(profile)?;
+    w.apply(Command::SetAutoGather(auto_gather))?;
     let mut bot = Bot::new(&w);
     let table = w.defs.xp_table.clone();
     let tps = w.defs.ticks_per_second as u64;
@@ -480,4 +487,125 @@ pub fn compare_chopping(xp: u64) -> Vec<RetrainResult> {
         ),
     });
     out
+}
+
+/// A whole sitting, played through commands alone under normal rules.
+#[derive(Clone, Debug)]
+pub struct FullSession {
+    pub auto_gather: bool,
+    pub first_cycle: PacingReport,
+    /// Sawing the same XP back each way, from the same moment.
+    pub modes: Vec<(TrainingMode, Stretch)>,
+    /// How far Woodcutting got toward the Ironwood level, and that level's XP.
+    pub advanced_xp: (u64, u64),
+    /// A save and load mid-session changed nothing.
+    pub resumed_exactly: bool,
+    /// Everything the play log recorded.
+    pub report: String,
+    pub seconds: u64,
+}
+
+/// Runs the structured playtest path: the first cycle, a comparison of the
+/// three ways of training, training on toward advanced resources until
+/// `minutes` have passed, then a save and resume in the middle of a session.
+pub fn play_full_session(
+    profile: &str,
+    auto_gather: bool,
+    minutes: u64,
+) -> Result<(World, FullSession), String> {
+    let (mut w, first_cycle) = play_cycle(profile, auto_gather)?;
+    let mut bot = Bot::new(&w);
+    let tps = w.defs.ticks_per_second as u64;
+    let hour = 3600 * tps;
+    bot.stop(&mut w);
+
+    let xp = first_cycle.woodworking_sacrificed;
+    let goal = Goal::SawTo(w.player.xp(bot.ww) + xp);
+    let mut modes = Vec::new();
+    for mode in TrainingMode::ALL {
+        let mut trial = w.clone();
+        trial.apply(Command::SetTrainingMode(mode))?;
+        modes.push((mode, measure(trial, &bot, goal, hour)));
+    }
+
+    // Training on, while the settlement looks after itself.
+    let _ = w.apply(Command::SetTrainingMode(TrainingMode::Relaxed));
+    let remaining = (minutes * 60 * tps).saturating_sub(w.tick);
+    bot.chop_until(&mut w, remaining, |_| false);
+    let ironwood = w.defs.tree_tiers(bot.wc).last().copied();
+    let level = ironwood.map_or(1, |k| w.defs.tree(k).level_required);
+    let advanced_xp = (w.player.xp(bot.wc), w.defs.xp_table.xp_for_level(level));
+
+    // Save in the middle of a session and carry on in both worlds.
+    bot.chop_until(&mut w, hour, |w| {
+        w.player.session.is_some() && !w.player.actor.queue.is_empty()
+    });
+    let text = crate::save::encode(&w, "new_game");
+    let (mut loaded, _) = crate::save::decode(&text).map_err(|e| e.to_string())?;
+    let same_at_load = loaded.state_text() == w.state_text();
+    w.run_ticks(600);
+    loaded.run_ticks(600);
+    let resumed_exactly = same_at_load && loaded.state_text() == w.state_text();
+
+    let session = FullSession {
+        auto_gather,
+        first_cycle,
+        modes,
+        advanced_xp,
+        resumed_exactly,
+        report: w.play_report(),
+        seconds: w.tick / tps,
+    };
+    Ok((w, session))
+}
+
+/// What happens if a player only ever chops, under a profile.
+#[derive(Clone, Copy, Debug)]
+pub struct StorageWall {
+    /// When the game first warned about room, in seconds.
+    pub warned_at: Option<u64>,
+    /// When the bag first couldn't be emptied at all.
+    pub stuck_at: Option<u64>,
+    pub xp_at_stuck: u64,
+    /// The XP Ironwood needs.
+    pub goal_xp: u64,
+    pub reached_goal: bool,
+    pub seconds: u64,
+}
+
+/// Chops toward the top tree tier spending nothing, to find where storage
+/// stops a player who has no reason to use what they gather.
+pub fn storage_wall(profile: &str, limit_minutes: u64) -> Result<StorageWall, String> {
+    let mut w = World::new_journey(profile)?;
+    let mut bot = Bot::new(&w);
+    let tps = w.defs.ticks_per_second as u64;
+    let top = w.defs.tree_tiers(bot.wc).last().copied();
+    let level = top.map_or(1, |k| w.defs.tree(k).level_required);
+    let goal_xp = w.defs.xp_table.xp_for_level(level);
+    let mut wall = StorageWall {
+        warned_at: None,
+        stuck_at: None,
+        xp_at_stuck: 0,
+        goal_xp,
+        reached_goal: false,
+        seconds: 0,
+    };
+    for _ in 0..limit_minutes * 60 * tps {
+        if w.player.xp(bot.wc) >= goal_xp {
+            wall.reached_goal = true;
+            break;
+        }
+        if wall.warned_at.is_none() && w.player.log.storage_warned {
+            wall.warned_at = Some(w.tick / tps);
+        }
+        if w.main().storage.free() == 0 && w.player.actor.inventory.is_full() {
+            wall.stuck_at = Some(w.tick / tps);
+            wall.xp_at_stuck = w.player.xp(bot.wc);
+            break;
+        }
+        bot.play(&mut w, Goal::Chop);
+        w.step();
+    }
+    wall.seconds = w.tick / tps;
+    Ok(wall)
 }
