@@ -1,0 +1,12 @@
+# UI test that finished work gives feedback, and sound can be turned off:
+#   cargo run --release -- --scenario last_stage --save-dir target/ui_saves30 --script scripts/ui_feedback.txt --capture target/ui_feedback
+1.5 key M
+1.8 expect Sound off
+1.9 key M
+2.2 expect Sound on
+2.3 key B
+2.6 press Plan Hearth of Spirits*
+3.0 press 8x
+24.0 press 1x
+30.0 expect Hearth of Spirits is lit
+30.2 exit

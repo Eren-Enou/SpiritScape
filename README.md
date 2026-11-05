@@ -84,6 +84,7 @@ The last three are development aids.
 | `H` | Hide or show the UI panels |
 | `G` | Switch between the Settlement and Gathering tabs |
 | `P` | Switch to and from the Production tab |
+| `M` | Turn sound off and on |
 | `J` / `T` / `O` / `R` / `U` / `B` | Switch to and from the Progress / Training / Spirits / Soul / Outpost / Projects tab |
 | `X` | Stop what you're doing |
 | `V` | Show or hide detail cards |
