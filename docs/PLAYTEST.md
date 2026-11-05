@@ -108,4 +108,4 @@ They're stacked, each targeting the one before, so they must be merged in this o
 | [#15](https://github.com/Eren-Enou/SpiritScape/pull/15) | v0.17 | Long-run check, wording |
 | [#16](https://github.com/Eren-Enou/SpiritScape/pull/16) | v0.18 | Demand chains, goal messages |
 | [#17](https://github.com/Eren-Enou/SpiritScape/pull/17) | v0.19 | Every goal reachable, Leave your load |
-| v0.20 | v0.20 | Frame rate check and this guide |
+| [#18](https://github.com/Eren-Enou/SpiritScape/pull/18) | v0.20 | Frame rate check and this guide |
