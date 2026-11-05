@@ -355,6 +355,14 @@ spirits = [
     { role = "builder", xp = 388, spawn = "B" },
 ]
 
+[no_room_left]
+title = "No room left"
+description = "Main Storage is completely full. Chop a tree, try to unload, then see what the game offers."
+objective_target = 20
+auto_gather = false
+main_storage = { logs = 300 }
+spirits = []
+
 [quarry_start]
 title = "Quarry"
 description = "Walk south to the South Quarry and cut Stone, or make a Quarrying Spirit from the Soul tab (R). Then plan the Stone Causeway in the Projects tab (B)."

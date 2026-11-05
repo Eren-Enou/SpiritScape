@@ -4,7 +4,8 @@ use spirit_sim::ScenarioKind;
 use spirit_sim::advice::StorageFix;
 use spirit_sim::autoplay::play_guided;
 use spirit_sim::defs::ResourceId;
-use spirit_sim::world::World;
+use spirit_sim::save::{decode, encode};
+use spirit_sim::world::{Command, World};
 
 fn res(w: &World, id: &str) -> ResourceId {
     w.defs.resource_id(id).unwrap()
@@ -83,6 +84,48 @@ fn the_warning_is_given_once_and_not_every_tick() {
     assert_eq!(count(&w), before + 1);
 }
 
+/// A store that won't take anything, and a bag of logs.
+fn stuck() -> World {
+    let mut w = roomy();
+    let free = w.main().storage.free();
+    stock(&mut w, "panels", free);
+    let logs = res(&w, "logs");
+    w.player.actor.inventory.add(logs, 10);
+    *w.ledger.seeded.entry(logs).or_default() += 10;
+    w
+}
+
+#[test]
+fn a_load_can_be_left_only_when_nowhere_will_take_it() {
+    let mut w = roomy();
+    let logs = res(&w, "logs");
+    w.player.actor.inventory.add(logs, 10);
+    *w.ledger.seeded.entry(logs).or_default() += 10;
+    assert!(w.apply(Command::LeaveLoad).is_err());
+    assert_eq!(w.player.actor.inventory.get(logs), 10);
+}
+
+#[test]
+fn leaving_a_load_loses_it_and_the_books_still_balance() {
+    let mut w = stuck();
+    let logs = res(&w, "logs");
+    assert!(w.load_is_stuck());
+    assert!(w.storage_fixes().contains(&StorageFix::LeaveLoad));
+    w.apply(Command::LeaveLoad).unwrap();
+    assert_eq!(w.player.actor.inventory.get(logs), 0);
+    assert_eq!(w.ledger.left_behind.get(&logs).copied(), Some(10));
+    w.check_conservation().unwrap();
+    assert!(!w.load_is_stuck());
+}
+
+#[test]
+fn what_was_left_survives_saving() {
+    let mut w = stuck();
+    w.apply(Command::LeaveLoad).unwrap();
+    let (loaded, _) = decode(&encode(&w, "panel_workshop")).unwrap();
+    loaded.check_conservation().unwrap();
+}
+
 /// A whole game, so it's release only.
 #[test]
 #[ignore]
@@ -95,4 +138,13 @@ fn the_storage_message_alone_is_enough_to_reach_the_crossing() {
     assert!(at("Forest Crossing finished") < 3 * 3600);
     let main = &w.main().storage;
     assert!(main.free() > 100, "{} free", main.free());
+}
+
+/// Many hours of play, so it's release only.
+#[test]
+#[ignore]
+fn every_goal_can_be_met_in_one_game() {
+    let (w, r) = spirit_sim::autoplay::play_all_goals(60).unwrap();
+    w.check_conservation().unwrap();
+    assert!(r.missed.is_empty(), "{:?}", r.missed);
 }

@@ -2,6 +2,18 @@
 
 The handoff between development runs. Newest first.
 
+## v0.19 Every Goal
+
+**Status:** on branch `v0.19-every-goal`, with its PR targeting `v0.18-demand-and-goals`. Not merged.
+
+**Shipped:** a run that chases all twelve goals, six Warehouses instead of two, a "Leave your load" last resort, and the `no_room_left` scenario.
+
+**Measured:** all twelve goals are met by 12:55:39 by a player who never hesitates.
+
+**Decided:** leaving a load behind is reversible and only offered when nowhere will take it. See the question below.
+
+**Next:** the known gaps are closed. The remaining items need a person: playtests, physical input, frame rate, and art and audio judgement.
+
 ## v0.18 Demand and Goals
 
 **Status:** on branch `v0.18-demand-and-goals`, with its PR targeting `v0.17-long-runs`. Not merged.
@@ -108,6 +120,7 @@ The handoff between development runs. Newest first.
 
 - Should the player choose a road's route on the map? Fixed routes were the reversible choice.
 - Is 447 XP a minute from panels too fast? Only a playtest can say.
+- Should a full store really let you throw goods away? It's the only way Woodcutting 20 stays reachable, because nothing uses logs and panels without limit.
 
 ## Standing notes
 

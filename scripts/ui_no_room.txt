@@ -1,0 +1,12 @@
+# UI test of the last resort when storage takes nothing:
+#   cargo run --release -- --scenario no_room_left --save-dir target/ui_saves19 --script scripts/ui_no_room.txt --capture target/ui_no_room
+1.5 tile 9 9
+1.8 press 8x
+4.0 press 1x
+4.2 key X
+4.6 expect Leave your load
+4.7 shot 01_stuck
+4.9 press Leave your load
+5.3 expect You left your load behind
+5.4 shot 02_left
+5.6 exit
