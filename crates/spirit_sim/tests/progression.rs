@@ -207,7 +207,13 @@ fn options_compare_real_consequences() {
         .iter()
         .find(|o| o.label == "Keep Precise Planks")
         .unwrap();
-    assert!(keep.preview.lost_recipes.is_empty());
+    // Only the level 7 recipe above it goes.
+    assert_eq!(
+        keep.preview.lost_recipes.len(),
+        1,
+        "{:?}",
+        keep.preview.lost_recipes
+    );
     let all = options.last().unwrap();
     assert_eq!(all.label, "Everything");
     assert_eq!(all.preview.after_xp, 0);

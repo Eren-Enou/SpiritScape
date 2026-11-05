@@ -42,11 +42,10 @@ impl World {
             };
         }
         if role.has_job(JobKind::Craft) {
-            let best = self
-                .defs
-                .recipe_tiers(skill)
-                .into_iter()
-                .rfind(|r| self.defs.recipe(*r).level_required <= level);
+            let best = self.defs.recipe_tiers(skill).into_iter().rfind(|r| {
+                let d = self.defs.recipe(*r);
+                !d.chosen_only && d.level_required <= level
+            });
             return match best {
                 Some(r) => {
                     let def = self.defs.recipe(r);
@@ -86,6 +85,8 @@ impl World {
                     .recipe_tiers(skill)
                     .into_iter()
                     .map(|r| self.defs.recipe(r))
+                    // Optional recipes aren't worth an option of their own.
+                    .filter(|d| !d.chosen_only)
                     .map(|d| (d.name.clone(), d.level_required)),
             )
             .filter(|(_, required)| *required > 1)

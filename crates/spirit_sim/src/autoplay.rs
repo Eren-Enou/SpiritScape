@@ -1101,6 +1101,92 @@ pub fn compare_expansion(warm_up: u64, minutes: u64) -> Vec<SteadyRun> {
     out
 }
 
+/// A long stretch of Woodworking after the normal route, by one habit.
+#[derive(Clone, Debug)]
+pub struct LongTraining {
+    pub name: String,
+    pub minutes: u64,
+    pub xp: u64,
+    pub panels_made: u32,
+    pub logs_and_planks_in_main: u32,
+    pub main_used: u32,
+    pub main_capacity: u32,
+    pub storage_trips: u32,
+    pub full_bag_seconds: u64,
+    pub waiting_seconds: u64,
+}
+
+/// Picks up where the normal route ends and trains Woodworking by hand. With
+/// `panels`, spare planks are made into panels once that's unlocked.
+pub fn train_on(panels: bool, minutes: u64) -> Result<LongTraining, String> {
+    let (mut w, _) = play_to_expansion("normal")?;
+    let mut bot = Bot::new(&w);
+    bot.heeds_storage_advice = true;
+    let tps = w.defs.ticks_per_second as u64;
+    let plank = w.defs.resource_id("planks").ok_or("no planks")?;
+    let made = w.defs.resource_id("panels").ok_or("no panels")?;
+    let recipe = w
+        .defs
+        .recipes
+        .iter()
+        .position(|r| r.id == "fitted_panels")
+        .map(|i| crate::defs::RecipeId(i as u16))
+        .ok_or("no recipe")?;
+    let main_bench = w.stations().next().map(|b| b.id);
+    w.apply(Command::SetTrainingBench(main_bench))?;
+    w.apply(Command::SetTrainingMode(TrainingMode::Relaxed))?;
+    // Sawing by hand needs logs coming in.
+    w.apply(Command::SetObjectiveTarget(150))?;
+    let start = w.player.xp(bot.ww);
+    let log = w.player.time;
+    for _ in 0..minutes {
+        let open = w
+            .recipe_options()
+            .iter()
+            .any(|o| o.id == recipe && o.unlocked);
+        let spare = w.main().storage.available(plank) >= 30;
+        let want = (panels && open && spare).then_some(recipe);
+        // Panels are for spending, as the storage advice says.
+        let buy = w.plannable().into_iter().find(|k| {
+            let def = w.defs.building(*k);
+            let priced = def.cost.iter().any(|c| c.0 == made);
+            let afford = def
+                .cost
+                .iter()
+                .all(|c| w.main().storage.available(c.0) >= c.1);
+            priced && afford
+        });
+        if let Some(kind) = buy.filter(|_| w.active_project().is_none()) {
+            w.apply(Command::QueueBuilding { kind, site: None })?;
+        }
+        if w.player.recipe != want {
+            bot.stop(&mut w);
+            w.apply(Command::SetPlayerRecipe(want))?;
+        }
+        bot.run(&mut w, Goal::SawTo(u64::MAX), 60 * tps);
+    }
+    w.check_conservation()?;
+    let main = &w.main().storage;
+    let spent = |now: u64, then: u64| (now - then) / tps;
+    Ok(LongTraining {
+        name: if panels {
+            "Panels when there's plenty"
+        } else {
+            "Planks only"
+        }
+        .to_string(),
+        minutes,
+        xp: w.player.xp(bot.ww) - start,
+        panels_made: *w.ledger.crafted.get(&made).unwrap_or(&0) as u32,
+        logs_and_planks_in_main: main.get(plank) + main.get(bot.logs),
+        main_used: main.total(),
+        main_capacity: main.capacity,
+        storage_trips: bot.storage_trips,
+        full_bag_seconds: spent(w.player.time.blocked_storage, log.blocked_storage),
+        waiting_seconds: spent(w.player.time.waiting_input, log.waiting_input),
+    })
+}
+
 /// Every road on the map, laid at once, for measuring what they're worth.
 pub fn lay_roads(w: &mut World) {
     let pct = w.defs.construction.road_pct;

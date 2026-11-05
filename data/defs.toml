@@ -75,6 +75,11 @@ name = "Hardwood Logs"
 id = "beams"
 name = "Structural Beams"
 
+# Planks made into something worth keeping: three take up the room of one.
+[[resources]]
+id = "panels"
+name = "Fitted Panels"
+
 [[skills]]
 id = "woodcutting"
 name = "Woodcutting"
@@ -194,11 +199,29 @@ min_craft_seconds = 3.0
 xp = 120
 why = "Further Workshops are built with these, so this is how production grows."
 
+# The first recipe that uses a finished good. Hand training makes far more
+# planks than anything needs, and this is what a skilled worker does with them.
+# It's only made when chosen: nobody loses planks they were keeping.
+[[recipes]]
+id = "fitted_panels"
+name = "Fitted Panels"
+skill = "woodworking"
+station = "workshop"
+level_required = 7
+chosen_only = true
+inputs = [{ resource = "planks", amount = 3 }]
+output = { resource = "panels", amount = 1 }
+craft_seconds = 5.0
+craft_seconds_per_level = 0.1
+min_craft_seconds = 2.5
+xp = 90
+why = "Spare planks become the best Woodworking XP you have, and take up a third of the room."
+
 [production]
 # What the settlement's main production order makes.
 output = "planks"
 # Further products with an order of their own.
-more_outputs = ["beams"]
+more_outputs = ["beams", "panels"]
 # Most extra logs a production shortfall may ask gatherers for at once.
 upstream_cap = 40
 
@@ -610,6 +633,45 @@ build_seconds_per_level = 0.5
 min_build_seconds = 12.0
 color = [0.60, 0.45, 0.30]
 benefit = "From the bridge south into the Distant Forest, where the Oak is."
+
+# Built with what surplus planks become.
+[[buildings]]
+id = "panelled_warehouse"
+name = "Panelled Warehouse"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 2
+capacity_bonus = 300
+scales_goods = true
+cost = [
+    { resource = "panels", amount = 15 },
+    { resource = "beams", amount = 5 },
+]
+build_seconds = 30.0
+build_seconds_per_level = 0.5
+min_build_seconds = 12.0
+color = [0.72, 0.60, 0.44]
+benefit = "Twice the room of a Storehouse in Main Storage."
+
+[[buildings]]
+id = "carrying_frames"
+name = "Carrying Frames"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+carry_bonus = 5
+scales_goods = true
+cost = [
+    { resource = "panels", amount = 10 },
+    { resource = "planks", amount = 10 },
+]
+build_seconds = 25.0
+build_seconds_per_level = 0.5
+min_build_seconds = 10.0
+color = [0.66, 0.54, 0.40]
+benefit = "Every spirit carries five more on each trip."
 
 [objective]
 # "Maintain <target> <resource> in the main settlement storage."

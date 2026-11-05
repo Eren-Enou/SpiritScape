@@ -144,6 +144,7 @@ impl World {
         self.defs.recipes.iter().any(|d| {
             d.skill == s.skill()
                 && d.level_required <= s.level()
+                && (!d.chosen_only || self.deficit_of(d.output.0) > 0)
                 && d.inputs.iter().any(|i| i.0 == r)
         })
     }

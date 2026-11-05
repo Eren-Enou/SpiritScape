@@ -745,7 +745,7 @@ fn training_at_the_outpost() -> World {
 fn the_player_can_choose_the_remote_bench() {
     let w = training_at_the_outpost();
     assert_eq!(w.training_bench().unwrap().pos, BENCH_AT);
-    assert_eq!(w.recipe_options().len(), 3);
+    assert_eq!(w.recipe_options().len(), 4);
     let report = w.training_report();
     assert!(report.bench.1 > 0);
 }

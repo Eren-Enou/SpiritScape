@@ -40,7 +40,9 @@ const RECENT_NOTICES: usize = 6;
 /// Planned buildings with buttons in the Projects tab.
 const PLAN_ROWS: usize = 4;
 /// Further orders with buttons in the Production tab.
-const EXTRA_ORDER_BUTTONS: usize = 1;
+const EXTRA_ORDER_BUTTONS: usize = 2;
+const EXTRA_ORDER_LESS: [&str; 2] = ["Beams -5", "Panels -5"];
+const EXTRA_ORDER_MORE: [&str; 2] = ["Beams +5", "Panels +5"];
 
 /// Screen space covered by the UI: right-hand panel and bottom event log.
 pub const PANEL_WIDTH: f32 = 430.0;
@@ -555,6 +557,8 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                             ("", UiAction::Plan("north_road")),
                             ("", UiAction::Plan("old_growth_road")),
                             ("", UiAction::Plan("forest_road")),
+                            ("", UiAction::Plan("panelled_warehouse")),
+                            ("", UiAction::Plan("carrying_frames")),
                         ],
                     );
                 });
@@ -645,8 +649,8 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                         button_row(
                             c,
                             &[
-                                ("Beams -5", UiAction::ExtraTarget(i, -5)),
-                                ("Beams +5", UiAction::ExtraTarget(i, 5)),
+                                (EXTRA_ORDER_LESS[i], UiAction::ExtraTarget(i, -5)),
+                                (EXTRA_ORDER_MORE[i], UiAction::ExtraTarget(i, 5)),
                                 ("", UiAction::ExtraPriority(i)),
                             ],
                         );
@@ -1593,8 +1597,15 @@ fn update_buttons(
                 None => continue,
             },
             UiAction::ExtraPriority(i) => match w.settlement.extra_orders.get(*i) {
-                Some(o) if o.priority > 0 => "Beams: first".into(),
-                Some(_) => "Beams: normal priority".into(),
+                Some(o) => {
+                    let name = ["Beams", "Panels"][*i];
+                    let when = if o.priority > 0 {
+                        "first"
+                    } else {
+                        "normal priority"
+                    };
+                    format!("{name}: {when}")
+                }
                 None => continue,
             },
             UiAction::PlaceWorkshop => {
@@ -1801,6 +1812,7 @@ fn header_lines(sim: &Sim) -> Vec<Line> {
         ScenarioKind::ExpandedCentral => "Expanded, central",
         ScenarioKind::ExpandedRemote => "Expanded, remote",
         ScenarioKind::ForestAccess => "Forest access",
+        ScenarioKind::PanelWorkshop => "Panel workshop",
         ScenarioKind::PlankSurplus => "Plank surplus",
         ScenarioKind::ProjectQueue => "Project plan",
         ScenarioKind::SharedHauler => "Shared hauler",

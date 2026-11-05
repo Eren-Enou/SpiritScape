@@ -50,6 +50,17 @@ impl World {
             fixes.push(
                 "lower the plank target in Production (P) and spend planks on building".to_string(),
             );
+            let panels = self
+                .recipe_options()
+                .into_iter()
+                .filter(|o| o.unlocked && !o.selected)
+                .find(|o| self.defs.recipe(o.id).inputs.iter().any(|i| i.0 == plank));
+            if let Some(o) = panels {
+                fixes.push(format!(
+                    "make {} at your bench: it uses up planks, for {} XP each",
+                    o.name, o.xp
+                ));
+            }
             let road = self
                 .plannable()
                 .into_iter()
@@ -79,6 +90,18 @@ impl World {
                     "order a {} (+{} room) in Production (P)",
                     def.name, def.capacity_bonus
                 ));
+            } else {
+                let bigger = self
+                    .plannable()
+                    .into_iter()
+                    .map(|k| self.defs.building(k))
+                    .find(|d| d.capacity_bonus > 0);
+                if let Some(d) = bigger {
+                    fixes.push(format!(
+                        "plan a {} (+{} room) in Projects (B)",
+                        d.name, d.capacity_bonus
+                    ));
+                }
             }
         }
         let tail = if fixes.is_empty() {
