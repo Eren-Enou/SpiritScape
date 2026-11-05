@@ -51,8 +51,12 @@ impl Tree {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum BuildingState {
-    UnderConstruction { project: ProjectId },
+    UnderConstruction {
+        project: ProjectId,
+    },
     Complete,
+    /// Called off before work began. Only its record remains.
+    Removed,
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -69,6 +73,9 @@ pub struct Building {
     /// Stock haulers leave here for local use.
     #[serde(default)]
     pub keep: BTreeMap<ResourceId, u32>,
+    /// Places added at this bench by annexes beside it.
+    #[serde(default)]
+    pub extra_slots: u32,
 }
 
 impl Building {
@@ -471,6 +478,8 @@ pub enum ProjectState {
     /// All materials on site; the builder is assembling the building.
     Building,
     Complete,
+    /// Called off before work began.
+    Cancelled,
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -482,6 +491,9 @@ pub struct Project {
     pub state: ProjectState,
     pub assigned: Option<SpiritId>,
     pub reserved: bool,
+    /// Stock claimed so far, when storage is too full to wait for everything.
+    #[serde(default)]
+    pub claimed: BTreeMap<ResourceId, u32>,
     pub delivered: BTreeMap<ResourceId, u32>,
     pub consumed: BTreeMap<ResourceId, u32>,
     pub build_progress: u32,
@@ -495,7 +507,16 @@ pub struct Project {
 }
 
 impl Project {
+    /// How much of a material is set aside for this project.
+    pub fn claimed_of(&self, r: ResourceId, need: u32) -> u32 {
+        if self.reserved {
+            need
+        } else {
+            self.claimed.get(&r).copied().unwrap_or(0)
+        }
+    }
+
     pub fn is_active(&self) -> bool {
-        self.state != ProjectState::Complete
+        !matches!(self.state, ProjectState::Complete | ProjectState::Cancelled)
     }
 }

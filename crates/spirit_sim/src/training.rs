@@ -270,9 +270,14 @@ impl World {
             .iter()
             .max_by_key(|(r, n)| (**n, std::cmp::Reverse(**r)))
             .ok_or_else(|| "The Training Cache is empty".to_string())?;
-        let amount = amount
-            .min(s.actor.inventory.free())
-            .min(main.storage.free());
+        let space = self.haul_room_for(resource);
+        if space == 0 {
+            return Err(Blocked::new(
+                WaitKind::Storage,
+                "Main Storage is keeping its room for what's needed",
+            ));
+        }
+        let amount = amount.min(s.actor.inventory.free()).min(space);
         Ok(JobPlan {
             description: format!(
                 "Collecting {amount} {} from your {}",

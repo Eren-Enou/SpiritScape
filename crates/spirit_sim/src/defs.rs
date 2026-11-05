@@ -172,6 +172,22 @@ pub struct LogisticsRules {
     pub long_trip_batches: u32,
     /// Share of a carrier's load, in percent, worth a long trip.
     pub long_trip_load_pct: u32,
+    /// Goods this close to a pickup can join the same trip.
+    pub batch_tiles: u32,
+    /// Carriers weigh jobs by load and distance. Off, they take the job rules
+    /// strictly in order, which is how the difference is measured.
+    pub scored_carrying: bool,
+}
+
+/// Limits on the construction plan.
+#[derive(Clone, Debug)]
+pub struct ConstructionRules {
+    /// Buildings that can wait on the plan at once.
+    pub queue_limit: u32,
+    /// An annex works with a bench this many tiles away.
+    pub annex_reach: u32,
+    /// Room in Main Storage that surplus finished goods can't use.
+    pub raw_room: u32,
 }
 
 /// Settlement production settings that aren't player-adjustable.
@@ -195,6 +211,8 @@ pub struct SiteDef {
     pub regrow_pct: u32,
     /// Can be run as a remote production site.
     pub outpost: bool,
+    /// The site this one is reached through. Spirits posted there work here too.
+    pub region: Option<SiteId>,
 }
 
 impl SiteDef {
@@ -287,6 +305,20 @@ pub struct BuildingDef {
     pub slots: u32,
     /// Room added at stations for logs set aside for the player.
     pub training_bonus: u32,
+    /// Where this must be built, when it's tied to one place.
+    pub access_site: Option<[i32; 2]>,
+    /// Tiles that become a crossing when this is finished.
+    pub opens: Vec<[i32; 2]>,
+    /// The site that crossing reaches.
+    pub unlocks_site: Option<String>,
+    /// Buildings that must be finished first.
+    pub requires: Vec<String>,
+    /// Places added at the nearest bench.
+    pub slot_bonus: u32,
+    /// What changes when this is finished, in a sentence.
+    pub benefit: String,
+    /// The site it goes up in when the player doesn't choose a tile.
+    pub home_site: Option<String>,
 }
 
 impl BuildingDef {
@@ -358,6 +390,7 @@ pub struct GameDefs {
     pub sites: Vec<SiteDef>,
     pub gathering: GatheringRules,
     pub logistics: LogisticsRules,
+    pub construction: ConstructionRules,
     pub player: PlayerRules,
     pub soul_min_xp: u64,
     pub roles: Vec<RoleDef>,
@@ -386,6 +419,7 @@ struct RawDefs {
     sites: Vec<RawSite>,
     gathering: RawGathering,
     logistics: RawLogistics,
+    construction: RawConstruction,
     player: RawPlayer,
     roles: Vec<RawRole>,
     buildings: Vec<RawBuilding>,
@@ -474,6 +508,15 @@ struct RawLogistics {
     long_trip_tiles: u32,
     long_trip_batches: u32,
     long_trip_load_pct: u32,
+    batch_tiles: u32,
+    scored_carrying: bool,
+}
+
+#[derive(Deserialize)]
+struct RawConstruction {
+    queue_limit: u32,
+    annex_reach: u32,
+    raw_room: u32,
 }
 
 #[derive(Deserialize)]
@@ -485,6 +528,8 @@ struct RawSite {
     regrow_pct: u32,
     #[serde(default)]
     outpost: bool,
+    #[serde(default)]
+    region: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -574,6 +619,23 @@ struct RawBuilding {
     slots: u32,
     #[serde(default)]
     training_bonus: u32,
+    #[serde(default)]
+    access_site: Option<[i32; 2]>,
+    #[serde(default)]
+    opens: Vec<[i32; 2]>,
+    #[serde(default)]
+    unlocks_site: Option<String>,
+    #[serde(default)]
+    requires: Vec<String>,
+    #[serde(default)]
+    slot_bonus: u32,
+    #[serde(default)]
+    benefit: String,
+    #[serde(default)]
+    home_site: Option<String>,
+    /// Finished goods in the cost follow the profile's improvement cost.
+    #[serde(default)]
+    scales_goods: bool,
 }
 
 #[derive(Deserialize)]
@@ -708,10 +770,16 @@ impl GameDefs {
             });
         }
 
+        let site_keys: Vec<String> = raw.sites.iter().map(|s| s.id.clone()).collect();
         let sites: Vec<SiteDef> = raw
             .sites
             .into_iter()
             .map(|s| SiteDef {
+                region: s
+                    .region
+                    .as_ref()
+                    .and_then(|r| site_keys.iter().position(|k| k == r))
+                    .map(|i| SiteId(i as u16)),
                 id: s.id,
                 name: s.name,
                 area: s.area,
@@ -726,6 +794,13 @@ impl GameDefs {
             long_trip_tiles: raw.logistics.long_trip_tiles.max(1),
             long_trip_batches: raw.logistics.long_trip_batches,
             long_trip_load_pct: raw.logistics.long_trip_load_pct.min(100),
+            batch_tiles: raw.logistics.batch_tiles,
+            scored_carrying: raw.logistics.scored_carrying,
+        };
+        let construction = ConstructionRules {
+            queue_limit: raw.construction.queue_limit.max(1),
+            annex_reach: raw.construction.annex_reach,
+            raw_room: raw.construction.raw_room,
         };
 
         let mut roles = Vec::new();
@@ -760,6 +835,12 @@ impl GameDefs {
             };
             let mut cost = Vec::new();
             for c in &b.cost {
+                let made = raw.recipes.iter().any(|r| r.output.resource == c.resource);
+                let pct = if b.scales_goods && made {
+                    chosen.improvement_cost_pct
+                } else {
+                    pct
+                };
                 cost.push((resource_id(&c.resource)?, c.amount * pct / 100));
             }
             buildings.push(BuildingDef {
@@ -787,9 +868,23 @@ impl GameDefs {
                 extra_capacity: b.extra_capacity,
                 slots: b.slots.max(1),
                 training_bonus: b.training_bonus,
+                access_site: b.access_site,
+                opens: b.opens,
+                unlocks_site: b.unlocks_site,
+                requires: b.requires,
+                slot_bonus: b.slot_bonus,
+                benefit: b.benefit,
+                home_site: b.home_site,
                 id: b.id,
                 name: b.name,
             });
+        }
+        for b in &buildings {
+            for need in &b.requires {
+                if !buildings.iter().any(|x| x.id == *need) {
+                    return Err(format!("{:?} requires unknown building {need:?}", b.id));
+                }
+            }
         }
         if buildings.iter().filter(|b| b.is_main).count() != 1 {
             return Err("exactly one building must have is_main = true".into());
@@ -882,6 +977,7 @@ impl GameDefs {
             sites,
             gathering,
             logistics,
+            construction,
             roles,
             buildings,
             objective,

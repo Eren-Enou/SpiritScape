@@ -20,6 +20,7 @@
  | training    support for the player's skilling: cache, bench, priorities   |
  | session     the player's continuous gathering and bench work              |
  | outpost     remote sites: staffing, local stock, worker states            |
+ | projects    the construction plan, cancelling, and how plans are shown    |
  | advice      read-only summaries: glance, storage advice, play report      |
  | soul        comparing sacrifices; milestone wording                       |
  | journey     new-game guidance and milestone times                         |
@@ -148,3 +149,13 @@ All decisions about where things go pass through a few functions in `production.
 - `surplus_at` and `held_at`: what a store can send home, after what it's told to keep and what a local bench needs.
 
 Stock is never shared between buildings. Each unit is moved by a task, so conservation is checked the same way it always was. See [V0.8_OUTPOSTS.md](V0.8_OUTPOSTS.md).
+
+## The construction plan and carrying choices (v0.9)
+
+`projects.rs` holds the plan: a short list on `Settlement`. Only its front ever becomes a `Project`, so projects still run one at a time and a queued building holds no materials. Its cost joins `project_demand`, which is how production and gatherers learn about it.
+
+Main Storage is protected by `main_room_for`, `haul_room_for` and `player_room_for`, in increasing order of strictness about what may take the last of the room. When storage is tight, `update_projects` claims what's there and the builder starts carrying, which is the only way a full store can make room for what's missing.
+
+`best_carry` in `behavior.rs` compares the carrying jobs a hauler could take by units moved per tile walked. It's a single comparison at the moment a job is chosen, not a route planner. `logistics.scored_carrying` in `defs.toml` turns it off, which is how its effect is measured.
+
+Crossings change terrain, which is saved with the world. The front end redraws the map when a new one finishes. See [V0.9_SETTLEMENT_PROJECTS.md](V0.9_SETTLEMENT_PROJECTS.md).

@@ -143,6 +143,11 @@ impl World {
             self.set_status(format!("Managing {name} project"));
             return;
         }
+        // The player's plan comes first.
+        if !self.settlement.queue.is_empty() {
+            self.set_status("Following the construction plan");
+            return;
+        }
         // Only storage-type autonomous buildings exist for now.
         let Some(kind) = self.next_autonomous_kind() else {
             self.set_status("All planned infrastructure built; monitoring deliveries");
@@ -355,6 +360,15 @@ impl World {
     /// True if blocking `p` leaves every currently reachable tree and
     /// building reachable from main storage.
     fn keeps_connectivity(&self, p: TilePos) -> bool {
+        // Open ground around the site has to stay joined up, or someone
+        // standing there could be walled in for good.
+        let around: Vec<TilePos> = self.grid.walkable_neighbors(p).collect();
+        if let Some(first) = around.first() {
+            let field = self.grid.distance_field_with_block(&[*first], Some(p));
+            if around.iter().any(|t| field.get(*t).is_none()) {
+                return false;
+            }
+        }
         let main = self.main().pos;
         let sources: Vec<TilePos> = self.grid.walkable_neighbors(main).collect();
         let before = self.grid.distance_field(&sources);
@@ -381,8 +395,29 @@ impl World {
     /// It goes up near Main Storage and is built like any other project.
     pub(crate) fn request_building(&mut self, kind: BuildingKindId) -> Result<String, String> {
         self.check_order(kind)?;
+        let site = self.default_site(kind)?;
+        Ok(self.start_order(kind, site))
+    }
+
+    /// Where a building goes when the player doesn't choose.
+    pub(crate) fn default_site(&self, kind: BuildingKindId) -> Result<TilePos, String> {
         let def = self.defs.building(kind);
-        let site = if def.training_cache {
+        if let Some([x, y]) = def.access_site {
+            return Ok(TilePos::new(x, y));
+        }
+        if let Some(site) = def.home_site.as_ref().and_then(|s| self.defs.site_id(s)) {
+            let (x, y) = self.defs.site(site).center();
+            return self
+                .site_near(TilePos::new(x as i32, y as i32), 0)
+                .ok_or_else(|| "No room there".to_string());
+        }
+        if def.slot_bonus > 0 {
+            let bench = self.training_bench().ok_or("There's no bench to add to")?;
+            return self
+                .site_near(bench.pos, 1)
+                .ok_or_else(|| "No room beside the bench".to_string());
+        }
+        if def.training_cache {
             let area = self
                 .settlement
                 .training
@@ -390,12 +425,11 @@ impl World {
                 .ok_or_else(|| "Choose a training area first".to_string())?;
             let (x, y) = self.defs.site(area).center();
             self.site_near(TilePos::new(x as i32, y as i32), 0)
-                .ok_or_else(|| "No room in the training area".to_string())?
+                .ok_or_else(|| "No room in the training area".to_string())
         } else {
             self.site_near(self.main().pos, 2)
-                .ok_or_else(|| "No room near Main Storage".to_string())?
-        };
-        Ok(self.start_order(kind, site))
+                .ok_or_else(|| "No room near Main Storage".to_string())
+        }
     }
 
     /// The player picks the tile. Workers must be able to reach it, and it
@@ -406,19 +440,23 @@ impl World {
         site: TilePos,
     ) -> Result<String, String> {
         self.check_order(kind)?;
+        if !self.site_ready(site) {
+            return Err(format!("You can't build at {site}"));
+        }
+        Ok(self.start_order(kind, site))
+    }
+
+    /// Whether a tile can take a building right now.
+    pub(crate) fn site_ready(&self, site: TilePos) -> bool {
         let occupied = self.player.actor.pos() == site
             || self
                 .spirits
                 .iter()
                 .any(|s| s.actor.pos() == site || s.actor.mover.path.iter().any(|p| *p == site));
-        if !self.grid.is_buildable(site)
-            || occupied
-            || self.grid.walkable_neighbors(site).count() < 2
-            || !self.keeps_connectivity(site)
-        {
-            return Err(format!("You can't build at {site}"));
-        }
-        Ok(self.start_order(kind, site))
+        self.grid.is_buildable(site)
+            && !occupied
+            && self.grid.walkable_neighbors(site).count() >= 2
+            && self.keeps_connectivity(site)
     }
 
     /// Whether a building can be ordered at all right now.
@@ -428,9 +466,16 @@ impl World {
         if !def.manual {
             return Err(format!("A {name} can't be ordered"));
         }
-        let count = self.buildings.iter().filter(|b| b.kind == kind).count() as u32;
+        let count = self
+            .buildings
+            .iter()
+            .filter(|b| b.kind == kind && b.state != BuildingState::Removed)
+            .count() as u32;
         if def.max_count.is_some_and(|m| count >= m) {
             return Err(format!("The settlement can't have more {name}s"));
+        }
+        if !self.settlement.queue.is_empty() {
+            return Err("Finish the current construction project first: the plan".into());
         }
         if let Some(p) = self.active_project() {
             return Err(format!(
@@ -491,7 +536,12 @@ impl World {
             .find(|p| self.keeps_connectivity(*p))
     }
 
-    fn create_project(&mut self, kind: BuildingKindId, site: TilePos, reason: String) -> ProjectId {
+    pub(crate) fn create_project(
+        &mut self,
+        kind: BuildingKindId,
+        site: TilePos,
+        reason: String,
+    ) -> ProjectId {
         let pid = self.projects.len();
         let bid = self.buildings.len();
         let def = self.defs.building(kind);
@@ -511,6 +561,7 @@ impl World {
             ),
             crafted: 0,
             keep: BTreeMap::new(),
+            extra_slots: 0,
         });
         self.grid.set_occupied(site, true);
         self.projects.push(Project {
@@ -521,6 +572,7 @@ impl World {
             state: ProjectState::AwaitingMaterials,
             assigned: None,
             reserved: false,
+            claimed: BTreeMap::new(),
             delivered: BTreeMap::new(),
             consumed: BTreeMap::new(),
             build_progress: 0,
@@ -544,21 +596,25 @@ impl World {
             let mut blocked = None;
 
             if !self.projects[pid].reserved {
+                let tight = self.main().storage.free() < self.defs.construction.raw_room;
                 let main = &mut self.buildings[self.main_storage].storage;
+                let p = &mut self.projects[pid];
+                let left = |p: &Project, r, n| n - p.claimed_of(r, n).min(n);
                 let short: Vec<String> = def
                     .cost
                     .iter()
-                    .filter(|&&(r, n)| main.available(r) < n)
+                    .filter(|&&(r, n)| main.available(r) < left(p, r, n))
                     .map(|&(r, n)| {
-                        format!("{}/{n} {}", main.available(r), self.defs.resource(r).name)
+                        let have = main.available(r) + p.claimed_of(r, n);
+                        format!("{have}/{n} {}", self.defs.resource(r).name)
                     })
                     .collect();
                 if short.is_empty() {
                     for &(r, n) in &def.cost {
-                        main.try_reserve(r, n);
+                        main.try_reserve(r, left(p, r, n));
                     }
-                    let p = &mut self.projects[pid];
                     p.reserved = true;
+                    p.claimed.clear();
                     p.state = ProjectState::Supplying;
                     let cost: BTreeMap<_, _> = def.cost.iter().copied().collect();
                     let msg = format!(
@@ -568,6 +624,16 @@ impl World {
                     );
                     self.events.push(self.tick, EventKind::Construction, msg);
                 } else {
+                    // With no room for what's missing, what's here starts
+                    // moving. That frees the room the rest needs.
+                    if tight {
+                        for &(r, n) in &def.cost {
+                            let take = left(p, r, n).min(main.available(r));
+                            if take > 0 && main.try_reserve(r, take) {
+                                *p.claimed.entry(r).or_default() += take;
+                            }
+                        }
+                    }
                     blocked = Some(format!(
                         "Waiting for materials: only {} available in Main Storage",
                         short.join(", ")
@@ -635,7 +701,14 @@ impl World {
         }
         let bench_bonus = def.training_bonus;
         let is_station = def.is_station;
-        let notice = if is_station {
+        let opens = def.opens.clone();
+        let slot_bonus = def.slot_bonus;
+        let site = p.site;
+        let benefit = def.benefit.clone();
+        let name = def.name.clone();
+        let notice = if !opens.is_empty() || slot_bonus > 0 {
+            Some(format!("{name} complete. {benefit}"))
+        } else if is_station {
             Some(format!(
                 "{} complete. It's a new place to work, with {} more benches.",
                 def.name, def.slots
@@ -659,6 +732,20 @@ impl World {
             None
         };
         let gatherers_use_it = def.accepts_gatherer_deposits;
+        for [x, y] in opens {
+            self.grid.open_crossing(TilePos::new(x, y));
+        }
+        if slot_bonus > 0 {
+            let reach = self.defs.construction.annex_reach;
+            let bench = self
+                .stations()
+                .map(|b| (b.pos.manhattan(site), b.id))
+                .filter(|(d, _)| *d <= reach)
+                .min();
+            if let Some((_, id)) = bench {
+                self.buildings[id].extra_slots += slot_bonus;
+            }
+        }
         if bench_bonus > 0 {
             self.settlement.bench_bonus += bench_bonus;
             for b in &mut self.buildings {

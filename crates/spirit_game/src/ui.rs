@@ -37,6 +37,8 @@ const WORKER_BUTTONS: usize = 3;
 const SOUL_OPTIONS: usize = 5;
 /// Recent milestones listed in the Progress tab.
 const RECENT_NOTICES: usize = 6;
+/// Planned buildings with buttons in the Projects tab.
+const PLAN_ROWS: usize = 4;
 /// Further orders with buttons in the Production tab.
 const EXTRA_ORDER_BUTTONS: usize = 1;
 
@@ -128,6 +130,14 @@ enum UiAction {
     LocalStock(i32),
     /// Train at the outpost's bench.
     TrainHere,
+    /// Add a building to the plan, by its id.
+    Plan(&'static str),
+    /// Move the nth planned building up.
+    PlanUp(usize),
+    /// Take the nth planned building off the plan.
+    PlanCancel(usize),
+    /// Call off the current project.
+    PlanCancelActive,
     /// Show or hide the detail cards.
     ToggleDetails,
     /// Show or hide the development scenario buttons.
@@ -146,6 +156,7 @@ enum Tab {
     Spirits,
     Soul,
     Outpost,
+    Projects,
 }
 
 /// Show routine spirit events in the log too.
@@ -224,6 +235,7 @@ enum Card {
     PlayReport,
     Outpost,
     ProjectNeeds,
+    Projects,
 }
 
 /// Clipping box that holds the event log lines.
@@ -515,9 +527,34 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                     ("Spirits (O)", UiAction::ShowTab(Tab::Spirits)),
                     ("Soul (R)", UiAction::ShowTab(Tab::Soul)),
                     ("Outpost (U)", UiAction::ShowTab(Tab::Outpost)),
+                    ("Projects (B)", UiAction::ShowTab(Tab::Projects)),
                     ("", UiAction::ToggleDetails),
                 ],
             );
+
+            tab_panel(p, Tab::Projects, |p| {
+                card(p, "SETTLEMENT PLAN", |c| {
+                    body(c, Card::Projects);
+                    button_row(c, &[("", UiAction::PlanCancelActive)]);
+                    for i in 0..PLAN_ROWS {
+                        button_row(
+                            c,
+                            &[("", UiAction::PlanUp(i)), ("", UiAction::PlanCancel(i))],
+                        );
+                    }
+                });
+                card(p, "ADD TO THE PLAN", |c| {
+                    button_row(
+                        c,
+                        &[
+                            ("", UiAction::Plan("outpost_storage")),
+                            ("", UiAction::Plan("forest_crossing")),
+                            ("", UiAction::Plan("workshop_annex")),
+                            ("", UiAction::Plan("storehouse")),
+                        ],
+                    );
+                });
+            });
 
             tab_panel(p, Tab::Outpost, |p| {
                 card(p, "OUTPOST", |c| {
@@ -898,7 +935,16 @@ fn show_tab(
             _ => Tab::Outpost,
         };
     }
-    let tall = matches!(*tab, Tab::Soul | Tab::Training | Tab::Outpost);
+    if keys.just_pressed(KeyCode::KeyB) {
+        *tab = match *tab {
+            Tab::Projects => Tab::Settlement,
+            _ => Tab::Projects,
+        };
+    }
+    let tall = matches!(
+        *tab,
+        Tab::Soul | Tab::Training | Tab::Outpost | Tab::Projects
+    );
     let display = if tall { Display::None } else { Display::Flex };
     for mut node in &mut overview {
         if node.display != display {
@@ -1044,6 +1090,29 @@ fn on_button(
     match action {
         UiAction::SaveGame => sim.save_game(),
         UiAction::StopActivity => sim.command(Command::PlayerStop),
+        UiAction::Plan(id) => {
+            if let Some(kind) = sim.world.defs.building_kind_id(id) {
+                sim.command(Command::QueueBuilding { kind, site: None });
+            }
+        }
+        UiAction::PlanUp(i) => {
+            if let Some(q) = sim.world.settlement.queue.get(i) {
+                let id = q.id;
+                sim.command(Command::MoveQueued { id, up: true });
+            }
+        }
+        UiAction::PlanCancel(i) => {
+            if let Some(q) = sim.world.settlement.queue.get(i) {
+                let id = q.id;
+                sim.command(Command::CancelQueued(id));
+            }
+        }
+        UiAction::PlanCancelActive => {
+            if let Some(p) = sim.world.active_project() {
+                let id = p.id;
+                sim.command(Command::CancelProject(id));
+            }
+        }
         UiAction::CycleBench => {
             let ids: Vec<usize> = sim.world.stations().map(|b| b.id).collect();
             let now = sim.world.training_bench().map(|b| b.id);
@@ -1353,6 +1422,8 @@ fn update_buttons(
     let selected_gathers = selected_role.is_some_and(|r| r.has_job(JobKind::Gather));
     let selected_hauls = selected_role.is_some_and(|r| r.has_job(JobKind::Haul));
     let outpost = w.outpost_sites().first().map(|s| w.outpost_report(*s));
+    let plannable = w.plannable();
+    let plans = w.plan_views();
     let selected_crafts = selected_role.is_some_and(|r| r.has_job(JobKind::Craft));
     let cache_built = w
         .training_cache_kind()
@@ -1375,6 +1446,13 @@ fn update_buttons(
             UiAction::CycleSite => selected_gathers || selected_hauls,
             UiAction::ToggleAdvanced => selected_gathers,
             UiAction::CycleBench => w.stations().count() > 1,
+            UiAction::Plan(id) => w
+                .defs
+                .building_kind_id(id)
+                .is_some_and(|k| plannable.contains(&k)),
+            UiAction::PlanUp(i) => *i > 0 && *i < w.settlement.queue.len(),
+            UiAction::PlanCancel(i) => *i < w.settlement.queue.len(),
+            UiAction::PlanCancelActive => plans.iter().any(|v| v.project.is_some() && v.can_cancel),
             UiAction::PlaceStore => outpost.as_ref().is_some_and(|o| o.store.is_none()),
             UiAction::ToggleOutpost => outpost.is_some(),
             UiAction::TrainHere => outpost.as_ref().is_some_and(|o| o.workshop.is_some()),
@@ -1555,6 +1633,23 @@ fn update_buttons(
                     None => format!("{verb}: anywhere"),
                 }
             }
+            UiAction::Plan(id) => match w.defs.building_kind_id(id) {
+                Some(kind) => {
+                    let def = w.defs.building(kind);
+                    let cost = def.cost.iter().copied().collect();
+                    format!("Plan {}: {}", def.name, w.defs.describe_amounts(&cost))
+                }
+                None => continue,
+            },
+            UiAction::PlanUp(i) => match w.settlement.queue.get(*i) {
+                Some(q) => format!("Move up: {}", w.defs.building(q.kind).name),
+                None => continue,
+            },
+            UiAction::PlanCancel(i) => match w.settlement.queue.get(*i) {
+                Some(q) => format!("Cancel: {}", w.defs.building(q.kind).name),
+                None => continue,
+            },
+            UiAction::PlanCancelActive => "Call off the current project".into(),
             UiAction::CycleBench => match w.training_bench() {
                 Some(b) => {
                     let place = w.defs.site_at(b.pos.x, b.pos.y);
@@ -1667,6 +1762,7 @@ fn update_cards(
             Card::PlayReport => report_lines(&sim.world),
             Card::Outpost => outpost_lines(&sim.world),
             Card::ProjectNeeds => need_lines(&sim.world),
+            Card::Projects => plan_lines(&sim.world),
         };
         if rendered.changed(&lines) {
             cards::rebuild(&mut commands, entity, &lines);
@@ -1698,6 +1794,11 @@ fn header_lines(sim: &Sim) -> Vec<Line> {
         ScenarioKind::CentralProduction => "Central production",
         ScenarioKind::RemoteProduction => "Remote production",
         ScenarioKind::OutpostEstablishment => "Outpost",
+        ScenarioKind::ExpandedCentral => "Expanded, central",
+        ScenarioKind::ExpandedRemote => "Expanded, remote",
+        ScenarioKind::ForestAccess => "Forest access",
+        ScenarioKind::ProjectQueue => "Project plan",
+        ScenarioKind::SharedHauler => "Shared hauler",
     };
     let speed = if sim.paused {
         colored("PAUSED", WARN)
@@ -1868,6 +1969,18 @@ fn glance_lines(w: &World) -> Vec<Line> {
             muted(format!("{} free", g.unassigned)),
         ]);
     }
+    if let Some(v) = w
+        .plan_views()
+        .first()
+        .filter(|v| v.project.is_some() || v.queued.is_some())
+    {
+        lines.push(vec![
+            text("Building"),
+            colored(v.name.clone(), INFO),
+            Item::Spacer,
+            muted(v.stage.label()),
+        ]);
+    }
     lines.push(vec![
         text("Production"),
         colored(g.production, if g.production_ok { GOOD } else { WARN }),
@@ -1902,7 +2015,7 @@ fn recipe_lines(w: &World) -> Vec<Line> {
         ))]);
     }
     if let Some(b) = w.station() {
-        let slots = w.defs.building(b.kind).slots;
+        let slots = w.slots_of(b);
         lines.push(vec![muted(format!(
             "{}: {} of {slots} places in use",
             b.name,
@@ -1981,6 +2094,53 @@ fn outpost_lines(w: &World) -> Vec<Line> {
     ))]);
     if r.workshop.is_some() {
         lines.push(vec![muted(format!("Made here: {}", r.made))]);
+    }
+    lines
+}
+
+fn plan_lines(w: &World) -> Vec<Line> {
+    use spirit_sim::projects::PlanStage;
+    let views = w.plan_views();
+    if views.is_empty() {
+        return vec![vec![muted(
+            "Nothing planned. Add something below and carry on with your own training.",
+        )]];
+    }
+    let mut lines = Vec::new();
+    for v in views {
+        let color = match v.stage {
+            PlanStage::Blocked => BAD,
+            PlanStage::Queued => MUTED,
+            PlanStage::Finished => GOOD,
+            _ => INFO,
+        };
+        lines.push(vec![
+            big(v.name, TEXT),
+            Item::Spacer,
+            chip(v.stage.label(), color),
+        ]);
+        if v.stage == PlanStage::Finished {
+            lines.push(vec![muted(v.benefit)]);
+            continue;
+        }
+        lines.push(vec![muted(format!("Needs {}", v.cost))]);
+        if !v.benefit.is_empty() {
+            lines.push(vec![muted(v.benefit)]);
+        }
+        for n in v.needs.iter().filter(|n| n.have < n.need) {
+            lines.push(vec![colored(
+                format!("Short of {} {}: {}", n.need - n.have, n.name, n.status),
+                WARN,
+            )]);
+        }
+        if !v.workers.is_empty() {
+            lines.push(vec![muted(format!("Builder: {}", v.workers.join(", ")))]);
+        }
+        if v.stage == PlanStage::Blocked
+            && let Some(r) = v.reason
+        {
+            lines.push(vec![colored(r, BAD)]);
+        }
     }
     lines
 }
@@ -2519,11 +2679,7 @@ fn planner_lines(w: &World) -> Vec<Line> {
             muted(format!("{walking}% (builds storage at {limit}%)")),
         ]);
     }
-    for p in w
-        .projects
-        .iter()
-        .filter(|p| p.state != ProjectState::Complete)
-    {
+    for p in w.projects.iter().filter(|p| p.is_active()) {
         let def = w.defs.building(p.kind);
         let (frac, state) = match p.state {
             ProjectState::AwaitingMaterials => (0.0, "awaiting materials".to_string()),
@@ -2539,7 +2695,7 @@ fn planner_lines(w: &World) -> Vec<Line> {
                 p.build_progress as f32 / p.build_required.max(1) as f32,
                 "building".into(),
             ),
-            ProjectState::Complete => (1.0, "complete".into()),
+            ProjectState::Complete | ProjectState::Cancelled => (1.0, "complete".into()),
         };
         let worker = p
             .assigned
@@ -2573,7 +2729,9 @@ fn site_lines(w: &World, i: usize) -> Vec<Line> {
         return vec![];
     };
     let frac = site.trees_grown as f32 / site.trees_total.max(1) as f32;
-    let access = if site.spirits_allowed {
+    let access = if let Some(name) = &site.locked_by {
+        chip(format!("needs a {name}"), WARN)
+    } else if site.spirits_allowed {
         chip("spirits allowed", GOOD)
     } else {
         chip("reserved for you", INFO)

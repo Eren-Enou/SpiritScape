@@ -35,10 +35,21 @@ impl World {
             return None;
         }
         let mut fixes = Vec::new();
-        if self.crafters().next().is_some() {
-            fixes.push("raise the plank target in Production (P) so spirits use the logs".into());
-        } else if self.station().is_some() {
-            fixes.push("saw logs at the Workshop: planks take up half the room".to_string());
+        let logs = main.get(self.defs.objective.resource);
+        let plank = self.settlement.order.output;
+        // Using up logs only helps if logs are what's filling the store.
+        if logs >= main.get(plank) {
+            if self.crafters().next().is_some() {
+                fixes.push(
+                    "raise the plank target in Production (P) so spirits use the logs".to_string(),
+                );
+            } else if self.station().is_some() {
+                fixes.push("saw logs at the Workshop: planks take up half the room".to_string());
+            }
+        } else {
+            fixes.push(
+                "lower the plank target in Production (P) and spend planks on building".to_string(),
+            );
         }
         let storehouse = self
             .defs

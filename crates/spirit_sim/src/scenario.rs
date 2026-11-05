@@ -53,10 +53,20 @@ pub enum ScenarioKind {
     RemoteProduction,
     /// Nothing built at Old Growth yet: the player sets the outpost up.
     OutpostEstablishment,
+    /// The crossing is built, with beams still made at home.
+    ExpandedCentral,
+    /// The crossing is built, with beams made at the outpost.
+    ExpandedRemote,
+    /// An outpost that can make what the crossing needs, but hasn't yet.
+    ForestAccess,
+    /// A small plan to set going and leave alone.
+    ProjectQueue,
+    /// One hauler shared between home and the outpost.
+    SharedHauler,
 }
 
 impl ScenarioKind {
-    pub const ALL: [ScenarioKind; 18] = [
+    pub const ALL: [ScenarioKind; 23] = [
         ScenarioKind::NewGame,
         ScenarioKind::Demo,
         ScenarioKind::Regrind,
@@ -75,6 +85,11 @@ impl ScenarioKind {
         ScenarioKind::CentralProduction,
         ScenarioKind::RemoteProduction,
         ScenarioKind::OutpostEstablishment,
+        ScenarioKind::ExpandedCentral,
+        ScenarioKind::ExpandedRemote,
+        ScenarioKind::ForestAccess,
+        ScenarioKind::ProjectQueue,
+        ScenarioKind::SharedHauler,
     ];
 
     pub fn key(self) -> &'static str {
@@ -97,6 +112,11 @@ impl ScenarioKind {
             ScenarioKind::CentralProduction => "central_production",
             ScenarioKind::RemoteProduction => "remote_production",
             ScenarioKind::OutpostEstablishment => "outpost_establishment",
+            ScenarioKind::ExpandedCentral => "expanded_central",
+            ScenarioKind::ExpandedRemote => "expanded_remote",
+            ScenarioKind::ForestAccess => "forest_access",
+            ScenarioKind::ProjectQueue => "project_queue",
+            ScenarioKind::SharedHauler => "shared_hauler",
         }
     }
 
@@ -249,6 +269,7 @@ impl World {
                         storage: Storage::new(def.storage_capacity()),
                         crafted: 0,
                         keep: BTreeMap::new(),
+                        extra_slots: 0,
                     });
                     grid.set_occupied(pos, true);
                 }
@@ -315,6 +336,8 @@ impl World {
                 training: TrainingSupport::default(),
                 extra_orders: extra_orders(&defs_orders),
                 bench_bonus: 0,
+                queue: Vec::new(),
+                next_queue_id: 0,
             },
             site_stats,
             output_stats: SiteStats::default(),
@@ -366,9 +389,14 @@ impl World {
                 storage: Storage::new(def.storage_capacity()),
                 crafted: 0,
                 keep,
+                extra_slots: 0,
             };
+            let opens = def.opens.clone();
             world.buildings.push(building);
             world.grid.set_occupied(pos, true);
+            for [x, y] in opens {
+                world.grid.open_crossing(TilePos::new(x, y));
+            }
         }
         for seed in &scenario.spirits {
             let role = world

@@ -241,6 +241,8 @@ pub struct SiteReport {
     pub sustainable_per_min: f32,
     /// Gathering spirits working (or waiting) at this site.
     pub workers: u32,
+    /// What would open the way here, while it's shut.
+    pub locked_by: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -285,6 +287,9 @@ impl World {
                         s.home_site == Some(site) && !matches!(s.activity, Activity::Idle(_))
                     })
                     .count() as u32,
+                locked_by: self
+                    .site_locked_by(site)
+                    .map(|k| self.defs.building(k).name.clone()),
             });
         }
 

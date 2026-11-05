@@ -98,8 +98,11 @@ impl Bot {
             return;
         }
         self.last_relief = w.tick;
-        let target = w.settlement.order.target + 40;
-        self.click(w, Command::SetProductionTarget(target));
+        let main = &w.main().storage;
+        let target = w.settlement.order.target;
+        if main.get(self.logs) >= main.get(w.settlement.order.output) && target < 120 {
+            self.click(w, Command::SetProductionTarget(target + 40));
+        }
         let room = w.defs.buildings.iter().position(|b| b.capacity_bonus > 0);
         if let Some(i) = room {
             let kind = BuildingKindId(i as u16);
@@ -119,7 +122,7 @@ impl Bot {
         let spot = self.nearest_tree(w);
         let empty_handed = bag.total() == 0;
         let tps = w.defs.ticks_per_second as u64;
-        if bag.is_full() && w.main().storage.free() == 0 {
+        if bag.is_full() && w.player_room_for(self.logs) == 0 {
             // Nothing to do but wait for room; a person wouldn't keep clicking.
             self.next_action = w.tick + 10 * tps;
         } else if bag.is_full() || spot.is_none() && !empty_handed {
@@ -133,16 +136,38 @@ impl Bot {
     }
 
     fn saw_step(&mut self, w: &mut World) {
-        let Some(station) = w.station().map(|b| b.pos) else {
+        if self.heeds_storage_advice {
+            self.relieve_storage(w);
+        }
+        let Some(station) = w.training_bench().map(|b| b.pos) else {
             return;
         };
         let bag = &w.player.actor.inventory;
         let logs = bag.get(self.logs);
         let bench = w.bench_stock();
-        if bag.is_full() && logs < 2 {
-            let main = w.main().pos;
+        let output = w.settlement.order.output;
+        let holding = w.main_room_for(output) == 0 && bag.get(output) >= 14;
+        if (bag.is_full() || holding) && logs < 2 {
+            // With Main Storage keeping its room, surplus goes to another store.
+            let keep_free = bag.total() + 2;
+            let overflow = w
+                .outposts()
+                .find(|b| b.storage.free() > keep_free)
+                .map(|b| b.pos);
+            // With nowhere left, spend planks, as the game suggests.
+            if overflow.is_none() && w.main_room_for(output) == 0 {
+                let rack = w.defs.building_kind_id("log_rack");
+                if let Some(kind) = rack.filter(|_| w.active_project().is_none()) {
+                    self.click(w, Command::QueueBuilding { kind, site: None });
+                }
+                return;
+            }
+            let target = match overflow {
+                Some(p) if w.main_room_for(output) == 0 => p,
+                _ => w.main().pos,
+            };
             self.storage_trips += 1;
-            self.click(w, Command::PlayerInteract(main));
+            self.click(w, Command::PlayerInteract(target));
         } else if logs >= 2 || bench >= 2 || w.has_training_help() && w.settlement.training.supply {
             self.click(w, Command::PlayerInteract(station));
         } else if bag.total() > 0
@@ -929,4 +954,466 @@ pub fn establish_outpost(run_minutes: u64) -> Result<(World, Establishment), Str
     e.beams_home_running = w.main().storage.get(beams).saturating_sub(home);
     e.seconds_running = run_minutes * 60;
     Ok((w, e))
+}
+
+/// A layout's steady pace, after the first stock of grown trees has gone.
+#[derive(Clone, Debug)]
+pub struct SteadyRun {
+    pub name: String,
+    pub hardwood_per_min: f32,
+    pub beams_per_min: f32,
+    /// Shares of gatherers' time.
+    pub gathering_pct: u64,
+    pub waiting_pct: u64,
+    pub hauler_tiles_per_min: f32,
+    pub hauler_walking_pct: u64,
+    /// Share of the bench workers' time at a bench.
+    pub bench_pct: u64,
+    pub hardwood_used: u64,
+}
+
+fn hardwood_cut(w: &World) -> u64 {
+    let r = w.defs.resource_id("hardwood").expect("hardwood");
+    w.ledger.harvested.get(&r).copied().unwrap_or(0)
+}
+
+/// Removes every limit but the trees, the workers and the walking: a target
+/// nothing can reach, and room for what's made.
+fn open_ended(w: &mut World) {
+    let beams = w.defs.resource_id("beams").expect("beams");
+    let main = w.main_storage;
+    w.buildings[main].storage.capacity += 5000;
+    if let Some(o) = w.order_for_mut(beams) {
+        o.target = 5000;
+    }
+}
+
+/// Measures a world's pace over `minutes`, after `warm_up` minutes.
+pub fn steady_rate(mut w: World, name: &str, warm_up: u64, minutes: u64) -> SteadyRun {
+    open_ended(&mut w);
+    let tps = w.defs.ticks_per_second as u64;
+    let beams = w.defs.resource_id("beams").expect("beams");
+    let hardwood = w.defs.resource_id("hardwood").expect("hardwood");
+    w.run_ticks(warm_up * 60 * tps);
+    let time_of = |w: &World, job: JobKind| {
+        let mut t = TimeUse::default();
+        for s in w
+            .spirits
+            .iter()
+            .filter(|s| w.defs.role(s.role).has_job(job))
+        {
+            t.add(&s.time.total);
+        }
+        t
+    };
+    let used = |w: &World| w.ledger.processed.get(&hardwood).copied().unwrap_or(0);
+    let (cut0, home0, used0) = (hardwood_cut(&w), w.main().storage.get(beams), used(&w));
+    let (g0, h0, b0) = (
+        time_of(&w, JobKind::Gather),
+        time_of(&w, JobKind::Haul),
+        time_of(&w, JobKind::Craft),
+    );
+    w.run_ticks(minutes * 60 * tps);
+    let g = time_of(&w, JobKind::Gather).since(&g0);
+    let h = time_of(&w, JobKind::Haul).since(&h0);
+    let b = time_of(&w, JobKind::Craft).since(&b0);
+    let mins = minutes as f32;
+    let per_tile = w
+        .spirits
+        .iter()
+        .find(|s| w.defs.role(s.role).has_job(JobKind::Haul))
+        .map_or(1, |s| s.actor.mover.ticks_per_tile.max(1)) as u64;
+    SteadyRun {
+        name: name.to_string(),
+        hardwood_per_min: (hardwood_cut(&w) - cut0) as f32 / mins,
+        beams_per_min: (w.main().storage.get(beams) - home0) as f32 / mins,
+        gathering_pct: g.gathering * 100 / g.total().max(1),
+        waiting_pct: g.waiting_recovery * 100 / g.total().max(1),
+        hauler_tiles_per_min: (h.traveling / per_tile) as f32 / mins,
+        hauler_walking_pct: h.traveling * 100 / h.total().max(1),
+        bench_pct: b.crafting * 100 / b.total().max(1),
+        hardwood_used: used(&w) - used0,
+    }
+}
+
+fn add_gatherer(w: &mut World) {
+    let site = w.defs.site_id("old_growth").expect("old growth");
+    let role = w.defs.role_id("woodcutter").expect("woodcutter");
+    let xp = w.defs.xp_table.xp_for_level(10);
+    let pos = w.main().pos;
+    let id = w.add_spirit(role, xp, crate::grid::TilePos::new(pos.x, pos.y + 1));
+    w.spirits[id].policy.site = Some(site);
+    w.spirits[id].policy.prefer_advanced = true;
+}
+
+fn add_hauler(w: &mut World) {
+    let site = w.defs.site_id("old_growth").expect("old growth");
+    let role = w.defs.role_id("hauler").expect("hauler");
+    let xp = w.defs.xp_table.xp_for_level(5);
+    let pos = w.main().pos;
+    let id = w.add_spirit(role, xp, crate::grid::TilePos::new(pos.x, pos.y + 1));
+    w.spirits[id].policy.site = Some(site);
+}
+
+/// The four settlements, and what a worker does instead of more trees.
+pub fn compare_expansion(warm_up: u64, minutes: u64) -> Vec<SteadyRun> {
+    use crate::ScenarioKind::{
+        CentralProduction, ExpandedCentral, ExpandedRemote, RemoteProduction,
+    };
+    let run = |w: World, name: &str| steady_rate(w, name, warm_up, minutes);
+    let mut out = vec![
+        run(
+            World::from_scenario(CentralProduction),
+            "A. Original, central",
+        ),
+        run(
+            World::from_scenario(RemoteProduction),
+            "A. Original, remote",
+        ),
+        run(
+            World::from_scenario(ExpandedCentral),
+            "B. Expanded, central",
+        ),
+        run(World::from_scenario(ExpandedRemote), "C. Expanded, remote"),
+    ];
+    let mut dedicated = World::from_scenario(ExpandedRemote);
+    add_hauler(&mut dedicated);
+    out.push(run(dedicated, "D. Expanded, remote, posted hauler"));
+    let mut worker = World::from_scenario(RemoteProduction);
+    add_gatherer(&mut worker);
+    out.push(run(worker, "Original, remote, third gatherer"));
+    let mut both = World::from_scenario(ExpandedRemote);
+    add_gatherer(&mut both);
+    add_hauler(&mut both);
+    out.push(run(both, "Expanded, remote, third gatherer, posted hauler"));
+    out
+}
+
+/// What a shared hauler does with and without job scoring.
+#[derive(Clone, Debug)]
+pub struct HaulingRun {
+    pub name: String,
+    pub tiles: u64,
+    pub trips: u32,
+    pub units: u32,
+    pub walking_pct: u64,
+    pub first_beam_home: Option<u64>,
+    pub reached_target: Option<u64>,
+}
+
+pub fn compare_hauling(minutes: u64) -> Vec<HaulingRun> {
+    use crate::ScenarioKind::SharedHauler;
+    let run = |scored: bool, name: &str| {
+        let mut w = World::from_scenario(SharedHauler);
+        w.defs.logistics.scored_carrying = scored;
+        let r = run_layout(w, name, minutes);
+        HaulingRun {
+            name: name.to_string(),
+            tiles: r.hauler_tiles,
+            trips: r.hauler_trips,
+            units: r.hauler_units,
+            walking_pct: r.hauler.traveling * 100 / r.hauler.total().max(1),
+            first_beam_home: r.first_beam_home,
+            reached_target: r.reached_target,
+        }
+    };
+    vec![
+        run(false, "Fixed job order (v0.8)"),
+        run(true, "Scored jobs (v0.9)"),
+    ]
+}
+
+/// When building the crossing starts to pay.
+#[derive(Clone, Copy, Debug)]
+pub struct Payback {
+    /// Seconds until the crossing opened.
+    pub built_at: Option<u64>,
+    /// Seconds until total beams home caught up with not building it.
+    pub caught_up_at: Option<u64>,
+    /// Beams home after the whole run, without and with it.
+    pub without: u32,
+    pub with: u32,
+}
+
+/// Runs the same outpost with and without building the crossing from the same
+/// moment, counting the beams it uses as beams not delivered.
+pub fn crossing_payback(minutes: u64) -> Payback {
+    use crate::ScenarioKind::RemoteProduction;
+    let setup = || {
+        let mut w = World::from_scenario(RemoteProduction);
+        open_ended(&mut w);
+        let main = w.main_storage;
+        for (id, n) in [("logs", 60), ("planks", 40)] {
+            let r = w.defs.resource_id(id).expect("material");
+            w.buildings[main].storage.deposit(r, n);
+            *w.ledger.seeded.entry(r).or_default() += n as u64;
+        }
+        w
+    };
+    let mut without = setup();
+    let mut with = setup();
+    let kind = with
+        .defs
+        .building_kind_id("forest_crossing")
+        .expect("crossing");
+    with.apply(Command::QueueBuilding { kind, site: None })
+        .expect("the outpost store is standing");
+    let beams = with.defs.resource_id("beams").expect("beams");
+    let tps = with.defs.ticks_per_second as u64;
+    let delivered = |w: &World| {
+        w.main().storage.get(beams) as u64 + w.ledger.consumed.get(&beams).copied().unwrap_or(0)
+    };
+    let mut payback = Payback {
+        built_at: None,
+        caught_up_at: None,
+        without: 0,
+        with: 0,
+    };
+    for _ in 0..minutes * 60 * tps {
+        without.step();
+        with.step();
+        if payback.built_at.is_none()
+            && with
+                .buildings
+                .iter()
+                .any(|b| b.kind == kind && b.is_complete())
+        {
+            payback.built_at = Some(with.tick / tps);
+        }
+        // What's spent on the crossing doesn't count as delivered.
+        let spent = with.ledger.consumed.get(&beams).copied().unwrap_or(0) * 2;
+        let ahead = delivered(&with).saturating_sub(spent) >= delivered(&without);
+        if payback.built_at.is_some() {
+            if !ahead {
+                payback.caught_up_at = None;
+            } else if payback.caught_up_at.is_none() {
+                payback.caught_up_at = Some(with.tick / tps);
+            }
+        }
+    }
+    payback.without = without.main().storage.get(beams);
+    payback.with = with.main().storage.get(beams);
+    payback
+}
+
+/// The road from a new game to a working expansion under a profile.
+#[derive(Clone, Debug, Default)]
+pub struct ExpansionRoute {
+    /// Each step and when it finished, in seconds.
+    pub steps: Vec<(String, u64)>,
+    /// Beams home over the observation window, and its length in minutes.
+    pub beams_after: u32,
+    pub observed_minutes: u64,
+    pub hardwood_after: u64,
+    pub report: String,
+    pub consumed: Vec<(String, u64)>,
+    pub seconds: u64,
+    /// Where everything stood when the run ended.
+    pub final_state: String,
+}
+
+/// What everything is doing, for when a reference run can't finish.
+fn stuck_report(w: &World) -> String {
+    let mut out = format!(
+        "tick {} main {:?} / {}",
+        w.tick,
+        w.main().storage.contents(),
+        w.main().storage.capacity
+    );
+    for v in w.plan_views() {
+        out += &format!("\n  plan {} {:?} {:?}", v.name, v.stage, v.reason);
+        for n in v.needs {
+            out += &format!("\n    {} {}/{} {}", n.name, n.have, n.need, n.status);
+        }
+    }
+    for s in &w.spirits {
+        out += &format!(
+            "\n  {} [{:?}] {}",
+            s.name,
+            w.worker_state(s),
+            s.activity.text()
+        );
+    }
+    for s in &w.spirits {
+        out += &format!(
+            "\n  at {} {} bag {:?} policy {:?} wanted {:?}",
+            s.name,
+            s.actor.pos(),
+            s.actor.inventory.items(),
+            s.policy,
+            w.input_wanted(s.id)
+        );
+    }
+    for i in 0..w.defs.resources.len() {
+        let r = ResourceId(i as u16);
+        out += &format!(
+            "\n  res {} avail {} spare {} reserved {}",
+            i,
+            w.main().storage.available(r),
+            w.any_spare(r),
+            w.main().storage.reserved(r)
+        );
+    }
+    for b in &w.buildings {
+        out += &format!("\n  bld {} {} {:?}", b.name, b.pos, b.state);
+    }
+    for o in w.order_reports() {
+        out += &format!(
+            "\n  order {} {} / {}: {}",
+            o.name, o.in_main, o.goal, o.status
+        );
+    }
+    out
+}
+
+/// Plays from a new game to the crossing and watches the result. Nothing is
+/// granted: every level is earned, and every building is paid for.
+pub fn play_to_expansion(profile: &str) -> Result<(World, ExpansionRoute), String> {
+    let (mut w, cycle) = play_cycle(profile, true)?;
+    let mut route = ExpansionRoute::default();
+    let mut bot = Bot::new(&w);
+    bot.heeds_storage_advice = true;
+    let tps = w.defs.ticks_per_second as u64;
+    let long = 6 * 3600 * tps;
+    for (m, t) in &cycle.milestones {
+        route.steps.push((m.label().to_string(), *t));
+    }
+    let top = w
+        .defs
+        .tree_tiers(bot.wc)
+        .last()
+        .copied()
+        .ok_or("no trees")?;
+    let level = w.defs.tree(top).level_required;
+    let need = w.defs.xp_table.xp_for_level(level);
+    let mark = |route: &mut ExpansionRoute, w: &World, name: &str| {
+        route.steps.push((name.to_string(), w.tick / tps));
+    };
+
+    // Advanced Woodcutting, and a spirit that keeps it.
+    w.apply(Command::SetObjectiveTarget(150))?;
+    if !bot.run(&mut w, Goal::ChopTo(need), long) {
+        return Err("never reached the top Woodcutting tier".into());
+    }
+    mark(&mut route, &w, "Woodcutting level 10 reached");
+    bot.stop(&mut w);
+    w.apply(Command::SoulSeparate {
+        skill: bot.wc,
+        xp: need,
+    })?;
+    mark(&mut route, &w, "Level 10 Woodcutting Spirit created");
+
+    // The same for Woodworking, or beams can't be automated. That makes far
+    // more planks than the settlement needs, so a store goes up first, and
+    // fewer logs are kept while they're being sawn.
+    let kind = |w: &World, id: &str| w.defs.building_kind_id(id).ok_or("unknown building");
+    let store = kind(&w, "outpost_storage")?;
+    let at = crate::grid::TilePos::new;
+    bot.chop_until(&mut w, long, |w| w.active_project().is_none());
+    w.apply(Command::SetObjectiveTarget(30))?;
+    w.apply(Command::QueueBuilding {
+        kind: store,
+        site: Some(at(34, 4)),
+    })?;
+    bot.chop_until(&mut w, long, |w| w.active_project().is_none());
+    mark(&mut route, &w, "Outpost Storage finished");
+    w.apply(Command::SetTrainingMode(TrainingMode::Relaxed))?;
+    if !bot.run(&mut w, Goal::SawTo(need), long) {
+        return Err(format!(
+            "never reached the top Woodworking tier ({} XP, bag {:?}, activity {}): {}",
+            w.player.xp(bot.ww),
+            w.player.actor.inventory.items(),
+            w.player.activity,
+            stuck_report(&w)
+        ));
+    }
+    mark(&mut route, &w, "Woodworking level 10 reached");
+    bot.stop(&mut w);
+    w.apply(Command::SoulSeparate {
+        skill: bot.ww,
+        xp: need,
+    })?;
+    mark(&mut route, &w, "Level 10 Woodworking Spirit created");
+
+    // One plan, then back to chopping.
+    let workshop = kind(&w, "workshop")?;
+    let crossing = kind(&w, "forest_crossing")?;
+    bot.chop_until(&mut w, long, |w| w.active_project().is_none());
+    w.apply(Command::QueueBuilding {
+        kind: workshop,
+        site: Some(at(36, 4)),
+    })?;
+    w.apply(Command::QueueBuilding {
+        kind: crossing,
+        site: None,
+    })?;
+    mark(&mut route, &w, "Outpost and crossing planned");
+    let site = w.defs.site_id("old_growth").ok_or("no Old Growth")?;
+    let bench = |w: &World| w.outpost_report(site).workshop.is_some();
+    if !bot.chop_until(&mut w, long, bench) {
+        return Err(format!(
+            "the outpost workshop was never finished: {}",
+            stuck_report(&w)
+        ));
+    }
+    mark(&mut route, &w, "Outpost Workshop finished");
+    w.apply(Command::SetOutpostStaffed { site, on: true })?;
+    let open = |w: &World| {
+        w.buildings
+            .iter()
+            .any(|b| b.kind == crossing && b.is_complete())
+    };
+    if !bot.chop_until(&mut w, long, open) {
+        return Err(format!(
+            "the crossing was never finished: {}",
+            stuck_report(&w)
+        ));
+    }
+    mark(&mut route, &w, "Forest Crossing finished");
+
+    // Main Storage is mostly surplus planks by now, so spend some the way the
+    // game suggests: an Annex at the outpost bench.
+    let beams = w.defs.resource_id("beams").ok_or("no beams")?;
+    let annex = kind(&w, "workshop_annex")?;
+    let bench_id = w.outpost_report(site).workshop;
+    w.apply(Command::SetTrainingBench(bench_id))?;
+    w.apply(Command::QueueBuilding {
+        kind: annex,
+        site: None,
+    })?;
+    let built = |w: &World| {
+        w.buildings
+            .iter()
+            .any(|b| b.kind == annex && b.is_complete())
+    };
+    if !bot.chop_until(&mut w, long, built) {
+        return Err(format!(
+            "the annex was never finished: {}",
+            stuck_report(&w)
+        ));
+    }
+    mark(&mut route, &w, "Workshop Annex finished");
+
+    // Leave it alone and see what it does.
+    bot.stop(&mut w);
+    let target = w.main().storage.get(beams) + 200;
+    w.apply(Command::SetOrderTarget {
+        output: beams,
+        target,
+    })?;
+    let (home, cut) = (w.main().storage.get(beams), hardwood_cut(&w));
+    route.observed_minutes = 15;
+    w.run_ticks(route.observed_minutes * 60 * tps);
+    route.beams_after = w.main().storage.get(beams).saturating_sub(home);
+    route.final_state = stuck_report(&w);
+    route.hardwood_after = hardwood_cut(&w) - cut;
+    route.report = w.play_report();
+    route.consumed = w
+        .ledger
+        .consumed
+        .iter()
+        .map(|(r, n)| (w.defs.resource(*r).name.clone(), *n))
+        .collect();
+    route.seconds = w.tick / tps;
+    Ok((w, route))
 }

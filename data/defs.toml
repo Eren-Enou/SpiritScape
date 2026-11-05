@@ -231,6 +231,15 @@ regrow_pct = 100
 # Far enough from home to be worth running as a production site of its own.
 outpost = true
 
+# More Ironwood beyond the eastern ravine. Nothing reaches it until a Forest
+# Crossing is built. Spirits posted to Old Growth work here too.
+[[sites]]
+id = "hollow_grove"
+name = "Hollow Grove"
+area = [50, 0, 59, 10]
+regrow_pct = 100
+region = "old_growth"
+
 # When a long walk is worth making. These stop spirits crossing the map for a
 # handful of materials, and from drifting between far-apart benches.
 [logistics]
@@ -240,6 +249,20 @@ long_trip_batches = 4
 # A carrier makes a long trip for at least this share of a full load, unless
 # that's more than is wanted.
 long_trip_load_pct = 50
+# Goods this close to a pickup can join the same trip home.
+batch_tiles = 6
+# Haulers choose between carrying jobs by load, distance and urgency.
+scored_carrying = true
+
+[construction]
+# Buildings that can wait on the plan at once.
+queue_limit = 4
+# A Workshop Annex works with a bench this many tiles away.
+annex_reach = 3
+# Room in Main Storage kept for raw materials. Without it, the hundreds of
+# planks made training Woodworking can fill the store, and then no logs can
+# come in for the buildings that would use them up.
+raw_room = 100
 
 [gathering]
 # Window for measured throughput and time-use shares.
@@ -401,6 +424,7 @@ color = [0.80, 0.60, 0.45]
 [[buildings]]
 id = "storehouse"
 name = "Storehouse"
+benefit = "More room in Main Storage."
 capacity = 0
 accepts_gatherer_deposits = false
 manual = true
@@ -448,6 +472,7 @@ color = [0.70, 0.60, 0.45]
 [[buildings]]
 id = "outpost_storage"
 name = "Outpost Storage"
+home_site = "old_growth"
 capacity = 80
 accepts_gatherer_deposits = true
 manual = true
@@ -457,6 +482,59 @@ build_seconds = 20.0
 build_seconds_per_level = 0.5
 min_build_seconds = 8.0
 color = [0.62, 0.52, 0.42]
+benefit = "Somewhere to keep what's gathered at a remote site."
+
+# Spans the ravine east of Old Growth. It's built from the near bank, and when
+# it's finished its tiles become walkable and the Hollow Grove can be reached.
+# It adds nothing but the way across: the grove has its own trees to regrow.
+[[buildings]]
+id = "forest_crossing"
+name = "Forest Crossing"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+access_site = [48, 4]
+opens = [[48, 4], [49, 4]]
+unlocks_site = "hollow_grove"
+requires = ["outpost_storage"]
+# In a real game, training Woodworking leaves hundreds of planks. These are the
+# things worth spending them on, so they cost more there.
+scales_goods = true
+cost = [
+    { resource = "logs", amount = 30 },
+    { resource = "planks", amount = 40 },
+    { resource = "beams", amount = 10 },
+]
+build_seconds = 40.0
+build_seconds_per_level = 0.5
+min_build_seconds = 15.0
+color = [0.55, 0.42, 0.30]
+benefit = "A way across the ravine to the Hollow Grove: six more Ironwood trees to gather from."
+
+# A lean-to against a bench with room for one more worker. Beside a busy bench
+# it lets you train without taking a spirit's place. It works wherever you put
+# it near a bench; it doesn't make anyone faster.
+[[buildings]]
+id = "workshop_annex"
+name = "Workshop Annex"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 3
+slot_bonus = 1
+requires = ["workshop"]
+scales_goods = true
+cost = [
+    { resource = "logs", amount = 10 },
+    { resource = "planks", amount = 30 },
+    { resource = "beams", amount = 8 },
+]
+build_seconds = 20.0
+build_seconds_per_level = 0.5
+min_build_seconds = 8.0
+color = [0.72, 0.58, 0.42]
+benefit = "One more place at your bench, so you can train there without moving a spirit."
 
 [objective]
 # "Maintain <target> <resource> in the main settlement storage."

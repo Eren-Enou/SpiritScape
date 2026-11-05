@@ -91,9 +91,20 @@ impl World {
         }
     }
 
-    /// Whether a building stands inside a site.
+    /// The site a place belongs to for instructions: a grove reached through
+    /// a site counts as part of it.
+    pub(crate) fn post_of(&self, site: SiteId) -> SiteId {
+        self.defs.site(site).region.unwrap_or(site)
+    }
+
+    /// Whether a place falls under a posting to `post`.
+    pub(crate) fn within_post(&self, place: Option<SiteId>, post: SiteId) -> bool {
+        place.is_some_and(|s| self.post_of(s) == self.post_of(post))
+    }
+
+    /// Whether a building stands inside a site or its region.
     pub(crate) fn in_site(&self, b: &Building, site: SiteId) -> bool {
-        self.defs.site_at(b.pos.x, b.pos.y) == Some(site)
+        self.within_post(self.defs.site_at(b.pos.x, b.pos.y), site)
     }
 
     /// Sites that can be run as outposts.
@@ -374,6 +385,14 @@ impl World {
         let at = crate::grid::TilePos::new(pos.x, pos.y + 1);
         let id = self.add_spirit(role, 388, at);
         self.spirits[id].policy.station = Some(station);
+    }
+
+    pub fn project_demand_for_test(&self, r: ResourceId) -> u32 {
+        self.project_demand(r)
+    }
+
+    pub fn main_room_for_test(&self, r: ResourceId) -> u32 {
+        self.main_room_for(r)
     }
 
     pub fn player_add_xp_for_test(&mut self, skill: crate::defs::SkillId, xp: u64) {

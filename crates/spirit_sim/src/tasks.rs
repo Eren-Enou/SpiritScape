@@ -144,6 +144,8 @@ pub struct TaskCtx<'a> {
     pub player_output_at_station: bool,
     /// The recipe the player chose. They make nothing else while it's set.
     pub player_recipe: Option<RecipeId>,
+    /// Main Storage, and how much of each thing the player may put in it.
+    pub player_room: Option<(BuildingId, BTreeMap<ResourceId, u32>)>,
 }
 
 /// How many more units spirits should harvest and craft this tick, so they
@@ -438,7 +440,12 @@ fn step_deposit(
         .map(|(r, n)| (*r, *n))
         .collect();
     let mut amount = 0;
+    let limits = match (&ctx.player_room, who) {
+        (Some((main, room)), Who::Player) if *main == building_id => Some(room),
+        _ => None,
+    };
     for (r, n) in carried {
+        let n = limits.map_or(n, |l| l.get(&r).copied().unwrap_or(n).min(n));
         let stored = b.storage.deposit(r, n);
         actor.inventory.remove(r, stored);
         amount += stored;
@@ -448,7 +455,14 @@ fn step_deposit(
         }
     }
     if amount == 0 && actor.inventory.total() > 0 {
-        return StepResult::Failed(format!("{} is full", b.name));
+        return StepResult::Failed(if b.storage.free() > 0 {
+            format!(
+                "{} is keeping its room for what's needed. Spend what you've made on building.",
+                b.name
+            )
+        } else {
+            format!("{} is full", b.name)
+        });
     }
     ctx.events.push(SimEvent::Deposited {
         who,

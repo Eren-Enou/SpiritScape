@@ -84,7 +84,7 @@ The last three are development aids.
 | `H` | Hide or show the UI panels |
 | `G` | Switch between the Settlement and Gathering tabs |
 | `P` | Switch to and from the Production tab |
-| `J` / `T` / `O` / `R` / `U` | Switch to and from the Progress / Training / Spirits / Soul / Outpost tab |
+| `J` / `T` / `O` / `R` / `U` / `B` | Switch to and from the Progress / Training / Spirits / Soul / Outpost / Projects tab |
 | `X` | Stop what you're doing |
 | `V` | Show or hide detail cards |
 | `F6` | Write a play report beside your saves |
@@ -144,6 +144,12 @@ Outposts have three more scenarios: `--scenario outpost_establishment`, `central
 
 ```bash
 cargo run -p spirit_sim --release --example outpost_report
+```
+
+Settlement projects add `--scenario forest_access`, `project_queue`, `expanded_central`, `expanded_remote` and `shared_hauler`. See [docs/V0.9_SETTLEMENT_PROJECTS.md](docs/V0.9_SETTLEMENT_PROJECTS.md).
+
+```bash
+cargo run -p spirit_sim --release --example expansion_report
 ```
 
 ## Tests

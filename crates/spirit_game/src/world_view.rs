@@ -484,6 +484,7 @@ fn sync_buildings(
         // While being built, the structure rises out of the ground.
         let (show, height) = match b.state {
             BuildingState::Complete => (true, 1.0),
+            BuildingState::Removed => (false, 1.0),
             BuildingState::UnderConstruction { project } => {
                 let p = &w.projects[project];
                 let progress = p.build_progress as f32 / p.build_required.max(1) as f32;
@@ -498,7 +499,10 @@ fn sync_buildings(
         });
     }
     for (bs, mut vis) in &mut sites {
-        let site = !w.buildings[bs.0].is_complete();
+        let site = matches!(
+            w.buildings[bs.0].state,
+            BuildingState::UnderConstruction { .. }
+        );
         vis.set_if_neq(if site {
             Visibility::Inherited
         } else {
@@ -509,6 +513,7 @@ fn sync_buildings(
         let b = &w.buildings[sp.0];
         let amount = match b.state {
             BuildingState::Complete => b.storage.get(w.defs.objective.resource),
+            BuildingState::Removed => 0,
             BuildingState::UnderConstruction { project } => {
                 w.projects[project].delivered.values().sum()
             }
@@ -646,6 +651,7 @@ fn update_labels(
                 let b = &w.buildings[id];
                 let def = w.defs.building(b.kind);
                 let content = match b.state {
+                    BuildingState::Removed => String::new(),
                     BuildingState::Complete if def.capacity == 0 => b.name.clone(),
                     BuildingState::Complete if b.storage.total() == 0 => {
                         format!("{}: empty", b.name)
