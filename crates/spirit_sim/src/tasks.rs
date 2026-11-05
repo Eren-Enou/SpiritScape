@@ -11,6 +11,7 @@ use crate::entities::{
 };
 use crate::grid::{Grid, TilePos};
 use crate::world::Ledger;
+use std::collections::BTreeMap;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Goal {
@@ -55,9 +56,12 @@ pub enum Task {
     Build {
         project: ProjectId,
     },
-    /// Repeats the best available recipe until materials, room or demand run out.
+    /// Repeats the best available recipe until materials, room or demand run
+    /// out. A spirit makes `output`; the player, with none, makes what they can.
     Craft {
         building: BuildingId,
+        #[serde(default)]
+        output: Option<ResourceId>,
     },
 }
 
@@ -75,7 +79,7 @@ impl Task {
             } => format!("Collect {amount} from building #{building}"),
             Task::DeliverToSite { project } => format!("Supply project #{project}"),
             Task::Build { project } => format!("Build project #{project}"),
-            Task::Craft { building } => format!("Craft at building #{building}"),
+            Task::Craft { building, .. } => format!("Craft at building #{building}"),
         }
     }
 }
@@ -114,6 +118,7 @@ pub enum SimEvent {
     Crafted {
         who: Who,
         recipe: RecipeId,
+        building: BuildingId,
     },
 }
 
@@ -140,10 +145,10 @@ pub struct TaskCtx<'a> {
 
 /// How many more units spirits should harvest and craft this tick, so they
 /// stop as soon as the settlement's goals are met.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct Budgets {
-    pub gather: i64,
-    pub craft: i64,
+    pub gather: BTreeMap<ResourceId, i64>,
+    pub craft: BTreeMap<ResourceId, i64>,
 }
 
 /// Executes one tick of the actor's current task.
@@ -163,7 +168,9 @@ pub fn step(
     match task {
         Task::Move { goal, label } => step_move(actor, goal, &label, ctx),
         Task::Chop { tree } => {
-            step_chop(actor, who, level, tree, budgets.map(|b| &mut b.gather), ctx)
+            let resource = ctx.defs.trees[ctx.trees[tree].kind.index()].resource;
+            let budget = budgets.map(|b| b.gather.entry(resource).or_insert(0));
+            step_chop(actor, who, level, tree, budget, ctx)
         }
         Task::Deposit { building } => step_deposit(actor, who, building, false, ctx),
         Task::DepositForPlayer { building } => step_deposit(actor, who, building, true, ctx),
@@ -175,11 +182,12 @@ pub fn step(
         } => step_withdraw(actor, building, resource, amount, reserved, ctx),
         Task::DeliverToSite { project } => step_supply(actor, who, project, ctx),
         Task::Build { project } => step_build(actor, level, project, ctx),
-        Task::Craft { building } => step_craft(
+        Task::Craft { building, output } => step_craft(
             actor,
             who,
             level,
             building,
+            output,
             budgets.map(|b| &mut b.craft),
             ctx,
         ),
@@ -294,7 +302,8 @@ fn step_craft(
     who: Who,
     level: u32,
     building_id: BuildingId,
-    craft_budget: Option<&mut i64>,
+    output: Option<ResourceId>,
+    craft_budgets: Option<&mut BTreeMap<ResourceId, i64>>,
     ctx: &mut TaskCtx,
 ) -> StepResult {
     let station = &mut ctx.buildings[building_id];
@@ -321,16 +330,21 @@ fn step_craft(
         };
         actor.inventory.get(r) + stock
     };
-    let Some(recipe_id) = ctx.defs.best_recipe(station.kind, level, have) else {
+    let chosen = match output {
+        Some(o) => ctx.defs.best_recipe_for(station.kind, level, o, have),
+        None => ctx.defs.best_recipe(station.kind, level, have),
+    };
+    let Some(recipe_id) = chosen else {
         actor.action_ticks = 0;
         return StepResult::Done; // Out of materials.
     };
+    let recipe = ctx.defs.recipe(recipe_id);
+    let (out, out_n) = recipe.output;
+    let craft_budget = craft_budgets.map(|m| m.entry(out).or_insert(0));
     if craft_budget.as_deref().is_some_and(|b| *b <= 0) {
         actor.action_ticks = 0;
         return StepResult::Done;
     }
-    let recipe = ctx.defs.recipe(recipe_id);
-    let (out, out_n) = recipe.output;
     let def = &ctx.defs.buildings[station.kind.index()];
     let output_limit = def.capacity.saturating_sub(def.input_buffer);
     let station_room = station.storage.free() >= out_n
@@ -379,6 +393,7 @@ fn step_craft(
     ctx.events.push(SimEvent::Crafted {
         who,
         recipe: recipe_id,
+        building: building_id,
     });
     StepResult::Continue
 }

@@ -60,6 +60,9 @@ pub struct Building {
     pub name: String,
     pub state: BuildingState,
     pub storage: Storage,
+    /// Units made here since it was built.
+    #[serde(default)]
+    pub crafted: u32,
 }
 
 impl Building {
@@ -185,6 +188,64 @@ impl Activity {
     }
 }
 
+/// What a spirit gives its time to.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum Focus {
+    /// Whatever its role allows, in the role's order.
+    #[default]
+    Anything,
+    /// The settlement's work only: no training support.
+    Settlement,
+    /// The player's training only.
+    Training,
+    /// Nothing: it finishes what it's carrying and waits.
+    Rest,
+}
+
+impl Focus {
+    pub fn label(self) -> &'static str {
+        match self {
+            Focus::Anything => "Anything",
+            Focus::Settlement => "Settlement work",
+            Focus::Training => "My training",
+            Focus::Rest => "Rest",
+        }
+    }
+
+    pub fn next(self) -> Focus {
+        match self {
+            Focus::Anything => Focus::Settlement,
+            Focus::Settlement => Focus::Training,
+            Focus::Training => Focus::Rest,
+            Focus::Rest => Focus::Anything,
+        }
+    }
+
+    /// Whether a spirit with this focus may take a job.
+    pub fn allows(self, job: JobKind) -> bool {
+        let training = matches!(job, JobKind::TrainingCollect | JobKind::TrainingSupply);
+        match self {
+            Focus::Anything => true,
+            Focus::Settlement => !training,
+            Focus::Training => training || matches!(job, JobKind::Deliver | JobKind::Gather),
+            Focus::Rest => job == JobKind::Deliver,
+        }
+    }
+}
+
+/// The player's simple instructions to one spirit. A spirit can still only do
+/// what its role and level allow: these narrow its work and never widen it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct SpiritPolicy {
+    pub focus: Focus,
+    /// Gather only here.
+    pub site: Option<SiteId>,
+    /// Work only at this station.
+    pub station: Option<BuildingId>,
+    /// Gather the highest-tier material in demand before anything else.
+    pub prefer_advanced: bool,
+}
+
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Spirit {
     pub id: SpiritId,
@@ -204,6 +265,9 @@ pub struct Spirit {
     pub units_crafted: u32,
     /// Assigned to the production order (only matters to spirits that craft).
     pub assigned: bool,
+    /// The player's instructions.
+    #[serde(default)]
+    pub policy: SpiritPolicy,
     /// Why the spirit is currently not working, when blocked.
     pub wait: Option<WaitKind>,
     /// Site of the last tree this spirit chose; it prefers to stay there.
@@ -241,6 +305,7 @@ impl Spirit {
             units_delivered: 0,
             units_crafted: 0,
             assigned: true,
+            policy: SpiritPolicy::default(),
             wait: None,
             home_site: None,
             last_tree_kind: None,

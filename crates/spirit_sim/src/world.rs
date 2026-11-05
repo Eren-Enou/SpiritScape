@@ -4,7 +4,8 @@ use crate::defs::{
     BuildingKindId, GameDefs, JobKind, RecipeId, ResourceId, RoleId, SiteId, SkillId, TreeKindId,
 };
 use crate::entities::{
-    Activity, Actor, Building, BuildingId, Player, Project, Spirit, SpiritId, Tree, TreeState,
+    Activity, Actor, Building, BuildingId, Player, Project, Spirit, SpiritId, SpiritPolicy, Tree,
+    TreeState,
 };
 use crate::events::{EventKind, EventLog, Notices};
 use crate::grid::{Grid, TilePos};
@@ -66,6 +67,12 @@ pub struct Settlement {
     pub order: ProductionOrder,
     /// How the settlement helps the player's own skilling.
     pub training: TrainingSupport,
+    /// Orders beyond the main one.
+    #[serde(default)]
+    pub extra_orders: Vec<ProductionOrder>,
+    /// Room added at stations for logs set aside for the player.
+    #[serde(default)]
+    pub bench_bonus: u32,
 }
 
 /// What a Soul Separation would do, shown before the player confirms.
@@ -127,6 +134,37 @@ pub enum Command {
     },
     /// Approve a building the planner won't start on its own.
     RequestBuilding(BuildingKindId),
+    /// Stock of a product to maintain, for any order.
+    SetOrderTarget {
+        output: ResourceId,
+        target: u32,
+    },
+    /// Input stock an order must leave in Main Storage.
+    SetOrderReserve {
+        output: ResourceId,
+        reserve: u32,
+    },
+    SetOrderEnabled {
+        output: ResourceId,
+        enabled: bool,
+    },
+    /// Higher goes first when workers, haulers or benches are short.
+    SetOrderPriority {
+        output: ResourceId,
+        priority: u32,
+    },
+    /// Build at a tile the player chose.
+    RequestBuildingAt {
+        kind: BuildingKindId,
+        site: TilePos,
+    },
+    /// Replace one spirit's instructions.
+    SetSpiritPolicy {
+        spirit: SpiritId,
+        policy: SpiritPolicy,
+    },
+    /// Leave one place at every bench free for the player.
+    SetKeepBenchPlace(bool),
     /// Choose where the player trains, or no such place. Spirits stay out.
     SetTrainingArea(Option<SiteId>),
     /// Have a Hauling Spirit empty the Training Cache.
@@ -159,6 +197,8 @@ pub struct World {
     pub notices: Notices,
     /// Guidance through a real playthrough. Scenarios don't have it.
     pub journey: Option<Journey>,
+    /// Finished units of each product.
+    pub product_stats: BTreeMap<ResourceId, SiteStats>,
 }
 
 impl World {
@@ -219,8 +259,8 @@ impl World {
     pub fn projected_stock(&self, r: ResourceId) -> u32 {
         let main = self.main().storage.available(r);
         let outposts: u32 = self.outposts().map(|b| b.storage.get(r)).sum();
-        let finished = if r == self.settlement.order.output {
-            self.station().map_or(0, |b| b.storage.get(r))
+        let finished: u32 = if self.order_for(r).is_some() {
+            self.stations_for(r).iter().map(|b| b.storage.get(r)).sum()
         } else {
             0
         };
@@ -468,6 +508,63 @@ impl World {
                 Ok(msg)
             }
             Command::RequestBuilding(kind) => self.request_building(kind),
+            Command::RequestBuildingAt { kind, site } => self.request_building_at(kind, site),
+            Command::SetOrderTarget { output, target } => {
+                let name = self.defs.resource(output).name.clone();
+                let order = self.order_for_mut(output).ok_or("No such order")?;
+                order.target = target;
+                let msg = format!("Production target: maintain {target} {name} in Main Storage");
+                self.events.push(self.tick, EventKind::Player, msg.clone());
+                Ok(msg)
+            }
+            Command::SetOrderReserve { output, reserve } => {
+                let order = self.order_for_mut(output).ok_or("No such order")?;
+                order.input_reserve = reserve;
+                let msg = format!("{} now keeps {reserve} in reserve", self.defs.resource(output).name);
+                self.events.push(self.tick, EventKind::Player, msg.clone());
+                Ok(msg)
+            }
+            Command::SetOrderEnabled { output, enabled } => {
+                let order = self.order_for_mut(output).ok_or("No such order")?;
+                order.enabled = enabled;
+                let state = if enabled { "on" } else { "off" };
+                let msg = format!("{} production {state}", self.defs.resource(output).name);
+                self.events.push(self.tick, EventKind::Player, msg.clone());
+                Ok(msg)
+            }
+            Command::SetOrderPriority { output, priority } => {
+                let order = self.order_for_mut(output).ok_or("No such order")?;
+                order.priority = priority;
+                let msg = format!("{} priority set to {priority}", self.defs.resource(output).name);
+                self.events.push(self.tick, EventKind::Player, msg.clone());
+                Ok(msg)
+            }
+            Command::SetSpiritPolicy { spirit, policy } => {
+                let valid = policy
+                    .station
+                    .is_none_or(|b| self.buildings.get(b).is_some())
+                    && policy.site.is_none_or(|s| s.index() < self.defs.sites.len());
+                if !valid {
+                    return Err("That place doesn't exist".into());
+                }
+                let Some(s) = self.spirits.get_mut(spirit) else {
+                    return Err("Unknown spirit".into());
+                };
+                s.policy = policy;
+                let msg = format!("{} has new instructions", s.name);
+                self.events.push(self.tick, EventKind::Player, msg.clone());
+                Ok(msg)
+            }
+            Command::SetKeepBenchPlace(on) => {
+                self.settlement.training.keep_bench_place = on;
+                let msg = if on {
+                    "Spirits will leave a place free for you at every bench"
+                } else {
+                    "Spirits may take every place at a bench"
+                };
+                self.events.push(self.tick, EventKind::Player, msg);
+                Ok(msg.into())
+            }
             Command::SetTrainingArea(site) => self.set_training_area(site),
             Command::SetTrainingCollect(on) => Ok(self.set_training_collect(on)),
             Command::SetTrainingSupply(on) => Ok(self.set_training_supply(on)),
@@ -542,7 +639,13 @@ impl World {
             if !b.is_complete() {
                 return Err(format!("{} is still under construction", b.name));
             }
-            let def = self.defs.building(b.kind);
+            let id = b.id;
+            let def = self.defs.building(b.kind).clone();
+            if def.is_station {
+                self.player_station_activity(&self.buildings[id])?;
+                self.claim_player_slot(id)?;
+            }
+            let b = &self.buildings[id];
             let walk = Task::Move {
                 goal: Goal::Adjacent(p),
                 label: b.name.clone(),
@@ -551,7 +654,11 @@ impl World {
             let bag = &self.player.actor.inventory;
             if def.is_station {
                 let activity = self.player_station_activity(b)?;
-                (vec![walk, Task::Craft { building: b.id }], activity)
+                let craft = Task::Craft {
+                    building: b.id,
+                    output: None,
+                };
+                (vec![walk, craft], activity)
             } else if def.capacity == 0 {
                 return Err(format!(
                     "The {} adds {} to Main Storage's capacity",
@@ -776,6 +883,9 @@ impl World {
             st.trim(self.tick, window);
         }
         self.output_stats.trim(self.tick, window);
+        for st in self.product_stats.values_mut() {
+            st.trim(self.tick, window);
+        }
         if self.tick.is_multiple_of(SNAPSHOT_TICKS) {
             for s in &mut self.spirits {
                 s.time.snapshot(self.tick, window);
@@ -888,17 +998,21 @@ impl World {
                 let skill = self.defs.tree(self.trees[*tree].kind).skill;
                 self.player.level(skill, &self.defs.xp_table)
             }
-            Some(Task::Craft { building }) => self.player_station_level(&self.buildings[*building]),
+            Some(Task::Craft { building, .. }) => {
+                self.player_station_level(&self.buildings[*building])
+            }
             _ => 1,
         }
     }
 
     fn step_spirits(&mut self, events: &mut Vec<SimEvent>) {
-        let o = &self.settlement.objective;
-        let mut budgets = Budgets {
-            gather: self.gather_goal() as i64 - self.projected_stock(o.resource) as i64,
-            craft: self.production_deficit() as i64,
-        };
+        let mut budgets = Budgets::default();
+        for i in 0..self.defs.resources.len() {
+            let r = ResourceId(i as u16);
+            let stock = self.projected_stock(r) as i64;
+            budgets.gather.insert(r, self.gather_goal_of(r) as i64 - stock);
+            budgets.craft.insert(r, self.deficit_of(r) as i64);
+        }
         for sid in 0..self.spirits.len() {
             if self.spirits[sid].actor.queue.is_empty() && self.tick >= self.spirits[sid].next_think
             {
@@ -1057,12 +1171,24 @@ impl World {
                 self.events.push(self.tick, EventKind::Construction, msg);
             }
             SimEvent::ProjectCompleted { project } => self.on_project_completed(project),
-            SimEvent::Crafted { who, recipe } => {
+            SimEvent::Crafted {
+                who,
+                recipe,
+                building,
+            } => {
                 let def = self.defs.recipe(recipe);
                 let (skill, xp, amount) = (def.skill, def.xp, def.output.1);
+                let product = def.output.0;
                 let window = self.defs.gathering.window_ticks;
+                self.buildings[building].crafted += amount;
+                let stats = self.product_stats.entry(product).or_default();
                 for _ in 0..amount {
-                    self.output_stats.record(self.tick, window);
+                    stats.record(self.tick, window);
+                }
+                if product == self.settlement.order.output {
+                    for _ in 0..amount {
+                        self.output_stats.record(self.tick, window);
+                    }
                 }
                 match who {
                     Who::Player => self.player_earned_xp(skill, xp),

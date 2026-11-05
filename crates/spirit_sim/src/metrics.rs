@@ -18,6 +18,8 @@ pub enum WaitKind {
     Storage,
     /// A station or its supplier is short of raw materials.
     Inputs,
+    /// Every permitted station has all its places taken.
+    Station,
     Other,
 }
 
@@ -34,6 +36,8 @@ pub struct TimeUse {
     pub crafting: u64,
     pub waiting_recovery: u64,
     pub waiting_input: u64,
+    #[serde(default)]
+    pub waiting_station: u64,
     pub blocked_storage: u64,
     pub blocked_other: u64,
     pub idle: u64,
@@ -53,6 +57,7 @@ impl TimeUse {
             + self.crafting
             + self.waiting_recovery
             + self.waiting_input
+            + self.waiting_station
             + self.blocked_storage
             + self.blocked_other
     }
@@ -66,6 +71,7 @@ impl TimeUse {
             crafting: self.crafting - earlier.crafting,
             waiting_recovery: self.waiting_recovery - earlier.waiting_recovery,
             waiting_input: self.waiting_input - earlier.waiting_input,
+            waiting_station: self.waiting_station - earlier.waiting_station,
             blocked_storage: self.blocked_storage - earlier.blocked_storage,
             blocked_other: self.blocked_other - earlier.blocked_other,
             idle: self.idle - earlier.idle,
@@ -80,6 +86,7 @@ impl TimeUse {
         self.crafting += other.crafting;
         self.waiting_recovery += other.waiting_recovery;
         self.waiting_input += other.waiting_input;
+        self.waiting_station += other.waiting_station;
         self.blocked_storage += other.blocked_storage;
         self.blocked_other += other.blocked_other;
         self.idle += other.idle;
@@ -351,6 +358,7 @@ impl Spirit {
                 (Activity::Blocked(_), Some(WaitKind::Recovery)) => t.waiting_recovery += 1,
                 (Activity::Blocked(_), Some(WaitKind::Storage)) => t.blocked_storage += 1,
                 (Activity::Blocked(_), Some(WaitKind::Inputs)) => t.waiting_input += 1,
+                (Activity::Blocked(_), Some(WaitKind::Station)) => t.waiting_station += 1,
                 (Activity::Blocked(_), _) => t.blocked_other += 1,
                 _ => t.idle += 1,
             },

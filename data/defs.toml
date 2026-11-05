@@ -67,6 +67,14 @@ name = "Logs"
 id = "planks"
 name = "Planks"
 
+[[resources]]
+id = "hardwood"
+name = "Hardwood Logs"
+
+[[resources]]
+id = "beams"
+name = "Structural Beams"
+
 [[skills]]
 id = "woodcutting"
 name = "Woodcutting"
@@ -119,6 +127,21 @@ chop_seconds = 3.0
 chop_seconds_per_level = 0.1
 min_chop_seconds = 0.8
 
+# Slow to cut and slow to regrow, but it's the only source of Hardwood Logs.
+[[tree_types]]
+id = "ironwood"
+name = "Ironwood"
+map_char = "I"
+resource = "hardwood"
+skill = "woodcutting"
+level_required = 10
+logs = 6
+regrow_seconds = 300.0
+xp_per_log = 60
+chop_seconds = 4.0
+chop_seconds_per_level = 0.1
+min_chop_seconds = 1.5
+
 # ---------------------------------------------------------------------------
 # Recipes: timed processing at a station building. The player and spirits use
 # the same rules: `level_required` gates a recipe, and a worker always uses
@@ -153,9 +176,25 @@ craft_seconds_per_level = 0.1
 min_craft_seconds = 1.8
 xp = 45
 
+# The first recipe that doesn't use ordinary logs at all.
+[[recipes]]
+id = "structural_beams"
+name = "Structural Beams"
+skill = "woodworking"
+station = "workshop"
+level_required = 10
+inputs = [{ resource = "hardwood", amount = 2 }]
+output = { resource = "beams", amount = 1 }
+craft_seconds = 6.0
+craft_seconds_per_level = 0.1
+min_craft_seconds = 3.0
+xp = 120
+
 [production]
-# What the settlement's production order makes.
+# What the settlement's main production order makes.
 output = "planks"
+# Further products with an order of their own.
+more_outputs = ["beams"]
 # Most extra logs a production shortfall may ask gatherers for at once.
 upstream_cap = 40
 
@@ -178,6 +217,13 @@ name = "Distant Forest"
 area = [28, 10, 45, 25]
 # Older, richer woodland: oaks recover faster than in town.
 regrow_pct = 75
+
+# An old stand beyond the bridge, the far end of the map from Main Storage.
+[[sites]]
+id = "old_growth"
+name = "Old Growth"
+area = [28, 0, 47, 8]
+regrow_pct = 100
 
 [gathering]
 # Window for measured throughput and time-use shares.
@@ -308,7 +354,22 @@ input_buffer = 20
 # Extra room for logs set aside for the player's own training. Production
 # can't touch them.
 training_buffer = 20
+# Extra room for a second product's input and output.
+extra_capacity = 40
+# Workers (spirits or the player) that fit at once. Others wait or go elsewhere.
+slots = 2
 accepts_gatherer_deposits = false
+# A further workshop is ordered by the player, and placed where they choose.
+manual = true
+max_count = 3
+cost = [
+    { resource = "logs", amount = 20 },
+    { resource = "planks", amount = 20 },
+    { resource = "beams", amount = 6 },
+]
+build_seconds = 25.0
+build_seconds_per_level = 0.5
+min_build_seconds = 10.0
 color = [0.80, 0.60, 0.45]
 
 # Requested by the player (`manual`), not by the planner. Adds its
@@ -342,6 +403,21 @@ build_seconds = 12.0
 build_seconds_per_level = 0.5
 min_build_seconds = 5.0
 color = [0.60, 0.70, 0.55]
+
+# Racks beside the bench: each adds room for logs set aside for the player.
+[[buildings]]
+id = "log_rack"
+name = "Log Rack"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 2
+training_bonus = 40
+cost = [{ resource = "planks", amount = 10 }, { resource = "logs", amount = 10 }]
+build_seconds = 10.0
+build_seconds_per_level = 0.5
+min_build_seconds = 4.0
+color = [0.70, 0.60, 0.45]
 
 [objective]
 # "Maintain <target> <resource> in the main settlement storage."

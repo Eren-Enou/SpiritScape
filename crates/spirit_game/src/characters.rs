@@ -294,7 +294,7 @@ fn work_target(sim: &Sim, actor: &Actor) -> Option<(bool, bevy::math::IVec2)> {
     let tile = match actor.queue.front()? {
         Task::Chop { tree } => (true, w.trees[*tree].pos),
         Task::Build { project } => (true, w.projects[*project].site),
-        Task::Craft { building } => (true, w.buildings[*building].pos),
+        Task::Craft { building, .. } => (true, w.buildings[*building].pos),
         Task::Deposit { building }
         | Task::DepositForPlayer { building }
         | Task::Withdraw { building, .. } => (false, w.buildings[*building].pos),

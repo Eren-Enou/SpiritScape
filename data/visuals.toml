@@ -53,6 +53,16 @@ scale = 1.1
 # Golden crowns mark the higher tier.
 crown_tint = [1.0, 0.68, 0.18]
 
+# Ironwood (level 10): tall and dark red, so the top tier stands out.
+[trees.ironwood]
+models = [
+    "models/nature/tree_detailed.glb",
+    "models/nature/tree_fat.glb",
+]
+stump = "models/nature/stump_round.glb"
+scale = 1.35
+crown_tint = [0.75, 0.22, 0.20]
+
 [buildings.main_storage]
 stockpile = "models/nature/log_stackLarge.glb"
 stockpile_offset = [-0.72, 0.0]
@@ -98,6 +108,15 @@ site = [{ model = "models/town/planks.glb" }]
 parts = [
     { model = "models/town/fence.glb", rot = 0 },
     { model = "models/town/fence.glb", rot = 90 },
+    { model = "models/town/fence.glb", rot = 180 },
+]
+
+# Racks beside the bench for logs set aside for the player.
+[buildings.log_rack]
+stockpile = "models/nature/log_stackLarge.glb"
+site = [{ model = "models/town/planks.glb" }]
+parts = [
+    { model = "models/town/fence.glb", rot = 0 },
     { model = "models/town/fence.glb", rot = 180 },
 ]
 

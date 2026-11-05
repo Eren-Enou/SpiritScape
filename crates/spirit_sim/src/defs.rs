@@ -163,6 +163,8 @@ impl RecipeDef {
 #[derive(Clone, Debug)]
 pub struct ProductionRules {
     pub output: ResourceId,
+    /// Further products with an order of their own.
+    pub more_outputs: Vec<ResourceId>,
     /// Most extra input a production shortfall may request at once.
     pub upstream_cap: u32,
 }
@@ -256,12 +258,18 @@ pub struct BuildingDef {
     pub training_buffer: u32,
     /// The player's drop-off point in their training area.
     pub training_cache: bool,
+    /// Storage beyond `capacity` for further products at a station.
+    pub extra_capacity: u32,
+    /// Workers that fit at a station at once.
+    pub slots: u32,
+    /// Room added at stations for logs set aside for the player.
+    pub training_bonus: u32,
 }
 
 impl BuildingDef {
     /// Storage a new building of this kind starts with.
     pub fn storage_capacity(&self) -> u32 {
-        self.capacity + self.training_buffer
+        self.capacity + self.training_buffer + self.extra_capacity
     }
 
     pub fn build_ticks_at(&self, level: u32) -> u32 {
@@ -427,6 +435,8 @@ struct RawRecipe {
 #[derive(Deserialize)]
 struct RawProduction {
     output: String,
+    #[serde(default)]
+    more_outputs: Vec<String>,
     upstream_cap: u32,
 }
 
@@ -517,6 +527,12 @@ struct RawBuilding {
     training_buffer: u32,
     #[serde(default)]
     training_cache: bool,
+    #[serde(default)]
+    extra_capacity: u32,
+    #[serde(default = "one")]
+    slots: u32,
+    #[serde(default)]
+    training_bonus: u32,
 }
 
 #[derive(Deserialize)]
@@ -549,6 +565,31 @@ fn single_char(s: &str, what: &str) -> Result<char, String> {
             "{what}: map_char must be exactly one character, got {s:?}"
         )),
     }
+}
+
+/// Production planning looks one step upstream and never recurses, which is
+/// only sound while no recipe's output leads back to its own input.
+fn check_no_cycles(recipes: &[RecipeDef], resources: usize) -> Result<(), String> {
+    fn visit(
+        r: usize,
+        recipes: &[RecipeDef],
+        state: &mut [u8],
+    ) -> Result<(), String> {
+        match state[r] {
+            1 => return Err("recipes form a loop".into()),
+            2 => return Ok(()),
+            _ => state[r] = 1,
+        }
+        for d in recipes.iter().filter(|d| d.output.0.index() == r) {
+            for (input, _) in &d.inputs {
+                visit(input.index(), recipes, state)?;
+            }
+        }
+        state[r] = 2;
+        Ok(())
+    }
+    let mut state = vec![0u8; resources];
+    (0..resources).try_for_each(|r| visit(r, recipes, &mut state))
 }
 
 impl GameDefs {
@@ -699,6 +740,9 @@ impl GameDefs {
                 manual: b.manual,
                 training_buffer: b.training_buffer,
                 training_cache: b.training_cache,
+                extra_capacity: b.extra_capacity,
+                slots: b.slots.max(1),
+                training_bonus: b.training_bonus,
                 id: b.id,
                 name: b.name,
             });
@@ -735,8 +779,16 @@ impl GameDefs {
                 name: r.name,
             });
         }
+        check_no_cycles(&recipes, resources.len())?;
+        let more_outputs = raw
+            .production
+            .more_outputs
+            .iter()
+            .map(|r| resource_id(r))
+            .collect::<Result<Vec<_>, _>>()?;
         let production = ProductionRules {
             output: resource_id(&raw.production.output)?,
+            more_outputs,
             upstream_cap: raw.production.upstream_cap,
         };
 
@@ -871,6 +923,22 @@ impl GameDefs {
         self.station_recipes(station).into_iter().rev().find(|&r| {
             let def = self.recipe(r);
             level >= def.level_required && def.inputs.iter().all(|&(res, n)| have(res) >= n)
+        })
+    }
+
+    /// Like `best_recipe`, for a recipe making `output`.
+    pub fn best_recipe_for(
+        &self,
+        station: BuildingKindId,
+        level: u32,
+        output: ResourceId,
+        have: impl Fn(ResourceId) -> u32,
+    ) -> Option<RecipeId> {
+        self.station_recipes(station).into_iter().rev().find(|&r| {
+            let def = self.recipe(r);
+            def.output.0 == output
+                && level >= def.level_required
+                && def.inputs.iter().all(|&(res, n)| have(res) >= n)
         })
     }
 

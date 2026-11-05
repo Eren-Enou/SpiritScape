@@ -14,23 +14,28 @@
 //! data is refused rather than misread.
 //!
 //! Nothing here simulates time away: a loaded world resumes at the saved tick.
+//!
+//! Older formats are upgraded when they're read (`migrate_v1`), and the first
+//! time that happens `SaveStore` keeps a copy of the original file.
 
-use crate::defs::GameDefs;
+use crate::defs::{GameDefs, ResourceId};
 use crate::entities::{Building, Player, Project, Spirit, Tree};
 use crate::events::{EventLog, Notices};
 use crate::grid::{BUILTIN_MAP, Grid, MapLayout};
 use crate::journey::Journey;
 use crate::metrics::SiteStats;
+use crate::scenario::{extra_orders, new_tree};
 use crate::tasks::Task;
 use crate::world::{Ledger, Settlement, World};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Bump when the format changes, and add a migration to `decode`.
-pub const SAVE_VERSION: u32 = 1;
+pub const SAVE_VERSION: u32 = 2;
 const MAGIC: &str = "SPIRITSCAPE-SAVE";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -134,6 +139,8 @@ struct WorldState {
     output_stats: SiteStats,
     notices: Notices,
     journey: Option<Journey>,
+    #[serde(default)]
+    product_stats: BTreeMap<ResourceId, SiteStats>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -161,6 +168,7 @@ impl World {
             output_stats: self.output_stats.clone(),
             notices: self.notices.clone(),
             journey: self.journey.clone(),
+            product_stats: self.product_stats.clone(),
         }
     }
 
@@ -182,6 +190,7 @@ impl World {
             output_stats: s.output_stats,
             notices: s.notices,
             journey: s.journey,
+            product_stats: s.product_stats,
         };
         for spirit in &mut world.spirits {
             spirit.refresh_level(&world.defs.xp_table);
@@ -246,9 +255,9 @@ fn open_save(text: &str) -> Result<&str, SaveError> {
         .next()
         .and_then(|v| v.parse().ok())
         .ok_or_else(|| SaveError::Corrupt("the header is unreadable".into()))?;
-    if version != SAVE_VERSION {
+    if version == 0 || version > SAVE_VERSION {
         return Err(SaveError::Incompatible(format!(
-            "it uses save format {version}, and this game reads format {SAVE_VERSION}"
+            "it uses save format {version}, and this game reads up to format {SAVE_VERSION}"
         )));
     }
     let stored = parts
@@ -275,7 +284,7 @@ pub fn read_meta(text: &str) -> Result<SaveMeta, SaveError> {
 /// Rebuilds a world from the contents of a save file, using the built-in data.
 pub fn decode(text: &str) -> Result<(World, SaveMeta), SaveError> {
     let json = open_save(text)?;
-    let body: SaveBody =
+    let mut body: SaveBody =
         serde_json::from_str(json).map_err(|e| SaveError::Corrupt(e.to_string()))?;
     let defs = GameDefs::builtin_profile(&body.meta.profile).map_err(SaveError::Incompatible)?;
     body.ids
@@ -285,11 +294,45 @@ pub fn decode(text: &str) -> Result<(World, SaveMeta), SaveError> {
     if (body.state.grid.width, body.state.grid.height) != (map.width, map.height) {
         return Err(SaveError::Incompatible("the map has changed".into()));
     }
+    if body.meta.version < 2 {
+        migrate_v1(&defs, &map, &mut body.state);
+    }
     validate(&defs, &body.state).map_err(SaveError::Corrupt)?;
     let meta = body.meta;
     let world = World::from_state(defs, body.state);
     world.check_conservation().map_err(SaveError::Corrupt)?;
     Ok((world, meta))
+}
+
+/// Format 1 (v0.5) to 2 (v0.6). New fields have serde defaults; this adds what
+/// a default can't: the world content and storage room v0.6 introduced. Nothing
+/// that existed is changed, and the new trees aren't resources until they're
+/// cut, so the ledger still balances.
+fn migrate_v1(defs: &GameDefs, map: &MapLayout, s: &mut WorldState) {
+    s.settlement.site_open.resize(defs.sites.len(), true);
+    s.site_stats.resize(defs.sites.len(), SiteStats::default());
+    if s.settlement.extra_orders.is_empty() {
+        s.settlement.extra_orders = extra_orders(&defs.production.more_outputs);
+    }
+    for b in &mut s.buildings {
+        let wanted = defs.building(b.kind).storage_capacity();
+        if defs.building(b.kind).is_station && b.storage.capacity < wanted {
+            b.storage.capacity = wanted;
+        }
+    }
+    for (&c, positions) in &map.markers {
+        let Some(kind) = defs.tree_kind_for_char(c) else {
+            continue;
+        };
+        for &pos in positions {
+            // Something may have been built here since.
+            if !s.grid.is_occupied(pos) {
+                let id = s.trees.len();
+                s.trees.push(new_tree(defs, kind, pos, id));
+                s.grid.set_occupied(pos, true);
+            }
+        }
+    }
 }
 
 /// Every reference in the state points at something real, so the simulation
@@ -340,7 +383,7 @@ fn validate(defs: &GameDefs, s: &WorldState) -> Result<(), String> {
         Task::Deposit { building }
         | Task::DepositForPlayer { building }
         | Task::Withdraw { building, .. }
-        | Task::Craft { building } => *building < s.buildings.len(),
+        | Task::Craft { building, .. } => *building < s.buildings.len(),
         Task::DeliverToSite { project } | Task::Build { project } => *project < s.projects.len(),
     };
     check(s.player.actor.queue.iter().all(task_ok), "player task")?;
@@ -477,10 +520,11 @@ impl SaveStore {
         let first = Self::read_file(&self.path(slot)).and_then(|t| decode(&t));
         let error = match first {
             Ok((world, meta)) => {
+                let warning = self.keep_original(slot, meta.version);
                 return Ok(Loaded {
                     world,
                     meta,
-                    warning: None,
+                    warning,
                 });
             }
             Err(e) => e,
@@ -497,6 +541,22 @@ impl SaveStore {
             }),
             Err(_) => Err(error),
         }
+    }
+
+    /// A save from an older format is about to be replaced by the next
+    /// write, so the original is kept beside it. Returns what to tell the player.
+    fn keep_original(&self, slot: Slot, version: u32) -> Option<String> {
+        if version >= SAVE_VERSION {
+            return None;
+        }
+        let kept = self.dir.join(format!("{}.v{version}", slot.file()));
+        if !kept.exists() && fs::copy(self.path(slot), &kept).is_err() {
+            return Some("Upgraded your save, but couldn't keep a copy of the original.".into());
+        }
+        Some(format!(
+            "Upgraded your save. The original is kept as {}.",
+            kept.file_name()?.to_string_lossy()
+        ))
     }
 
     /// Loads the most recent save that works, trying every file.
