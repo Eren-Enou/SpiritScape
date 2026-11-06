@@ -701,7 +701,10 @@ fn update_labels(
                 )
             }
             WorldLabel::Spirit(id) => {
-                let s = &w.spirits[id];
+                let Some(s) = w.spirits.get(id).filter(|s| !s.aboard) else {
+                    vis.set_if_neq(Visibility::Hidden);
+                    continue;
+                };
                 let (x, y) = s.actor.mover.visual_pos();
                 let (status, word) = spirit_status(s);
                 let content = format!("{} Lv{} - {word}", s.name, s.level());
@@ -944,13 +947,13 @@ fn draw_overlays(sim: Res<Sim>, mut gizmos: Gizmos) {
         }
     };
     draw_path(&w.player.actor.mover, Color::srgba(1.0, 1.0, 1.0, 0.7));
-    for s in &w.spirits {
+    for s in w.spirits.iter().filter(|s| !s.aboard) {
         let c = w.defs.role(s.role).color;
         draw_path(&s.actor.mover, Color::srgba(c[0], c[1], c[2], 0.8));
     }
     // Status ring under each spirit, matching its label colour.
     let flat = Quat::from_rotation_x(std::f32::consts::FRAC_PI_2);
-    for s in &w.spirits {
+    for s in w.spirits.iter().filter(|s| !s.aboard) {
         let (x, y) = s.actor.mover.visual_pos();
         let color = spirit_status(s).0.color();
         let at = tile_world(x, y) + Vec3::Y * 0.05;

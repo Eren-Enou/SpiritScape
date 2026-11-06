@@ -316,6 +316,9 @@ pub struct Spirit {
     /// Deeds earned and when, in order.
     #[serde(default)]
     pub deeds: Vec<(u16, u64)>,
+    /// On the boat, and done with all of this.
+    #[serde(default)]
+    pub aboard: bool,
 }
 
 impl Spirit {
@@ -355,6 +358,7 @@ impl Spirit {
             gift_xp: 0,
             character: None,
             deeds: Vec::new(),
+            aboard: false,
         }
     }
 

@@ -57,7 +57,9 @@ struct Seen {
     notices: u64,
     xp: Vec<u64>,
     season: Option<String>,
-    ended: bool,
+    /// Hearth lit, and spirits called home: a game can see either or both.
+    endings: u32,
+    aboard: usize,
 }
 
 /// A spark rising from something that just happened.
@@ -137,6 +139,8 @@ fn watch_world(
     let xp = skill_xp(w);
     let season = w.season().map(|s| s.id.clone());
     let ended = w.settlement.ended_at.is_some();
+    let endings = ended as u32 + w.homecoming_finished() as u32;
+    let aboard = w.aboard().0;
     // A new or loaded game isn't news.
     if !seen.started || xp.iter().zip(&seen.xp).any(|(now, was)| now < was) || built < seen.built {
         *seen = Seen {
@@ -146,7 +150,8 @@ fn watch_world(
             notices: w.notices.total,
             xp,
             season,
-            ended,
+            endings,
+            aboard,
         };
         return;
     }
@@ -203,12 +208,25 @@ fn watch_world(
         } else if w.notices.total > seen.notices && levels == seen.levels && built == seen.built {
             play(&mut commands, &assets, "notice", 0.25);
         }
-        if ended && !seen.ended {
+        if endings > seen.endings {
             play(&mut commands, &assets, "hearth", 0.8);
         }
     }
-    if ended && !seen.ended {
+    if endings > seen.endings {
         closing.waiting = true;
+    }
+    if aboard > seen.aboard
+        && let Some(boat) = w.boat()
+    {
+        let at = tile_world(boat.x as f32, boat.y as f32);
+        burst(
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            at,
+            Color::srgb(0.75, 0.85, 1.0),
+            10,
+        );
     }
     *seen = Seen {
         started: true,
@@ -217,7 +235,8 @@ fn watch_world(
         notices: w.notices.total,
         xp,
         season,
-        ended,
+        endings,
+        aboard,
     };
 }
 

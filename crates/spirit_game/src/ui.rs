@@ -40,7 +40,7 @@ const RECENT_NOTICES: usize = 6;
 /// Planned buildings with buttons in the Projects tab.
 const PLAN_ROWS: usize = 4;
 /// Further orders with buttons in the Production tab.
-const EXTRA_ORDER_BUTTONS: usize = 6;
+const EXTRA_ORDER_BUTTONS: usize = 7;
 const EXTRA_ORDER_NAMES: [&str; EXTRA_ORDER_BUTTONS] = [
     "Beams",
     "Panels",
@@ -48,6 +48,7 @@ const EXTRA_ORDER_NAMES: [&str; EXTRA_ORDER_BUTTONS] = [
     "Keystones",
     "Charcoal",
     "Bricks",
+    "Pitch",
 ];
 const EXTRA_ORDER_LESS: [&str; EXTRA_ORDER_BUTTONS] = [
     "Beams -5",
@@ -56,6 +57,7 @@ const EXTRA_ORDER_LESS: [&str; EXTRA_ORDER_BUTTONS] = [
     "Keystones -5",
     "Charcoal -5",
     "Bricks -5",
+    "Pitch -5",
 ];
 const EXTRA_ORDER_MORE: [&str; EXTRA_ORDER_BUTTONS] = [
     "Beams +5",
@@ -64,6 +66,7 @@ const EXTRA_ORDER_MORE: [&str; EXTRA_ORDER_BUTTONS] = [
     "Keystones +5",
     "Charcoal +5",
     "Bricks +5",
+    "Pitch +5",
 ];
 /// Raw materials a player can ask to keep in stock.
 const STANDING_GOODS: [&str; 2] = ["stone", "clay"];
@@ -127,6 +130,10 @@ enum UiAction {
     ExtraTarget(usize, i32),
     /// Adjust how much of the nth raw material to keep in stock.
     Standing(usize, i32),
+    /// Ask whether to call the spirits home, then answer.
+    CallHome,
+    CallHomeYes,
+    CallHomeNo,
     /// Put the nth further order first, or back level with the rest.
     ExtraPriority(usize),
     PlaceWorkshop,
@@ -239,6 +246,7 @@ struct GoalRoot;
 /// A card body and what it shows.
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
 enum Card {
+    Boat,
     Standing,
     Visitor,
     Markers,
@@ -620,6 +628,7 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                             ("", UiAction::Plan("kiln")),
                             ("", UiAction::Plan("warm_walls")),
                             ("", UiAction::Plan("hearth_chimney")),
+                            ("", UiAction::Plan("still_boat")),
                             ("", UiAction::Plan("south_crossing")),
                             ("", UiAction::Plan("still_lantern")),
                             ("", UiAction::Plan("hearth_foundations")),
@@ -764,7 +773,18 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
             });
 
             tab_panel(p, Tab::Progress, |p| {
-                card(p, "YOUR STORY", |c| body(c, Card::Ending));
+                card(p, "YOUR STORY", |c| {
+                    body(c, Card::Ending);
+                    body(c, Card::Boat);
+                    button_row(c, &[("Call them home", UiAction::CallHome)]);
+                    button_row(
+                        c,
+                        &[
+                            ("Yes, all of them", UiAction::CallHomeYes),
+                            ("Not yet", UiAction::CallHomeNo),
+                        ],
+                    );
+                });
                 card(p, "AMBITIONS", |c| body(c, Card::Ambitions));
                 card(p, "THE OLD STONES", |c| body(c, Card::Markers));
                 card(p, "YOUR SKILLS", |c| body(c, Card::Skills));
@@ -1187,6 +1207,12 @@ fn on_button(
         UiAction::StopActivity => sim.command(Command::PlayerStop),
         UiAction::LeaveLoad => sim.command(Command::LeaveLoad),
         UiAction::RenameSpirit => sim.naming = Some(String::new()),
+        UiAction::CallHome => sim.calling_home = true,
+        UiAction::CallHomeNo => sim.calling_home = false,
+        UiAction::CallHomeYes => {
+            sim.calling_home = false;
+            sim.command(Command::CallHome);
+        }
         UiAction::VisitorYes => sim.command(Command::AnswerVisitor(true)),
         UiAction::VisitorNo => sim.command(Command::AnswerVisitor(false)),
         UiAction::Plan(id) => {
@@ -1545,6 +1571,8 @@ fn update_buttons(
             UiAction::ShowTab(t) => tab_key(*t).is_none_or(|id| w.is_open(id)),
             UiAction::LeaveLoad => w.load_is_stuck(),
             UiAction::RenameSpirit => !w.spirits.is_empty() && sim.naming.is_none(),
+            UiAction::CallHome => w.can_call_home() && !sim.calling_home,
+            UiAction::CallHomeYes | UiAction::CallHomeNo => w.can_call_home() && sim.calling_home,
             UiAction::VisitorYes => w.visitor().is_some_and(|v| v.can_accept),
             UiAction::VisitorNo => w.visitor().is_some(),
             UiAction::Standing(i, _) => can_dig(w, STANDING_GOODS[*i]),
@@ -1867,6 +1895,7 @@ fn update_cards(
             Card::Site(i) => site_lines(&sim.world, *i),
             Card::Bottleneck => bottleneck_lines(&sim.world),
             Card::Standing => standing_lines(&sim.world),
+            Card::Boat => boat_lines(&sim),
             Card::TimeUse => time_use_lines(&sim.world),
             Card::Production => production_lines(&sim.world),
             Card::ProductionLimit => production_limit_lines(&sim.world),
@@ -1934,6 +1963,7 @@ fn header_lines(sim: &Sim) -> Vec<Line> {
         ScenarioKind::CaravanYard => "Caravan yard",
         ScenarioKind::LateFinds => "Late finds",
         ScenarioKind::KilnYard => "Kiln yard",
+        ScenarioKind::LastBoat => "The last boat",
         ScenarioKind::FullMap => "Full map",
         ScenarioKind::NoRoomLeft => "No room left",
         ScenarioKind::QuarryStart => "Quarry",
@@ -2117,7 +2147,7 @@ fn glance_lines(w: &World) -> Vec<Line> {
     let main = &w.main().storage;
     let mut lines = Vec::new();
     if w.spirits.is_empty() {
-        lines.push(vec![muted("No spirits yet.")]);
+        lines.push(vec![muted(no_spirits(w))]);
     } else {
         lines.push(vec![
             Item::Dot(Status::Chopping.color()),
@@ -2494,7 +2524,7 @@ fn station_lines(w: &World) -> Vec<Line> {
 fn spirit_order_lines(sim: &Sim) -> Vec<Line> {
     let w = &sim.world;
     let Some(s) = w.spirits.get(sim.selected_spirit) else {
-        return vec![vec![muted("No spirits yet.")]];
+        return vec![vec![muted(no_spirits(w))]];
     };
     let (status, word) = spirit_status(s);
     let mut lines = vec![
@@ -2534,6 +2564,42 @@ fn goal_lines(w: &World) -> Vec<Line> {
 }
 
 /// Who's here, if anyone.
+/// Whether there are no spirits yet, or none any more.
+fn no_spirits(w: &World) -> &'static str {
+    if w.homecoming_finished() {
+        "They've all gone home."
+    } else {
+        "No spirits yet."
+    }
+}
+
+/// The choice at the shore, once there's a boat to make it with.
+fn boat_lines(sim: &Sim) -> Vec<Line> {
+    let w = &sim.world;
+    if w.settlement.homecoming.is_some() {
+        if w.homecoming_finished() {
+            return Vec::new();
+        }
+        let (aboard, all) = w.aboard();
+        return vec![vec![text(format!("{aboard} of {all} aboard."))]];
+    }
+    if !w.can_call_home() {
+        return Vec::new();
+    }
+    if !sim.calling_home {
+        return vec![vec![muted(
+            "The Still Boat is at the shore. They'd cross in it, if you called them.",
+        )]];
+    }
+    let names: Vec<String> = w.spirits.iter().map(|s| w.spirit_title(s)).collect();
+    vec![
+        vec![text(format!("All of them: {}.", names.join(", ")))],
+        vec![muted(
+            "All you gave them comes back to you. They don't, and you can't undo this.",
+        )],
+    ]
+}
+
 /// Whether there's anywhere on the map to get this raw material.
 fn can_dig(w: &World, id: &str) -> bool {
     let found = w.defs.resource_id(id);
@@ -2607,7 +2673,7 @@ fn ending_lines(w: &World) -> Vec<Line> {
 fn story_lines(sim: &Sim) -> Vec<Line> {
     let w = &sim.world;
     let Some(s) = w.spirits.get(sim.selected_spirit) else {
-        return vec![vec![muted("No spirits yet.")]];
+        return vec![vec![muted(no_spirits(w))]];
     };
     let mut lines = match &sim.naming {
         Some(name) => vec![
@@ -2719,7 +2785,7 @@ fn skills_lines(w: &World) -> Vec<Line> {
 
 fn workforce_lines(w: &World) -> Vec<Line> {
     if w.spirits.is_empty() {
-        return vec![vec![muted("No spirits yet.")]];
+        return vec![vec![muted(no_spirits(w))]];
     }
     let mut lines = Vec::new();
     for s in &w.spirits {

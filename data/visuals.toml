@@ -297,6 +297,14 @@ parts = [
     { model = "models/town/roof-high-point.glb", y = 1.0 },
 ]
 
+[buildings.still_boat]
+stockpile = "models/nature/log_stack.glb"
+site = [{ model = "models/town/planks.glb" }]
+parts = [
+    { model = "models/nature/log_stackLarge.glb", rot = 90 },
+    { model = "models/town/lantern.glb", y = 0.4 },
+]
+
 [buildings.workshop_annex]
 stockpile = "models/nature/log_stack.glb"
 site = [{ model = "models/town/planks.glb" }]

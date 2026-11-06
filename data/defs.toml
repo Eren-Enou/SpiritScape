@@ -793,7 +793,7 @@ why = "Stone and timber joined. Nothing the settlement has built so far needs on
 # What the settlement's main production order makes.
 output = "planks"
 # Further products with an order of their own.
-more_outputs = ["beams", "panels", "dressed_stone", "keystones", "charcoal", "bricks"]
+more_outputs = ["beams", "panels", "dressed_stone", "keystones", "charcoal", "bricks", "pitch"]
 # Most extra logs a production shortfall may ask gatherers for at once.
 upstream_cap = 40
 
@@ -877,6 +877,8 @@ raw_room = 100
 road_pct = 67
 # How long spirits gather at the Hearth when it's lit, in seconds.
 hearth_gathering_seconds = 180.0
+homecoming_gap_seconds = 2.5
+homecoming_limit_seconds = 600.0
 # How long a visitor waits for an answer, in game minutes.
 visitor_patience_minutes = 10
 visitor_gap_minutes = 30
@@ -1783,6 +1785,56 @@ build_seconds_per_level = 0.5
 min_build_seconds = 16.0
 color = [0.70, 0.42, 0.34]
 benefit = "Smoke the whole valley can see. It does nothing else, and it isn't meant to."
+
+# What keeps the water out of a boat. It needs a good deal of Kilnwork.
+[[resources]]
+id = "pitch"
+name = "Pitch"
+
+[[recipes]]
+id = "pitch"
+name = "Pitch"
+skill = "kilnwork"
+station = "kiln"
+level_required = 9
+inputs = [
+    { resource = "hardwood", amount = 2 },
+    { resource = "charcoal", amount = 1 },
+]
+output = { resource = "pitch", amount = 1 }
+craft_seconds = 9.0
+craft_seconds_per_level = 0.1
+min_craft_seconds = 4.0
+xp = 150
+why = "Hardwood burned slowly, with the air kept out. Nothing else keeps the water out of a hull."
+
+[[tips]]
+id = "still_boat"
+when = "built:still_lantern"
+text = "Stillwood floats. Something built of it might carry what won't cross on foot, with a Kiln's pitch to keep the water out."
+
+# The other way to end. See homecoming.rs.
+[[buildings]]
+id = "still_boat"
+name = "Still Boat"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+access_site = [13, 27]
+requires = ["still_lantern", "kiln"]
+calls_home = true
+ending_line = "There's a boat at the shore, and you haven't used it."
+cost = [
+    { resource = "stillwood", amount = 40 },
+    { resource = "pitch", amount = 20 },
+    { resource = "beams", amount = 20 },
+]
+build_seconds = 60.0
+build_seconds_per_level = 0.5
+min_build_seconds = 30.0
+color = [0.62, 0.72, 0.80]
+benefit = "They won't walk to the far shore, but they'd cross in this, if you called them. All you gave them would come back to you. They wouldn't."
 
 [objective]
 # "Maintain <target> <resource> in the main settlement storage."

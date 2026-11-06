@@ -171,11 +171,26 @@ fn spawn_characters(
     visuals: Res<Visuals>,
     assets: Res<AssetServer>,
     mut spawned: ResMut<Spawned>,
-    existing: Query<&Character>,
+    existing: Query<(Entity, &Character)>,
+    labels: Query<(Entity, &WorldLabel)>,
 ) {
     // The world view resets `spawned` on restart; the player is respawned then too.
     let w = &sim.world;
-    if spawned.spirits == 0 && !existing.iter().any(|c| c.who == Who::Player) {
+    // Everyone has gone home.
+    if w.spirits.len() < spawned.spirits {
+        for (entity, c) in &existing {
+            if c.who != Who::Player {
+                commands.entity(entity).despawn();
+            }
+        }
+        for (entity, label) in &labels {
+            if matches!(label, WorldLabel::Spirit(_)) {
+                commands.entity(entity).despawn();
+            }
+        }
+        spawned.spirits = w.spirits.len();
+    }
+    if spawned.spirits == 0 && !existing.iter().any(|(_, c)| c.who == Who::Player) {
         spawn_character(
             &mut commands,
             &assets,
@@ -322,6 +337,10 @@ fn sync_characters(
         let actor = match c.who {
             Who::Player => &w.player.actor,
             Who::Spirit(id) => match w.spirits.get(id) {
+                Some(s) if s.aboard => {
+                    tf.translation.y = -100.0;
+                    continue;
+                }
                 Some(s) => &s.actor,
                 None => continue,
             },

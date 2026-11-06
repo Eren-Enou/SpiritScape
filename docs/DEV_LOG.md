@@ -2,6 +2,16 @@
 
 The handoff between development runs. Newest first.
 
+## v0.36 The Still Boat
+
+**Status:** on branch `v0.36-second-ending`, with its PR targeting `v0.35-the-kiln`. Not merged.
+
+**Shipped:** a second ending. Build a Still Boat, call the spirits home, and take back all you gave them. The closing story now reads four ways.
+
+**Measured:** 9 spirits home in 22 seconds at the end of the reference game, with 47,700 XP returned.
+
+**Next:** better reference players, then more depth in whatever a playtest shows is thin.
+
 ## v0.35 The Kiln
 
 **Status:** on branch `v0.35-the-kiln`, with its PR targeting `v0.34-coming-back`. Not merged.
@@ -266,6 +276,7 @@ The handoff between development runs. Newest first.
 
 - Should the player choose a road's route on the map? Fixed routes were the reversible choice.
 - Is 447 XP a minute from panels too fast? Only a playtest can say.
+- Is one tip enough of a hint that the Still Boat exists? It's deliberately not a goal.
 - Should letting a visitor leave count as turning them down? For now it counts as neither.
 - Should a full store really let you throw goods away? It's the only way Woodcutting 20 stays reachable, because nothing uses logs and panels without limit.
 

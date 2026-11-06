@@ -36,6 +36,8 @@ pub struct Sim {
     pub message: String,
     /// The name being typed for the selected spirit.
     pub naming: Option<String>,
+    /// Asking whether to call the spirits home.
+    pub calling_home: bool,
     /// Bumped when the world is replaced so the renderer rebuilds its entities.
     pub generation: u32,
     /// Large on-screen notice and its remaining seconds.
@@ -82,6 +84,7 @@ impl Sim {
             accumulator: 0.0,
             message: String::new(),
             naming: None,
+            calling_home: false,
             generation: 0,
             banner: None,
             notices_seen: world.notices.total,

@@ -116,6 +116,9 @@ pub struct Settlement {
     /// Raw materials to keep in stock with nothing asking for them.
     #[serde(default)]
     pub standing: BTreeMap<ResourceId, u32>,
+    /// The spirits called home to the boat, once that happens.
+    #[serde(default)]
+    pub homecoming: Option<crate::homecoming::Homecoming>,
     /// The season last announced.
     #[serde(default)]
     pub season_seen: Option<String>,
@@ -254,6 +257,8 @@ pub enum Command {
     LeaveLoad,
     /// Take or turn down what a visitor is offering.
     AnswerVisitor(bool),
+    /// Call every spirit to the Still Boat. It can't be undone.
+    CallHome,
     /// Give a spirit a name of the player's choosing.
     RenameSpirit {
         id: SpiritId,
@@ -736,6 +741,7 @@ impl World {
             Command::PlayerStop => Ok(self.player_stop()),
             Command::LeaveLoad => self.leave_load(),
             Command::AnswerVisitor(accept) => self.answer_visitor(accept),
+            Command::CallHome => self.call_home(),
             Command::RenameSpirit { id, name } => self.rename_spirit(id, &name),
             Command::SetAutoGather(on) => Ok(self.set_auto_gather(on)),
             Command::SetPlayerRecipe(r) => self.set_player_recipe(r),
@@ -1163,6 +1169,7 @@ impl World {
         for e in events {
             self.handle_event(e);
         }
+        self.update_homecoming();
         self.update_session();
         self.update_play_log();
         self.update_storage_warning();
@@ -1309,6 +1316,9 @@ impl World {
             budgets.craft.insert(r, self.deficit_of(r) as i64);
         }
         for sid in 0..self.spirits.len() {
+            if self.spirits[sid].aboard {
+                continue;
+            }
             self.switch_craft_if_needed(sid);
             if self.spirits[sid].actor.queue.is_empty() && self.tick >= self.spirits[sid].next_think
             {
@@ -1375,7 +1385,7 @@ impl World {
         }
     }
 
-    fn player_earned_xp(&mut self, skill: SkillId, xp: u64) {
+    pub(crate) fn player_earned_xp(&mut self, skill: SkillId, xp: u64) {
         let table = &self.defs.xp_table;
         let before = self.player.level(skill, table);
         let highest_before = self.player.history(skill).highest_level;

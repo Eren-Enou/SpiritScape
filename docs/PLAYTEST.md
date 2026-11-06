@@ -11,7 +11,7 @@ git fetch origin
 ```
 
 ```bash
-git checkout v0.35-the-kiln
+git checkout v0.36-second-ending
 ```
 
 Press `F6` at any time to write a report of your session. Note the time whenever something surprises you.
@@ -140,7 +140,18 @@ Press `P` and ask for Bricks, then press `G` and ask for some Stone.
 - [ ] Could you tell why Bricks were waiting?
 - [ ] Is a chain this long interesting, or just more waiting?
 
-## 12. Sound
+## 12. The other ending (5 minutes)
+
+```bash
+cargo run --release -- --scenario last_boat
+```
+
+Press `J`, and decide.
+
+- [ ] Did you hesitate?
+- [ ] Did the closing words feel earned, or too clever?
+
+## 13. Sound
 
 Listen as you play. `M` turns it off.
 
@@ -184,3 +195,4 @@ They're stacked, each targeting the one before, so they must be merged in this o
 | [#29](https://github.com/Eren-Enou/SpiritScape/pull/29) | v0.31 | The moment |
 | [#30](https://github.com/Eren-Enou/SpiritScape/pull/30) | v0.32 | The Far Shore |
 | [#31](https://github.com/Eren-Enou/SpiritScape/pull/31) | v0.33 | Names |
+| [#32](https://github.com/Eren-Enou/SpiritScape/pull/32) | v0.34 | Coming back |
