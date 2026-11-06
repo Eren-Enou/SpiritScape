@@ -119,6 +119,7 @@ enum UiAction {
     LeaveLoad,
     VisitorYes,
     VisitorNo,
+    RenameSpirit,
     ToggleAutoGather,
     /// Step through the recipes the player can use.
     CycleRecipe,
@@ -732,7 +733,10 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
             });
 
             tab_panel(p, Tab::Spirits, |p| {
-                card(p, "THEIR STORY", |c| body(c, Card::SpiritStory));
+                card(p, "THEIR STORY", |c| {
+                    body(c, Card::SpiritStory);
+                    button_row(c, &[("Rename", UiAction::RenameSpirit)]);
+                });
                 card(p, "INSTRUCTIONS", |c| {
                     button_row(
                         c,
@@ -1135,6 +1139,7 @@ fn on_button(
         UiAction::SaveGame => sim.save_game(),
         UiAction::StopActivity => sim.command(Command::PlayerStop),
         UiAction::LeaveLoad => sim.command(Command::LeaveLoad),
+        UiAction::RenameSpirit => sim.naming = Some(String::new()),
         UiAction::VisitorYes => sim.command(Command::AnswerVisitor(true)),
         UiAction::VisitorNo => sim.command(Command::AnswerVisitor(false)),
         UiAction::Plan(id) => {
@@ -1484,6 +1489,7 @@ fn update_buttons(
             UiAction::Restart | UiAction::ToggleScenarios => !sim.is_journey(),
             UiAction::ShowTab(t) => tab_key(*t).is_none_or(|id| w.is_open(id)),
             UiAction::LeaveLoad => w.load_is_stuck(),
+            UiAction::RenameSpirit => !w.spirits.is_empty() && sim.naming.is_none(),
             UiAction::VisitorYes => w.visitor().is_some_and(|v| v.can_accept),
             UiAction::VisitorNo => w.visitor().is_some(),
             // Orders for a bench that hasn't been built are just clutter.
@@ -2294,6 +2300,12 @@ fn soul_lines(sim: &Sim) -> Vec<Line> {
         lines.push(vec![colored(format!("Can't separate: {e}"), BAD)]);
         return lines;
     }
+    if let Some(t) = w.next_trait() {
+        lines.push(vec![muted(format!(
+            "The next spirit will be {}: {}",
+            t.name, t.text
+        ))]);
+    }
     let tree = |k: &spirit_sim::defs::TreeKindId| w.defs.tree(*k).name.clone();
     let recipe = |r: &spirit_sim::defs::RecipeId| w.defs.recipe(*r).name.clone();
     let lost: Vec<String> = p
@@ -2512,7 +2524,15 @@ fn story_lines(sim: &Sim) -> Vec<Line> {
     let Some(s) = w.spirits.get(sim.selected_spirit) else {
         return vec![vec![muted("No spirits yet.")]];
     };
-    let mut lines = vec![vec![text(w.spirit_title(s))]];
+    let mut lines = match &sim.naming {
+        Some(name) => vec![
+            vec![big(format!("{name}_"), GOLD)],
+            vec![muted(
+                "Type a name. Enter keeps it, Esc leaves it as it was.",
+            )],
+        ],
+        None => vec![vec![text(w.spirit_title(s))]],
+    };
     lines.extend(w.spirit_story(s).into_iter().map(|l| vec![muted(l)]));
     lines
 }

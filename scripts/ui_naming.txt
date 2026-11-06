@@ -1,0 +1,16 @@
+# UI test of naming a spirit, with keys going to the name and not the game:
+#   cargo run --release -- --scenario quarry_start --save-dir target/ui_saves33 --script scripts/ui_naming.txt --capture target/ui_naming
+1.5 key O
+2.0 press Rename
+2.3 expect Type a name
+2.4 key P
+2.5 key I
+2.6 key N
+2.7 key E
+2.9 expect pine_
+3.0 shot 01_typing
+3.1 key Enter
+3.5 expect is now called pine
+3.6 expect THEIR STORY
+3.7 shot 02_named
+3.9 exit

@@ -6,8 +6,11 @@ use crate::sim_runner::Sim;
 use crate::visuals::Visuals;
 use crate::world_view::{WorldEntity, tile_world};
 use bevy::audio::{PlaybackMode, Volume};
+use bevy::input::InputSystems;
+use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
-use spirit_sim::world::World;
+use spirit_sim::stories::MAX_NAME;
+use spirit_sim::world::{Command, World};
 
 pub struct FeedbackPlugin;
 
@@ -17,6 +20,7 @@ impl Plugin for FeedbackPlugin {
             .init_resource::<Sound>()
             .init_resource::<Closing>()
             .add_systems(Startup, spawn_closing_screen)
+            .add_systems(PreUpdate, type_name.after(InputSystems))
             .add_systems(
                 Update,
                 (
@@ -463,5 +467,46 @@ fn show_closing_screen(
         if t.0 != text {
             t.0 = text;
         }
+    }
+}
+
+/// While a spirit is being named, the keyboard belongs to the name. Nothing
+/// else in the game sees those key presses.
+fn type_name(
+    mut sim: ResMut<Sim>,
+    mut typed: MessageReader<KeyboardInput>,
+    mut keys: ResMut<ButtonInput<KeyCode>>,
+) {
+    let Some(mut name) = sim.naming.clone() else {
+        typed.clear();
+        return;
+    };
+    let mut done = None;
+    for e in typed.read() {
+        if !e.state.is_pressed() {
+            continue;
+        }
+        match &e.logical_key {
+            Key::Character(c) if name.chars().count() < MAX_NAME => {
+                name.extend(c.chars().filter(|c| c.is_alphanumeric() || *c == ' '));
+            }
+            Key::Space if name.chars().count() < MAX_NAME => name.push(' '),
+            Key::Backspace => {
+                name.pop();
+            }
+            Key::Enter => done = Some(true),
+            Key::Escape => done = Some(false),
+            _ => {}
+        }
+    }
+    keys.reset_all();
+    match done {
+        Some(true) => {
+            let id = sim.selected_spirit;
+            sim.naming = None;
+            sim.command(Command::RenameSpirit { id, name });
+        }
+        Some(false) => sim.naming = None,
+        None => sim.naming = Some(name),
     }
 }

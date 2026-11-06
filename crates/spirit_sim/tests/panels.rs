@@ -270,7 +270,8 @@ fn carrying_frames_add_to_every_spirit_now_and_later() {
     w.apply(Command::SoulSeparate { skill, xp: 100 }).unwrap();
     assert_eq!(w.spirits.len(), count + 1);
     let new = w.spirits.last().unwrap();
-    assert_eq!(new.actor.inventory.capacity, 15);
+    let character = new.character.map_or(0, |c| w.defs.traits[c as usize].carry);
+    assert_eq!(new.actor.inventory.capacity, 15 + character);
 }
 
 #[test]

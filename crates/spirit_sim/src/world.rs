@@ -235,6 +235,11 @@ pub enum Command {
     LeaveLoad,
     /// Take or turn down what a visitor is offering.
     AnswerVisitor(bool),
+    /// Give a spirit a name of the player's choosing.
+    RenameSpirit {
+        id: SpiritId,
+        name: String,
+    },
     /// Whether a gathering session moves on to another tree by itself.
     SetAutoGather(bool),
     /// Choose what to make at a bench, or the best available with `None`.
@@ -698,6 +703,7 @@ impl World {
             Command::PlayerStop => Ok(self.player_stop()),
             Command::LeaveLoad => self.leave_load(),
             Command::AnswerVisitor(accept) => self.answer_visitor(accept),
+            Command::RenameSpirit { id, name } => self.rename_spirit(id, &name),
             Command::SetAutoGather(on) => Ok(self.set_auto_gather(on)),
             Command::SetPlayerRecipe(r) => self.set_player_recipe(r),
             Command::SetTrainingMode(mode) => Ok(self.set_training_mode(mode)),
