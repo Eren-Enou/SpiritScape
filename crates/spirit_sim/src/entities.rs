@@ -319,6 +319,12 @@ pub struct Spirit {
     /// On the boat, and done with all of this.
     #[serde(default)]
     pub aboard: bool,
+    /// The player has given it a name.
+    #[serde(default)]
+    pub renamed: bool,
+    /// Small things it has done, and when.
+    #[serde(default)]
+    pub moments: Vec<(u16, u64)>,
 }
 
 impl Spirit {
@@ -359,6 +365,8 @@ impl Spirit {
             character: None,
             deeds: Vec::new(),
             aboard: false,
+            renamed: false,
+            moments: Vec::new(),
         }
     }
 

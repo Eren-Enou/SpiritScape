@@ -119,6 +119,9 @@ pub struct Settlement {
     /// The spirits called home to the boat, once that happens.
     #[serde(default)]
     pub homecoming: Option<crate::homecoming::Homecoming>,
+    /// Spirits do small things here, though it isn't a real game.
+    #[serde(default)]
+    pub moments: bool,
     /// The season last announced.
     #[serde(default)]
     pub season_seen: Option<String>,
@@ -1177,6 +1180,7 @@ impl World {
             self.handle_event(e);
         }
         self.update_homecoming();
+        self.update_moments();
         self.update_session();
         self.update_play_log();
         self.update_storage_warning();

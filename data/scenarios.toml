@@ -444,6 +444,20 @@ spirits = [
     { role = "builder", xp = 388, spawn = "B" },
 ]
 
+[quiet_hour]
+title = "A quiet hour"
+description = "Nothing needs doing. Watch your spirits for a while, then press O to read about them."
+objective_target = 20
+auto_gather = true
+moments = true
+player_xp = { woodcutting = 388 }
+main_storage = { logs = 60 }
+spirits = [
+    { role = "woodcutter", xp = 388, spawn = "W", gifted = true },
+    { role = "woodcutter", xp = 388, spawn = "W", gifted = true },
+    { role = "hauler", xp = 388, spawn = "H" },
+]
+
 [full_map]
 title = "Full map"
 description = "Everything is built: every road and both crossings, with a remote bench running. Walk around, and see how it all fits together."

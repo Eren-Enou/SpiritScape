@@ -2,6 +2,16 @@
 
 The handoff between development runs. Newest first.
 
+## v0.38 Small moments
+
+**Status:** on branch `v0.38-moments`, with its PR targeting `v0.37-players`. Not merged.
+
+**Shipped:** 26 small moments that spirits have for no reason, and naming now affects them.
+
+**Measured:** 71 moments in the 17-hour reference game, which is otherwise unchanged.
+
+**Next:** a river that freezes in winter, then making offers matter.
+
 ## v0.37 Playing styles
 
 **Status:** on branch `v0.37-players`, with its PR targeting `v0.36-second-ending`. Not merged.
