@@ -171,7 +171,7 @@ pub fn step(
         return StepResult::Done;
     };
     match task {
-        Task::Move { goal, label } => step_move(actor, goal, &label, ctx),
+        Task::Move { goal, label } => step_move(actor, who, goal, &label, ctx),
         Task::Chop { tree } => {
             let resource = ctx.defs.trees[ctx.trees[tree].kind.index()].resource;
             let budget = budgets.map(|b| b.gather.entry(resource).or_insert(0));
@@ -199,21 +199,36 @@ pub fn step(
     }
 }
 
-fn step_move(actor: &mut Actor, goal: Goal, label: &str, ctx: &mut TaskCtx) -> StepResult {
+fn step_move(
+    actor: &mut Actor,
+    who: Who,
+    goal: Goal,
+    label: &str,
+    ctx: &mut TaskCtx,
+) -> StepResult {
     let m = &mut actor.mover;
     if m.progress == 0 && goal.reached(m.pos) {
         m.path.clear();
         return StepResult::Done;
     }
     if m.path.is_empty() {
-        match ctx.grid.find_path(m.pos, |p| goal.reached(p)) {
+        let found = ctx.grid.find_path(m.pos, |p| goal.reached(p));
+        // Spirits stop at the water. Only the player goes out on the ice, and
+        // only if there's no way round.
+        let found = found.or_else(|| {
+            let bold = who == Who::Player;
+            bold.then(|| ctx.grid.path_over_ice(m.pos, |p| goal.reached(p)))
+                .flatten()
+        });
+        match found {
             None => return StepResult::Failed(format!("No path to {label}")),
             Some(p) if p.is_empty() => return StepResult::Done,
             Some(p) => m.path = p.into(),
         }
     }
     let next = *m.path.front().unwrap();
-    if !ctx.grid.is_walkable(next) {
+    let on_foot = who == Who::Player && ctx.grid.is_ice(next);
+    if !ctx.grid.is_walkable(next) && !on_foot {
         // Something was built in the way; re-plan the route next tick.
         m.path.clear();
         m.progress = 0;

@@ -29,6 +29,7 @@ impl Plugin for FeedbackPlugin {
                     toggle_sound,
                     tint_seasons,
                     fall_snow,
+                    show_ice,
                     keep_hearth,
                     show_closing_screen,
                 ),
@@ -312,6 +313,50 @@ fn tint_seasons(
         mix(now.blue, want[2]),
         mix(now.alpha, want[3]),
     );
+}
+
+/// The frozen stretch of river.
+#[derive(Component)]
+struct IceSheet;
+
+/// Lays a sheet of ice over the river for as long as it's frozen.
+fn show_ice(
+    mut commands: Commands,
+    sim: Res<Sim>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut sheet: Query<&mut Visibility, With<IceSheet>>,
+) {
+    let w = &sim.world;
+    let shown = if w.grid.frozen_area().is_some() {
+        Visibility::Visible
+    } else {
+        Visibility::Hidden
+    };
+    if let Ok(mut v) = sheet.single_mut() {
+        if *v != shown {
+            *v = shown;
+        }
+        return;
+    }
+    let [x0, y0, x1, y1] = w.defs.construction.ice_area;
+    let (width, depth) = ((x1 - x0 + 1) as f32, (y1 - y0 + 1) as f32);
+    commands.spawn((
+        IceSheet,
+        Mesh3d(meshes.add(Plane3d::default().mesh().size(width, depth))),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::srgb(0.90, 0.95, 1.0),
+            unlit: true,
+            ..default()
+        })),
+        Transform::from_xyz(
+            x0 as f32 + width / 2.0 - 0.5,
+            0.06,
+            y0 as f32 + depth / 2.0 - 0.5,
+        ),
+        shown,
+        Pickable::IGNORE,
+    ));
 }
 
 /// Time since the last flake, a running number, and the look they share.

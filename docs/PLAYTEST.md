@@ -11,7 +11,7 @@ git fetch origin
 ```
 
 ```bash
-git checkout v0.38-moments
+git checkout v0.39-ice
 ```
 
 Press `F6` at any time to write a report of your session. Note the time whenever something surprises you.
@@ -175,6 +175,14 @@ Play through at least one winter.
 - [ ] Did you feel winter cost you something? The numbers say it costs a lot.
 - [ ] Did you do anything differently once you knew it was coming?
 
+Walk south in winter. To get there quickly:
+
+```bash
+cargo run --release -- --new-game --skip-minutes 95
+```
+
+- [ ] Did you want to cross the ice? Did you feel any risk?
+
 ## Four decisions only you can make
 
 1. **Is the pace right?** The reference player reaches the Forest Crossing in under two hours, and panels give about 450 XP a minute.
@@ -215,3 +223,4 @@ They're stacked, each targeting the one before, so they must be merged in this o
 | [#31](https://github.com/Eren-Enou/SpiritScape/pull/31) | v0.33 | Names |
 | [#32](https://github.com/Eren-Enou/SpiritScape/pull/32) | v0.34 | Coming back |
 | [#33](https://github.com/Eren-Enou/SpiritScape/pull/33) | v0.35 | The Kiln |
+| [#34](https://github.com/Eren-Enou/SpiritScape/pull/34) | v0.36 | The Still Boat |

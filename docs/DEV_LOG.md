@@ -2,6 +2,14 @@
 
 The handoff between development runs. Newest first.
 
+## v0.39 The frozen river
+
+**Status:** on branch `v0.39-ice`, with its PR targeting `v0.38-moments`. Not merged.
+
+**Shipped:** the south river freezes in winter. Only the player can walk on it, and the thaw takes your load if it catches you.
+
+**Next:** making offers matter, then models for the Kiln and the Still Boat.
+
 ## v0.38 Small moments
 
 **Status:** on branch `v0.38-moments`, with its PR targeting `v0.37-players`. Not merged.
@@ -302,6 +310,7 @@ The handoff between development runs. Newest first.
 
 - Should the player choose a road's route on the map? Fixed routes were the reversible choice.
 - Is 447 XP a minute from panels too fast? Only a playtest can say.
+- Should the thaw take your whole load, or is that too harsh?
 - Winter costs the reference game about a fifth of its time. Is that the right size?
 - Offers save about 2 minutes in 17 hours. Should they matter more, or is being remembered reward enough?
 - Is one tip enough of a hint that the Still Boat exists? It's deliberately not a goal.

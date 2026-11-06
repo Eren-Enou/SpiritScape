@@ -881,6 +881,8 @@ homecoming_gap_seconds = 2.5
 homecoming_limit_seconds = 600.0
 moment_seconds = 600.0
 moment_shown_seconds = 8.0
+ice_area = [0, 28, 47, 29]
+thaw_warning_seconds = 180.0
 # How long a visitor waits for an answer, in game minutes.
 visitor_patience_minutes = 10
 visitor_gap_minutes = 30
@@ -1970,6 +1972,17 @@ text = "{name} answers to that name now."
 id = "scratching"
 named = true
 text = "{name} was scratching something into a plank. It might be its name."
+
+[[tips]]
+id = "first_ice"
+when = "season:winter"
+text = "The south river has frozen over. You could walk to the far shore, though no spirit will follow you. It won't last."
+
+[[moments]]
+id = "ice_foot"
+season = "winter"
+shore = true
+text = "{name} put one foot on the ice, and took it back."
 
 [objective]
 # "Maintain <target> <resource> in the main settlement storage."

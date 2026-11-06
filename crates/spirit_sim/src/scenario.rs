@@ -413,6 +413,7 @@ impl World {
                 standing: BTreeMap::new(),
                 homecoming: None,
                 moments: scenario.moments,
+                ice_warned: false,
                 bench_bonus: 0,
                 queue: Vec::new(),
                 next_queue_id: 0,
