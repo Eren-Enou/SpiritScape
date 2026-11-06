@@ -333,6 +333,10 @@ pub struct BuildingDef {
     pub slots: u32,
     /// Room added at stations for logs set aside for the player.
     pub training_bonus: u32,
+    /// Keeps seasonal things recovering through winter, at half speed.
+    pub winter_growth: bool,
+    /// What the closing story says if this stands.
+    pub ending_line: Option<String>,
     /// Where this must be built, when it's tied to one place.
     pub access_site: Option<[i32; 2]>,
     /// Tiles that become a crossing when this is finished.
@@ -714,6 +718,10 @@ struct RawBuilding {
     #[serde(default)]
     training_bonus: u32,
     #[serde(default)]
+    winter_growth: bool,
+    #[serde(default)]
+    ending_line: Option<String>,
+    #[serde(default)]
     carry_bonus: u32,
     #[serde(default)]
     repeatable: bool,
@@ -998,6 +1006,8 @@ impl GameDefs {
                 extra_capacity: b.extra_capacity,
                 slots: b.slots.max(1),
                 training_bonus: b.training_bonus,
+                winter_growth: b.winter_growth,
+                ending_line: b.ending_line,
                 access_site: b.access_site,
                 opens: b.opens,
                 paves: road_tiles(&b.paves).map_err(|e| format!("{:?}: {e}", b.id))?,

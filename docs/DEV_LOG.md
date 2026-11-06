@@ -2,6 +2,16 @@
 
 The handoff between development runs. Newest first.
 
+## v0.35 The Kiln
+
+**Status:** on branch `v0.35-the-kiln`, with its PR targeting `v0.34-coming-back`. Not merged.
+
+**Shipped:** Kilnwork (clay, charcoal, Bricks), Warm Walls, a Hearth Chimney, Keep in Stock for Stone and Clay, a 19th goal, and `ending_line` for buildings.
+
+**Measured:** all 19 goals by 17:00:32.
+
+**Next:** a second ending, then better reference players.
+
 ## v0.34 Coming back
 
 **Status:** on branch `v0.34-coming-back`, with its PR targeting `v0.33-naming`. Not merged.

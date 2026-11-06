@@ -113,6 +113,9 @@ pub struct Settlement {
     /// When someone last arrived, so they don't come on each other's heels.
     #[serde(default)]
     pub visitor_last: Option<u64>,
+    /// Raw materials to keep in stock with nothing asking for them.
+    #[serde(default)]
+    pub standing: BTreeMap<ResourceId, u32>,
     /// The season last announced.
     #[serde(default)]
     pub season_seen: Option<String>,
@@ -183,6 +186,11 @@ pub enum Command {
         xp: u64,
     },
     SetObjectiveTarget(u32),
+    /// Keep this much of a raw material in stock, wanted or not.
+    SetStandingStock {
+        resource: ResourceId,
+        target: u32,
+    },
     SetAutonomousConstruction(bool),
     /// Open or close a gathering site to spirits.
     SetSiteOpen {
@@ -565,6 +573,20 @@ impl World {
                 let msg = format!(
                     "Objective changed: maintain {target} {} in Main Storage",
                     self.defs.resource(o.resource).name
+                );
+                self.events.push(self.tick, EventKind::Player, msg.clone());
+                Ok(msg)
+            }
+            Command::SetStandingStock { resource, target } => {
+                let target = target.min(self.main().storage.capacity);
+                if target == 0 {
+                    self.settlement.standing.remove(&resource);
+                } else {
+                    self.settlement.standing.insert(resource, target);
+                }
+                let msg = format!(
+                    "Spirits will keep {target} {} in stock",
+                    self.defs.resource(resource).name
                 );
                 self.events.push(self.tick, EventKind::Player, msg.clone());
                 Ok(msg)

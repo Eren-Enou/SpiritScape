@@ -793,7 +793,7 @@ why = "Stone and timber joined. Nothing the settlement has built so far needs on
 # What the settlement's main production order makes.
 output = "planks"
 # Further products with an order of their own.
-more_outputs = ["beams", "panels", "dressed_stone", "keystones"]
+more_outputs = ["beams", "panels", "dressed_stone", "keystones", "charcoal", "bricks"]
 # Most extra logs a production shortfall may ask gatherers for at once.
 upstream_cap = 40
 
@@ -1514,6 +1514,7 @@ manual = true
 max_count = 1
 requires = ["south_crossing"]
 carry_bonus = 2
+ending_line = "A light from the Far Shore burns here too. You went where they wouldn't, and brought it back."
 cost = [
     { resource = "stillwood", amount = 30 },
     { resource = "dressed_stone", amount = 10 },
@@ -1587,6 +1588,201 @@ build_seconds_per_level = 0.5
 min_build_seconds = 16.0
 color = [0.60, 0.60, 0.62]
 benefit = "More room in Main Storage than anything else: 800."
+
+# The fourth trade: fire. Clay from the river, charcoal from logs, and bricks
+# from both. The seventh Trade Caravan opens it.
+[[resources]]
+id = "clay"
+name = "Clay"
+
+[[resources]]
+id = "charcoal"
+name = "Charcoal"
+
+[[resources]]
+id = "bricks"
+name = "Bricks"
+
+[[skills]]
+id = "kilnwork"
+name = "Kilnwork"
+trainable = true
+
+# Dug like stone, by the same hands, but it freezes in winter.
+[[tree_types]]
+id = "clay_bank"
+name = "Clay Bank"
+seasonal = true
+map_char = "c"
+resource = "clay"
+skill = "quarrying"
+level_required = 3
+logs = 6
+regrow_seconds = 150.0
+xp_per_log = 24
+chop_seconds = 3.0
+chop_seconds_per_level = 0.1
+min_chop_seconds = 1.0
+why = "The only source of Clay, which Bricks are fired from. It freezes in winter."
+
+[[recipes]]
+id = "charcoal"
+name = "Charcoal"
+skill = "kilnwork"
+station = "kiln"
+level_required = 1
+inputs = [{ resource = "logs", amount = 3 }]
+output = { resource = "charcoal", amount = 1 }
+craft_seconds = 5.0
+craft_seconds_per_level = 0.1
+min_craft_seconds = 2.0
+xp = 40
+why = "Three logs burned down to one. It's the fuel for everything else a kiln does."
+
+[[recipes]]
+id = "bricks"
+name = "Bricks"
+skill = "kilnwork"
+station = "kiln"
+level_required = 5
+inputs = [
+    { resource = "clay", amount = 2 },
+    { resource = "charcoal", amount = 1 },
+]
+output = { resource = "bricks", amount = 2 }
+craft_seconds = 7.0
+craft_seconds_per_level = 0.1
+min_craft_seconds = 3.0
+xp = 90
+why = "Clay from the river and charcoal from the woods. A chain three steps long."
+
+[[roles]]
+id = "kiln_worker"
+name = "Kiln Spirit"
+skill = "kilnwork"
+from_soul_separation = true
+move_seconds_per_tile = 0.3
+carry_capacity = 10
+deliver_to = "main"
+color = [0.85, 0.50, 0.32]
+jobs = [
+    { job = "deliver", priority = 100, when = "carrying_any" },
+    { job = "collect", priority = 60, when = "output_unattended" },
+    { job = "craft", priority = 50, when = "production_wanted" },
+]
+
+[[ambitions]]
+id = "bricks"
+title = "Fire 30 Bricks"
+hint = "A seventh Trade Caravan brings word of the river clay. Plan Clay Pits, then a Kiln. Bricks need Kilnwork level 5."
+built = ["clay_pits", "kiln"]
+made = "bricks"
+amount = 30
+
+[[tips]]
+id = "kilnwork"
+when = "caravans:7"
+opens = "kilnwork"
+text = "Kilnwork is your fifth skill: charcoal from logs, and Bricks from clay and charcoal, at a Kiln."
+
+[[visitors]]
+id = "bridge_builder"
+name = "A bridge-builder"
+after_minutes = 820
+needs_built = "kiln"
+text = "\"I could smell your kiln from the ford. I'm building a bridge for people who'll never thank me. I can pay in beams, if you've bricks to spare.\""
+thanks = "The bridge-builder counts the bricks, nods once, and is off before the cart has stopped creaking."
+wants = [{ resource = "bricks", amount = 30 }]
+gives = [{ resource = "beams", amount = 20 }]
+
+[[buildings]]
+id = "clay_pits"
+name = "Clay Pits"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+needs_caravans = 7
+caravan_find = "A lump of river clay, and a note: this came from your side of the water. Plan Clay Pits in Projects (B)."
+plants = [
+    { tree = "clay_bank", at = [6, 27] },
+    { tree = "clay_bank", at = [9, 27] },
+    { tree = "clay_bank", at = [15, 27] },
+    { tree = "clay_bank", at = [18, 27] },
+    { tree = "clay_bank", at = [19, 24] },
+    { tree = "clay_bank", at = [19, 21] },
+]
+cost = [{ resource = "planks", amount = 30 }]
+build_seconds = 20.0
+build_seconds_per_level = 0.5
+min_build_seconds = 8.0
+color = [0.66, 0.52, 0.40]
+benefit = "Six clay banks along the river. A Quarrying Spirit of level 3 or more can dig them."
+
+[[buildings]]
+id = "kiln"
+name = "Kiln"
+capacity = 40
+input_buffer = 20
+training_buffer = 20
+extra_capacity = 40
+slots = 2
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+requires = ["clay_pits"]
+scales_goods = true
+cost = [
+    { resource = "stone", amount = 40 },
+    { resource = "planks", amount = 20 },
+    { resource = "beams", amount = 6 },
+]
+build_seconds = 30.0
+build_seconds_per_level = 0.5
+min_build_seconds = 12.0
+color = [0.70, 0.40, 0.28]
+benefit = "A place to burn charcoal, fire Bricks and train Kilnwork."
+
+[[buildings]]
+id = "warm_walls"
+name = "Warm Walls"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+requires = ["kiln"]
+winter_growth = true
+scales_goods = true
+cost = [
+    { resource = "bricks", amount = 40 },
+    { resource = "charcoal", amount = 10 },
+]
+build_seconds = 30.0
+build_seconds_per_level = 0.5
+min_build_seconds = 12.0
+color = [0.74, 0.44, 0.34]
+benefit = "Brick walls with a flue through them. Trees and clay keep recovering in winter, at half speed."
+
+[[buildings]]
+id = "hearth_chimney"
+name = "Hearth Chimney"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+access_site = [11, 18]
+requires = ["kiln", "hearth_of_spirits"]
+ending_line = "They can see the smoke from the valley now, and some of them walk up to look."
+scales_goods = true
+cost = [
+    { resource = "bricks", amount = 60 },
+    { resource = "dressed_stone", amount = 20 },
+]
+build_seconds = 40.0
+build_seconds_per_level = 0.5
+min_build_seconds = 16.0
+color = [0.70, 0.42, 0.34]
+benefit = "Smoke the whole valley can see. It does nothing else, and it isn't meant to."
 
 [objective]
 # "Maintain <target> <resource> in the main settlement storage."

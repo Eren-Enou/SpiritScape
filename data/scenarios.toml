@@ -409,6 +409,24 @@ spirits = [
     { role = "builder", xp = 388, spawn = "B" },
 ]
 
+[kiln_yard]
+title = "Kiln yard"
+description = "A Kiln, with clay and logs to hand. Ask for Bricks in the Production tab (P), and watch charcoal get made first."
+objective_target = 20
+log_reserve = 0
+auto_gather = true
+caravans = 7
+player_xp = { kilnwork = 388 }
+main_storage = { logs = 120, clay = 60 }
+prebuilt = [
+    { building = "kiln", at = [9, 17] },
+]
+spirits = [
+    { role = "kiln_worker", xp = 388, spawn = "B", works_at = [9, 17] },
+    { role = "hauler", xp = 388, spawn = "H" },
+    { role = "builder", xp = 388, spawn = "B" },
+]
+
 [full_map]
 title = "Full map"
 description = "Everything is built: every road and both crossings, with a remote bench running. Walk around, and see how it all fits together."

@@ -106,6 +106,13 @@ impl World {
         None
     }
 
+    /// Whether something standing keeps winter off.
+    fn walls_are_warm(&self) -> bool {
+        self.buildings
+            .iter()
+            .any(|b| b.is_complete() && self.defs.building(b.kind).winter_growth)
+    }
+
     /// Moves seasonal regrowth along, and says when the season turns.
     pub(crate) fn update_season(&mut self) {
         let Some(s) = self.season() else {
@@ -121,13 +128,16 @@ impl World {
         if growth == 1 {
             return;
         }
+        let kept_warm = growth == 0 && self.tick.is_multiple_of(2) && self.walls_are_warm();
         for t in &mut self.trees {
             if !self.defs.trees[t.kind.index()].seasonal {
                 continue;
             }
             if let TreeState::Depleted { regrow_at } = &mut t.state {
                 // Each tick already counts for one.
-                *regrow_at = if growth == 0 {
+                *regrow_at = if kept_warm {
+                    *regrow_at
+                } else if growth == 0 {
                     *regrow_at + 1
                 } else {
                     regrow_at.saturating_sub(growth - 1)
@@ -279,13 +289,17 @@ impl World {
             "{} Trade Caravans went out, and the settlement knows your name.",
             self.settlement.caravans
         ));
-        let lantern = self.defs.building_kind_id("still_lantern");
-        if self
-            .buildings
-            .iter()
-            .any(|b| Some(b.kind) == lantern && b.is_complete())
-        {
-            lines.push("A light from the Far Shore burns here too. You went where they wouldn't, and brought it back.".into());
+        for (i, def) in self.defs.buildings.iter().enumerate() {
+            let Some(line) = &def.ending_line else {
+                continue;
+            };
+            let stands = self
+                .buildings
+                .iter()
+                .any(|b| b.kind.index() == i && b.is_complete());
+            if stands {
+                lines.push(line.clone());
+            }
         }
         if self.settlement.markers_read.len() == self.defs.markers.len() {
             lines.push("Whoever cut those stones built no hearth. You did.".into());
