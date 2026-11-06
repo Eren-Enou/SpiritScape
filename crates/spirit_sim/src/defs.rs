@@ -206,6 +206,10 @@ pub struct ConstructionRules {
     pub homecoming_gap_ticks: u64,
     /// How long anyone gets to reach the boat.
     pub homecoming_limit_ticks: u64,
+    /// Time between one spirit doing something small and the next.
+    pub moment_ticks: u64,
+    /// How long that stays on the map.
+    pub moment_shown_ticks: u64,
     /// How often to check that nobody's been walled in.
     pub stranded_check_ticks: u64,
 }
@@ -425,6 +429,7 @@ pub struct GameDefs {
     pub traits: Vec<crate::stories::TraitDef>,
     /// Milestones in a spirit's working life.
     pub deeds: Vec<crate::stories::DeedDef>,
+    pub moments: Vec<crate::moments::MomentDef>,
     /// The progression profile these definitions were resolved with.
     pub profile: ProfileInfo,
     /// Every profile in the data file.
@@ -477,6 +482,8 @@ struct RawDefs {
     traits: Vec<crate::stories::TraitDef>,
     #[serde(default)]
     deeds: Vec<crate::stories::DeedDef>,
+    #[serde(default)]
+    moments: Vec<crate::moments::MomentDef>,
     resources: Vec<ResourceDef>,
     skills: Vec<SkillDef>,
     tree_types: Vec<RawTreeType>,
@@ -622,6 +629,8 @@ struct RawConstruction {
     hearth_gathering_seconds: f32,
     homecoming_gap_seconds: f32,
     homecoming_limit_seconds: f32,
+    moment_seconds: f32,
+    moment_shown_seconds: f32,
     stranded_check_seconds: f32,
 }
 
@@ -936,6 +945,8 @@ impl GameDefs {
             hearth_gathering_ticks: ticks(raw.construction.hearth_gathering_seconds),
             homecoming_gap_ticks: ticks(raw.construction.homecoming_gap_seconds),
             homecoming_limit_ticks: ticks(raw.construction.homecoming_limit_seconds),
+            moment_ticks: ticks(raw.construction.moment_seconds),
+            moment_shown_ticks: ticks(raw.construction.moment_shown_seconds),
             stranded_check_ticks: ticks(raw.construction.stranded_check_seconds).max(1),
         };
 
@@ -1120,6 +1131,7 @@ impl GameDefs {
             markers: raw.markers,
             traits: raw.traits,
             deeds: raw.deeds,
+            moments: raw.moments,
             profile: ProfileInfo {
                 id: chosen.id,
                 title: chosen.title,

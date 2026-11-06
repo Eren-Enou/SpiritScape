@@ -1964,6 +1964,7 @@ fn header_lines(sim: &Sim) -> Vec<Line> {
         ScenarioKind::LateFinds => "Late finds",
         ScenarioKind::KilnYard => "Kiln yard",
         ScenarioKind::LastBoat => "The last boat",
+        ScenarioKind::QuietHour => "A quiet hour",
         ScenarioKind::FullMap => "Full map",
         ScenarioKind::NoRoomLeft => "No room left",
         ScenarioKind::QuarryStart => "Quarry",

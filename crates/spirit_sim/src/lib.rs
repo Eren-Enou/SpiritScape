@@ -16,6 +16,7 @@ pub mod homecoming;
 pub mod inventory;
 pub mod journey;
 pub mod metrics;
+pub mod moments;
 pub mod outpost;
 pub mod planner;
 pub mod production;

@@ -708,7 +708,11 @@ fn update_labels(
                 let (x, y) = s.actor.mover.visual_pos();
                 let (status, word) = spirit_status(s);
                 let content = format!("{} Lv{} - {word}", s.name, s.level());
-                (3, tile_world(x, y), 1.05, Some((content, status.color())))
+                let shown = match w.spirit_moment(s) {
+                    Some(moment) => (moment, Color::srgb(1.0, 0.95, 0.8)),
+                    None => (content, status.color()),
+                };
+                (3, tile_world(x, y), 1.05, Some(shown))
             }
             WorldLabel::Building(id) => {
                 let b = &w.buildings[id];

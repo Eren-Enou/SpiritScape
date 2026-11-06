@@ -879,6 +879,8 @@ road_pct = 67
 hearth_gathering_seconds = 180.0
 homecoming_gap_seconds = 2.5
 homecoming_limit_seconds = 600.0
+moment_seconds = 600.0
+moment_shown_seconds = 8.0
 # How long a visitor waits for an answer, in game minutes.
 visitor_patience_minutes = 10
 visitor_gap_minutes = 30
@@ -1835,6 +1837,139 @@ build_seconds_per_level = 0.5
 min_build_seconds = 30.0
 color = [0.62, 0.72, 0.80]
 benefit = "They won't walk to the far shore, but they'd cross in this, if you called them. All you gave them would come back to you. They wouldn't."
+
+# Small things spirits do, for no reason. They change nothing. See moments.rs.
+[[moments]]
+id = "looks_up"
+text = "{name} looked up."
+
+[[moments]]
+id = "stops"
+text = "{name} stopped on the path for a moment, and then carried on."
+
+[[moments]]
+id = "flower"
+text = "{name} walked the long way round a flower."
+
+[[moments]]
+id = "called"
+text = "{name} stood still, as if someone had called."
+
+[[moments]]
+id = "beetle"
+trait = "curious"
+text = "{name} followed a beetle for a while."
+
+[[moments]]
+id = "under_stone"
+trait = "curious"
+text = "{name} turned over a stone to see what was under it, and put it back."
+
+[[moments]]
+id = "one_more"
+trait = "broad_backed"
+text = "{name} picked up one more than it needed to, just to see."
+
+[[moments]]
+id = "doubled"
+trait = "quiet"
+text = "You didn't notice {name} for an hour. The pile had doubled."
+
+[[moments]]
+id = "same_again"
+trait = "steady"
+text = "{name} did the same thing again, exactly the same, and seemed content."
+
+[[moments]]
+id = "rain"
+trait = "sturdy"
+text = "{name} walked straight through the rain, and didn't seem to notice there was any."
+
+[[moments]]
+id = "sharpen"
+skill = "woodcutting"
+gifted = true
+text = "{name} sharpened an axe the way you used to."
+
+[[moments]]
+id = "knock"
+skill = "woodcutting"
+gifted = true
+text = "{name} knocked twice on a tree before cutting it. You used to do that."
+
+[[moments]]
+id = "grain"
+skill = "woodworking"
+gifted = true
+text = "{name} ran a thumb along the grain. You've never shown it that. You only ever did it yourself."
+
+[[moments]]
+id = "listens"
+skill = "quarrying"
+gifted = true
+text = "{name} listened to the stone before splitting it."
+
+[[moments]]
+id = "quarter_turn"
+skill = "masonry"
+gifted = true
+text = "{name} set a stone, looked at it, and turned it a quarter."
+
+[[moments]]
+id = "kiln_door"
+skill = "kilnwork"
+gifted = true
+text = "{name} held a hand to the kiln door, and waited."
+
+[[moments]]
+id = "new_grass"
+season = "spring"
+text = "{name} went round a patch of new grass instead of over it."
+
+[[moments]]
+id = "shade"
+season = "summer"
+text = "{name} stood in the shade for a moment. Spirits don't get hot."
+
+[[moments]]
+id = "leaf"
+season = "autumn"
+text = "{name} caught a falling leaf, and looked at it for a long time."
+
+[[moments]]
+id = "footprints"
+season = "winter"
+text = "{name} left a line of small footprints, then went back to look at them."
+
+[[moments]]
+id = "snow"
+season = "winter"
+text = "{name} stood in the snow, doing nothing, on purpose."
+
+[[moments]]
+id = "water"
+shore = true
+text = "{name} stopped at the water, and turned round."
+
+[[moments]]
+id = "other_side"
+shore = true
+text = "{name} stood looking at the other side for a while."
+
+[[moments]]
+id = "passes"
+named = true
+text = "{name} stopped when you passed. You don't know why."
+
+[[moments]]
+id = "answers"
+named = true
+text = "{name} answers to that name now."
+
+[[moments]]
+id = "scratching"
+named = true
+text = "{name} was scratching something into a plank. It might be its name."
 
 [objective]
 # "Maintain <target> <resource> in the main settlement storage."

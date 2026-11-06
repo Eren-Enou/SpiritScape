@@ -11,7 +11,7 @@ git fetch origin
 ```
 
 ```bash
-git checkout v0.37-players
+git checkout v0.38-moments
 ```
 
 Press `F6` at any time to write a report of your session. Note the time whenever something surprises you.
@@ -157,7 +157,18 @@ Listen as you play. `M` turns it off.
 
 - [ ] Are the sounds pleasant, or wearing after an hour?
 
-## 14. Winter, in a real game
+## 14. A quiet hour (10 minutes)
+
+```bash
+cargo run --release -- --scenario quiet_hour
+```
+
+Watch for a while, or use `8x`. Then rename a spirit and carry on.
+
+- [ ] Did you notice one without being told?
+- [ ] Did any of them make you feel something, or feel too cute?
+
+## 15. Winter, in a real game
 
 Play through at least one winter.
 
@@ -203,3 +214,4 @@ They're stacked, each targeting the one before, so they must be merged in this o
 | [#30](https://github.com/Eren-Enou/SpiritScape/pull/30) | v0.32 | The Far Shore |
 | [#31](https://github.com/Eren-Enou/SpiritScape/pull/31) | v0.33 | Names |
 | [#32](https://github.com/Eren-Enou/SpiritScape/pull/32) | v0.34 | Coming back |
+| [#33](https://github.com/Eren-Enou/SpiritScape/pull/33) | v0.35 | The Kiln |

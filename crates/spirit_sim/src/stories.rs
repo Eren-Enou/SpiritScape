@@ -194,6 +194,7 @@ impl World {
         };
         let msg = format!("{} is now called {name}", s.name);
         s.name = name.to_string();
+        s.renamed = true;
         self.events.push(self.tick, EventKind::Player, msg.clone());
         Ok(msg)
     }
@@ -367,6 +368,7 @@ impl World {
             let deed = &self.defs.deeds[*d as usize];
             lines.push(format!("{}: {}", clock(*at), deed.text));
         }
+        lines.extend(self.recent_moments(s));
         lines
     }
 }

@@ -103,6 +103,9 @@ fn main() {
                 .map(|i| w.defs.visitors[*i as usize].name.as_str())
                 .collect();
             println!("Visitors, in the order they came: {came:?}");
+            let moments: Vec<usize> = w.spirits.iter().map(|s| s.moments.len()).collect();
+            let total: usize = moments.iter().sum();
+            println!("Small moments: {total}, by spirit {moments:?}.");
             if std::env::args().any(|a| a == "--gaps") {
                 longest_gaps(&r.firsts, r.seconds);
             }

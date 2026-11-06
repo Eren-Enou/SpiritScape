@@ -71,6 +71,8 @@ pub enum ScenarioKind {
     KilnYard,
     /// The Still Boat at the shore, ready.
     LastBoat,
+    /// Nothing to do but watch.
+    QuietHour,
     /// Everything built: every road, both crossings. The busiest map there is.
     FullMap,
     /// Main Storage completely full, with nothing to spend it on.
@@ -90,7 +92,7 @@ pub enum ScenarioKind {
 }
 
 impl ScenarioKind {
-    pub const ALL: [ScenarioKind; 35] = [
+    pub const ALL: [ScenarioKind; 36] = [
         ScenarioKind::NewGame,
         ScenarioKind::Demo,
         ScenarioKind::Regrind,
@@ -118,6 +120,7 @@ impl ScenarioKind {
         ScenarioKind::LateFinds,
         ScenarioKind::KilnYard,
         ScenarioKind::LastBoat,
+        ScenarioKind::QuietHour,
         ScenarioKind::FullMap,
         ScenarioKind::NoRoomLeft,
         ScenarioKind::QuarryStart,
@@ -157,6 +160,7 @@ impl ScenarioKind {
             ScenarioKind::LateFinds => "late_finds",
             ScenarioKind::KilnYard => "kiln_yard",
             ScenarioKind::LastBoat => "last_boat",
+            ScenarioKind::QuietHour => "quiet_hour",
             ScenarioKind::FullMap => "full_map",
             ScenarioKind::NoRoomLeft => "no_room_left",
             ScenarioKind::QuarryStart => "quarry_start",
@@ -242,6 +246,9 @@ pub struct ScenarioDef {
     /// Trade Caravans already sent.
     #[serde(default)]
     pub caravans: u32,
+    /// Spirits do small things, as they do in a real game.
+    #[serde(default)]
+    pub moments: bool,
 }
 
 /// A full-grown tree of `kind`.
@@ -405,6 +412,7 @@ impl World {
                 visitor_last: None,
                 standing: BTreeMap::new(),
                 homecoming: None,
+                moments: scenario.moments,
                 bench_bonus: 0,
                 queue: Vec::new(),
                 next_queue_id: 0,
