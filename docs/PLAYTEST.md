@@ -11,7 +11,7 @@ git fetch origin
 ```
 
 ```bash
-git checkout v0.36-second-ending
+git checkout v0.37-players
 ```
 
 Press `F6` at any time to write a report of your session. Note the time whenever something surprises you.
@@ -156,6 +156,13 @@ Press `J`, and decide.
 Listen as you play. `M` turns it off.
 
 - [ ] Are the sounds pleasant, or wearing after an hour?
+
+## 14. Winter, in a real game
+
+Play through at least one winter.
+
+- [ ] Did you feel winter cost you something? The numbers say it costs a lot.
+- [ ] Did you do anything differently once you knew it was coming?
 
 ## Four decisions only you can make
 

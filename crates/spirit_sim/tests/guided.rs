@@ -2,7 +2,7 @@
 
 use spirit_sim::ScenarioKind;
 use spirit_sim::advice::StorageFix;
-use spirit_sim::autoplay::play_guided;
+use spirit_sim::autoplay::{Offers, Style, play_all_goals_styled, play_guided};
 use spirit_sim::defs::ResourceId;
 use spirit_sim::save::{decode, encode};
 use spirit_sim::world::{Command, World};
@@ -147,4 +147,61 @@ fn every_goal_can_be_met_in_one_game() {
     let (w, r) = spirit_sim::autoplay::play_all_goals(60).unwrap();
     w.check_conservation().unwrap();
     assert!(r.missed.is_empty(), "{:?}", r.missed);
+}
+
+/// A bench holding planks for the player used to look like a met target, so
+/// a project a few planks short waited for ever. The winter planner found it.
+#[test]
+fn planks_set_aside_for_training_are_not_stock() {
+    let mut w = World::from_scenario(ScenarioKind::PanelWorkshop);
+    let planks = res(&w, "planks");
+    let bench = w.stations().next().unwrap().id;
+    let panels = w.defs.recipes.iter().position(|r| r.id == "fitted_panels");
+    let recipe = spirit_sim::defs::RecipeId(panels.unwrap() as u16);
+    w.apply(Command::SetTrainingBench(Some(bench))).unwrap();
+    w.apply(Command::SetPlayerRecipe(Some(recipe))).unwrap();
+    let before = w.projected_stock(planks);
+    let storage = &mut w.buildings[bench].storage;
+    let put = storage.deposit(planks, 14);
+    assert!(storage.try_reserve(planks, put));
+    *w.ledger.seeded.entry(planks).or_default() += put as u64;
+    assert_eq!(w.bench_stock(), put);
+    assert_eq!(w.projected_stock(planks), before);
+}
+
+fn came(w: &World, id: &str) -> bool {
+    let at = w.defs.visitors.iter().position(|v| v.id == id).unwrap();
+    w.settlement.visitors_seen.contains(&(at as u32))
+}
+
+/// Many hours of play, so it's release only.
+#[test]
+#[ignore]
+fn someone_who_takes_offers_meets_people_twice() {
+    let style = Style {
+        offers: Offers::Take,
+        ..Style::default()
+    };
+    let (w, r) = play_all_goals_styled(60, style).unwrap();
+    w.check_conservation().unwrap();
+    assert!(r.missed.is_empty(), "{:?}", r.missed);
+    assert!(w.settlement.offers_taken >= 3);
+    assert!(came(&w, "pedlar_returns"));
+    assert!(!came(&w, "surveyor_son"), "nobody turned the surveyor down");
+}
+
+/// Many hours of play, so it's release only.
+#[test]
+#[ignore]
+fn someone_who_turns_everyone_down_still_finishes() {
+    let style = Style {
+        offers: Offers::Refuse,
+        ..Style::default()
+    };
+    let (w, r) = play_all_goals_styled(60, style).unwrap();
+    w.check_conservation().unwrap();
+    assert!(r.missed.is_empty(), "{:?}", r.missed);
+    assert_eq!(w.settlement.offers_taken, 0);
+    assert!(came(&w, "surveyor_son"));
+    assert!(!came(&w, "pedlar_returns"));
 }
