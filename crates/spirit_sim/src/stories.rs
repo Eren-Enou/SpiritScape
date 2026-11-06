@@ -3,9 +3,10 @@
 //! Deeds only record what happened, so nothing here changes what a spirit does.
 //! A trait is the one exception, and it's fixed when the spirit is made.
 
-use crate::entities::{Spirit, SpiritId, TreeState};
+use crate::entities::{Activity, Spirit, SpiritId, TreeState};
 use crate::events::EventKind;
 use crate::grid::TilePos;
+use crate::tasks::{Goal, Task};
 use crate::world::World;
 use serde::Deserialize;
 
@@ -182,6 +183,45 @@ impl World {
                 }
             }
         }
+    }
+
+    /// Where the Hearth stands, once it's lit.
+    pub fn hearth(&self) -> Option<TilePos> {
+        self.settlement.ended_at?;
+        self.buildings
+            .iter()
+            .find(|b| self.defs.building(b.kind).ending && b.is_complete())
+            .map(|b| b.pos)
+    }
+
+    /// Whether spirits are gathering at the Hearth right now.
+    pub fn hearth_gathering(&self) -> bool {
+        let length = self.defs.construction.hearth_gathering_ticks;
+        self.settlement
+            .ended_at
+            .is_some_and(|at| self.tick < at + length)
+    }
+
+    /// When the Hearth is lit, every spirit finishes what it's doing and comes
+    /// to stand by it for a while. Then they go back to work.
+    pub(crate) fn gather_at_hearth(&mut self, sid: SpiritId) -> bool {
+        if !self.hearth_gathering() || self.spirits[sid].actor.inventory.total() > 0 {
+            return false;
+        }
+        let Some(hearth) = self.hearth() else {
+            return false;
+        };
+        let wait = self.tick + self.defs.idle_rethink_ticks;
+        let s = &mut self.spirits[sid];
+        s.next_think = wait;
+        s.activity = Activity::Idle("At the Hearth".into());
+        if !s.actor.pos().is_adjacent(hearth) {
+            s.actor.queue.push_back(Task::Move {
+                goal: Goal::Adjacent(hearth),
+                label: "the Hearth".into(),
+            });
+        }
+        true
     }
 
     /// The closing account of a game, once the Hearth is lit.

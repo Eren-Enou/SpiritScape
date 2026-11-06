@@ -3,6 +3,7 @@
 //! game, and a machine with no sound device just stays quiet.
 
 use crate::sim_runner::Sim;
+use crate::visuals::Visuals;
 use crate::world_view::{WorldEntity, tile_world};
 use bevy::audio::{PlaybackMode, Volume};
 use bevy::prelude::*;
@@ -14,7 +15,20 @@ impl Plugin for FeedbackPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Seen>()
             .init_resource::<Sound>()
-            .add_systems(Update, (watch_world, move_sparks, toggle_sound));
+            .init_resource::<Closing>()
+            .add_systems(Startup, spawn_closing_screen)
+            .add_systems(
+                Update,
+                (
+                    watch_world,
+                    move_sparks,
+                    toggle_sound,
+                    tint_seasons,
+                    fall_snow,
+                    keep_hearth,
+                    show_closing_screen,
+                ),
+            );
     }
 }
 
@@ -111,6 +125,7 @@ fn watch_world(
     mut seen: ResMut<Seen>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut closing: ResMut<Closing>,
 ) {
     let w = &sim.world;
     let levels = total_levels(w);
@@ -188,6 +203,9 @@ fn watch_world(
             play(&mut commands, &assets, "hearth", 0.8);
         }
     }
+    if ended && !seen.ended {
+        closing.waiting = true;
+    }
     *seen = Seen {
         started: true,
         levels,
@@ -220,5 +238,230 @@ fn toggle_sound(keys: Res<ButtonInput<KeyCode>>, mut sound: ResMut<Sound>, mut s
     if keys.just_pressed(KeyCode::KeyM) {
         sound.on = !sound.on;
         sim.message = if sound.on { "Sound on" } else { "Sound off" }.into();
+    }
+}
+
+/// The sheet of colour over the ground, which shows the season.
+#[derive(Component)]
+struct SeasonTint(Handle<StandardMaterial>);
+
+fn tint_seasons(
+    mut commands: Commands,
+    sim: Res<Sim>,
+    visuals: Res<Visuals>,
+    time: Res<Time>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    sheet: Query<&SeasonTint>,
+) {
+    let w = &sim.world;
+    let want = w
+        .season()
+        .and_then(|s| visuals.season_tints.get(&s.id))
+        .copied()
+        .unwrap_or([1.0, 1.0, 1.0, 0.0]);
+    let Ok(tint) = sheet.single() else {
+        let (width, height) = (w.grid.width as f32, w.grid.height as f32);
+        let material = materials.add(StandardMaterial {
+            base_color: Color::srgba(1.0, 1.0, 1.0, 0.0),
+            alpha_mode: AlphaMode::Blend,
+            unlit: true,
+            ..default()
+        });
+        commands.spawn((
+            SeasonTint(material.clone()),
+            Mesh3d(meshes.add(Plane3d::default().mesh().size(width, height))),
+            MeshMaterial3d(material),
+            Transform::from_xyz(width / 2.0 - 0.5, 0.04, height / 2.0 - 0.5),
+            Pickable::IGNORE,
+        ));
+        return;
+    };
+    let Some(mut material) = materials.get_mut(&tint.0) else {
+        return;
+    };
+    let now = material.base_color.to_srgba();
+    let step = (time.delta_secs() * 0.5).min(1.0);
+    let mix = |a: f32, b: f32| a + (b - a) * step;
+    material.base_color = Color::srgba(
+        mix(now.red, want[0]),
+        mix(now.green, want[1]),
+        mix(now.blue, want[2]),
+        mix(now.alpha, want[3]),
+    );
+}
+
+/// Time since the last flake, a running number, and the look they share.
+type SnowState = (f32, u32, Option<(Handle<Mesh>, Handle<StandardMaterial>)>);
+
+/// A flake of snow on its way down.
+#[derive(Component)]
+struct Flake;
+
+fn fall_snow(
+    mut commands: Commands,
+    sim: Res<Sim>,
+    time: Res<Time>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut flakes: Query<(Entity, &mut Transform), With<Flake>>,
+    mut state: Local<SnowState>,
+) {
+    let dt = time.delta_secs();
+    for (e, mut t) in &mut flakes {
+        t.translation.y -= 1.4 * dt;
+        t.translation.x += 0.3 * dt;
+        if t.translation.y < 0.05 {
+            commands.entity(e).despawn();
+        }
+    }
+    let w = &sim.world;
+    if w.season().is_none_or(|s| s.id != "winter") {
+        return;
+    }
+    state.0 += dt;
+    if state.0 < 0.04 {
+        return;
+    }
+    state.0 = 0.0;
+    state.1 = state.1.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+    let (mesh, material) = state
+        .2
+        .get_or_insert_with(|| {
+            (
+                meshes.add(Cuboid::new(0.05, 0.05, 0.05)),
+                materials.add(StandardMaterial {
+                    base_color: Color::WHITE,
+                    unlit: true,
+                    ..default()
+                }),
+            )
+        })
+        .clone();
+    // This is only how it looks, so its numbers don't touch the simulation.
+    let r = state.1;
+    let (px, py) = w.player.actor.mover.visual_pos();
+    let dx = (r >> 8 & 0xff) as f32 / 255.0 * 26.0 - 13.0;
+    let dz = (r >> 16 & 0xff) as f32 / 255.0 * 18.0 - 9.0;
+    commands.spawn((
+        Flake,
+        Mesh3d(mesh),
+        MeshMaterial3d(material),
+        Transform::from_xyz(px + dx, 7.0, py + dz),
+        Pickable::IGNORE,
+    ));
+}
+
+/// The light that stays on at the Hearth.
+#[derive(Component)]
+struct HearthLight;
+
+fn keep_hearth(
+    mut commands: Commands,
+    sim: Res<Sim>,
+    time: Res<Time>,
+    lights: Query<Entity, With<HearthLight>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut since: Local<f32>,
+) {
+    let Some(p) = sim.world.hearth() else {
+        for e in &lights {
+            commands.entity(e).despawn();
+        }
+        return;
+    };
+    let at = tile_world(p.x as f32, p.y as f32);
+    if lights.is_empty() {
+        commands.spawn((
+            HearthLight,
+            PointLight {
+                color: Color::srgb(1.0, 0.72, 0.38),
+                intensity: 900_000.0,
+                range: 16.0,
+                ..default()
+            },
+            Transform::from_translation(at + Vec3::Y * 2.2),
+        ));
+    }
+    *since += time.delta_secs();
+    if *since > 0.6 {
+        *since = 0.0;
+        let glow = Color::srgb(1.0, 0.7, 0.3);
+        burst(&mut commands, &mut meshes, &mut materials, at, glow, 3);
+    }
+}
+
+/// Whether the closing screen is waiting to be read.
+#[derive(Resource, Default)]
+struct Closing {
+    waiting: bool,
+}
+
+#[derive(Component)]
+struct ClosingScreen;
+
+#[derive(Component)]
+struct ClosingText;
+
+fn spawn_closing_screen(mut commands: Commands) {
+    commands
+        .spawn((
+            ClosingScreen,
+            Node {
+                position_type: PositionType::Absolute,
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.03, 0.03, 0.05, 0.86)),
+            GlobalZIndex(40),
+            Visibility::Hidden,
+            Pickable::IGNORE,
+        ))
+        .with_children(|p| {
+            p.spawn((
+                ClosingText,
+                Text::new(""),
+                TextFont::from_font_size(21.0),
+                TextColor(Color::srgb(0.98, 0.90, 0.72)),
+                TextLayout::justify(Justify::Center),
+                Node {
+                    max_width: Val::Px(820.0),
+                    ..default()
+                },
+            ));
+        });
+}
+
+fn show_closing_screen(
+    sim: Res<Sim>,
+    keys: Res<ButtonInput<KeyCode>>,
+    mut closing: ResMut<Closing>,
+    mut screen: Query<&mut Visibility, With<ClosingScreen>>,
+    mut words: Query<&mut Text, With<ClosingText>>,
+) {
+    if closing.waiting && keys.just_pressed(KeyCode::Enter) {
+        closing.waiting = false;
+    }
+    let shown = if closing.waiting {
+        Visibility::Visible
+    } else {
+        Visibility::Hidden
+    };
+    for mut v in &mut screen {
+        if *v != shown {
+            *v = shown;
+        }
+    }
+    if closing.waiting
+        && let (Ok(mut t), Some(story)) = (words.single_mut(), sim.world.ending_story())
+    {
+        let text = story.join("\n\n") + "\n\nPress Enter to carry on.";
+        if t.0 != text {
+            t.0 = text;
+        }
     }
 }

@@ -1,0 +1,5 @@
+# UI test of how winter looks:
+#   cargo run --release -- --new-game --skip-minutes 95 --save-dir target/ui_saves31b --script scripts/ui_winter.txt --capture target/ui_winter
+1.0 expect Winter
+4.0 shot 01_winter
+4.2 exit

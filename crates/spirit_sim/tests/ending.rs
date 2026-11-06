@@ -104,3 +104,31 @@ fn a_game_is_pointed_at_the_hearth_near_the_end() {
         .find(|a| a.title.contains("Hearth"));
     assert!(!goal.unwrap().done);
 }
+
+#[test]
+fn everyone_comes_to_the_hearth_when_it_is_lit_and_then_goes_back() {
+    let mut w = world();
+    assert!(light(&mut w));
+    let hearth = w.hearth().unwrap();
+    assert!(w.hearth_gathering());
+    w.run_ticks(900);
+    for s in &w.spirits {
+        assert!(s.actor.pos().is_adjacent(hearth), "{} isn't there", s.name);
+    }
+    let length = w.defs.construction.hearth_gathering_ticks;
+    w.run_ticks(length);
+    assert!(!w.hearth_gathering());
+    w.check_conservation().unwrap();
+}
+
+#[test]
+fn a_spirit_carrying_something_puts_it_down_first() {
+    let mut w = world();
+    let logs = w.defs.resource_id("logs").unwrap();
+    assert!(light(&mut w));
+    w.spirits[1].actor.inventory.add(logs, 3);
+    *w.ledger.seeded.entry(logs).or_default() += 3;
+    w.run_ticks(900);
+    assert_eq!(w.spirits[1].actor.inventory.get(logs), 0);
+    w.check_conservation().unwrap();
+}

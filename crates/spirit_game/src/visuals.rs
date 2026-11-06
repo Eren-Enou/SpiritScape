@@ -16,6 +16,9 @@ pub struct Visuals {
     pub buildings: BTreeMap<String, BuildingVisuals>,
     pub characters: CharacterVisuals,
     pub spirit_look: SpiritLook,
+    /// Colour laid over the ground in each season, as red, green, blue, alpha.
+    #[serde(default)]
+    pub season_tints: BTreeMap<String, [f32; 4]>,
 }
 
 #[derive(Deserialize)]

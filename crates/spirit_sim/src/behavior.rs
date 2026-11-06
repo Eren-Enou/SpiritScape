@@ -167,6 +167,9 @@ impl World {
                 t.claimed_by = None;
             }
         }
+        if self.gather_at_hearth(sid) {
+            return;
+        }
         let role = self.defs.role(self.spirits[sid].role).clone();
         let previous = self.spirits[sid].activity.clone();
         let mut blocked: Option<Blocked> = None;

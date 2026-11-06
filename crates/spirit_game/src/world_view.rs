@@ -203,7 +203,7 @@ fn spawn_hover_tip(mut commands: Commands) {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn rebuild_on_restart(
+pub fn rebuild_on_restart(
     mut commands: Commands,
     sim: Res<Sim>,
     visuals: Res<Visuals>,

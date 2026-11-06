@@ -2,6 +2,14 @@
 
 The handoff between development runs. Newest first.
 
+## v0.31 The Moment
+
+**Status:** on branch `v0.31-the-moment`, with its PR targeting `v0.30-feedback`. Not merged.
+
+**Shipped:** spirits gather at the lit Hearth, a closing screen, season colours and snow, and a fix for every spirit being spawned twice.
+
+**Next:** a new region, naming spirits, more finds and visitors.
+
 ## v0.30 Feedback
 
 **Status:** on branch `v0.30-feedback`, with its PR targeting `v0.29-onboarding`. Not merged.

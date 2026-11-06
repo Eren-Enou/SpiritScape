@@ -753,6 +753,8 @@ raw_room = 100
 # How long a road tile takes to cross, as a percentage of open ground. Spirits
 # and the player both take 0.3 seconds on grass, so this makes it 0.2.
 road_pct = 67
+# How long spirits gather at the Hearth when it's lit, in seconds.
+hearth_gathering_seconds = 180.0
 # How long a visitor waits for an answer, in game minutes.
 visitor_patience_minutes = 10
 # How often to look for anyone walled in, which older saves can contain.
