@@ -1391,6 +1391,34 @@ fn train_masonry(w: &mut World, end: u64, note: &mut dyn FnMut(&World)) -> Resul
     Ok(())
 }
 
+/// Brings home enough Stillwood for a Still Lantern, by hand, as it must be.
+fn cut_stillwood(w: &mut World, end: u64) {
+    let Some(wood) = w.defs.resource_id("stillwood") else {
+        return;
+    };
+    let trees: Vec<_> = w
+        .trees
+        .iter()
+        .filter(|t| w.defs.tree(t.kind).resource == wood)
+        .map(|t| t.id)
+        .collect();
+    let tps = w.defs.ticks_per_second as u64;
+    while w.main().storage.get(wood) < 30 && w.tick < end {
+        let idle = w.player.actor.queue.is_empty() && w.player.session.is_none();
+        if idle {
+            let bag = &w.player.actor.inventory;
+            let grown = trees.iter().find(|t| w.trees[**t].is_grown());
+            let target = match grown {
+                Some(t) if !bag.is_full() => w.trees[*t].pos,
+                _ => w.main().pos,
+            };
+            let _ = w.apply(Command::PlayerInteract(target));
+        }
+        w.run_ticks(tps);
+    }
+    let _ = w.apply(Command::PlayerStop);
+}
+
 /// The guided game, carried on until every long-term goal is met or `hours`
 /// run out. It cuts stone, makes panels when there's plenty of planks, buys
 /// what the goals name, and trains both wood skills to the top.
@@ -1488,6 +1516,26 @@ pub fn play_all_goals(hours: u64) -> Result<(World, AllGoals), String> {
         buy_for_goals(&mut w);
         note(&w, &mut out);
     }
+    // Across the south river, for what only the player can bring back.
+    let crossing = w
+        .defs
+        .building_kind_id("south_crossing")
+        .ok_or("no crossing")?;
+    let open = |w: &World| {
+        w.buildings
+            .iter()
+            .any(|b| b.kind == crossing && b.is_complete())
+    };
+    while !open(&w) && w.tick < end {
+        bot.chop_until(&mut w, 60 * tps, open);
+        buy_for_goals(&mut w);
+        note(&w, &mut out);
+    }
+    bot.stop(&mut w);
+    cut_stillwood(&mut w, end);
+    buy_for_goals(&mut w);
+    note(&w, &mut out);
+
     // A walk round the old stones.
     bot.stop(&mut w);
     for [x, y] in w.defs.markers.iter().map(|m| m.at).collect::<Vec<_>>() {
@@ -1825,11 +1873,12 @@ fn play_route(profile: &str, guided: bool) -> Result<(World, ExpansionRoute), St
     for (m, t) in &cycle.milestones {
         route.steps.push((m.label().to_string(), *t));
     }
+    // The top tier a spirit can work, which is what the route is after.
     let top = w
         .defs
         .tree_tiers(bot.wc)
-        .last()
-        .copied()
+        .into_iter()
+        .rfind(|k| !w.defs.tree(*k).spirits_avoid)
         .ok_or("no trees")?;
     let level = w.defs.tree(top).level_required;
     let need = w.defs.xp_table.xp_for_level(level);

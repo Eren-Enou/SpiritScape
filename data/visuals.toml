@@ -64,6 +64,15 @@ stump = "models/nature/stone_largeC.glb"
 scale = 0.9
 
 # Ironwood (level 10): tall and dark red, so the top tier stands out.
+[trees.stilltree]
+models = [
+    "models/nature/tree_thin.glb",
+    "models/nature/tree_simple.glb",
+]
+stump = "models/nature/stump_old.glb"
+scale = 1.5
+crown_tint = [0.72, 0.82, 0.95]
+
 [trees.ironwood]
 models = [
     "models/nature/tree_detailed.glb",
@@ -219,6 +228,16 @@ parts = [
     { model = "models/town/wall-wood-door.glb", rot = 270 },
     { model = "models/town/roof-point.glb", y = 1.0 },
 ]
+
+[buildings.south_crossing]
+stockpile = "models/nature/log_stack.glb"
+site = [{ model = "models/town/planks.glb" }]
+parts = [{ model = "models/town/poles.glb", rot = 0 }]
+
+[buildings.still_lantern]
+stockpile = "models/nature/log_stack.glb"
+site = [{ model = "models/town/planks.glb" }]
+parts = [{ model = "models/town/poles.glb", rot = 0 }]
 
 [buildings.workshop_annex]
 stockpile = "models/nature/log_stack.glb"

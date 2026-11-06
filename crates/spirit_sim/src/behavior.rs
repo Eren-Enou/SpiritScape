@@ -521,7 +521,7 @@ impl World {
     /// Spirits obey the same level requirements as the player.
     pub(crate) fn spirit_can_cut(&self, s: &Spirit, kind: TreeKindId) -> bool {
         let def = self.defs.tree(kind);
-        def.skill == s.skill() && s.level() >= def.level_required
+        def.skill == s.skill() && s.level() >= def.level_required && !def.spirits_avoid
     }
 
     fn plan_job(&self, sid: SpiritId, job: JobKind) -> Result<JobPlan, Blocked> {

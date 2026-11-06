@@ -11,7 +11,7 @@ git fetch origin
 ```
 
 ```bash
-git checkout v0.31-the-moment
+git checkout v0.32-the-far-shore
 ```
 
 Press `F6` at any time to write a report of your session. Note the time whenever something surprises you.
@@ -85,6 +85,7 @@ cargo run --release -- --scenario full_map --fps
 ```
 
 - [ ] Does it look like one settlement?
+- [ ] Walk south over the crossing. Does the Far Shore feel different?
 - [ ] Does a hauler waiting for a full load look sensible, or stuck?
 - [ ] Is it smooth on your machine?
 

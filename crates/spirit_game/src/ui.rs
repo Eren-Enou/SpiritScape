@@ -584,6 +584,8 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                             ("", UiAction::Plan("ironwood_nursery")),
                             ("", UiAction::Plan("quarry_extension")),
                             ("", UiAction::Plan("mason_yard")),
+                            ("", UiAction::Plan("south_crossing")),
+                            ("", UiAction::Plan("still_lantern")),
                             ("", UiAction::Plan("hearth_foundations")),
                             ("", UiAction::Plan("hearth_walls")),
                             ("", UiAction::Plan("hearth_of_spirits")),

@@ -79,6 +79,7 @@ impl World {
             .tree_tiers(skill)
             .into_iter()
             .map(|k| self.defs.tree(k))
+            .filter(|d| !d.spirits_avoid)
             .map(|d| (d.name.clone(), d.level_required))
             .chain(
                 self.defs

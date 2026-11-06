@@ -649,7 +649,16 @@ fn update_site_banners(
                 WARN,
             )
         } else {
-            ("Spirits allowed".to_string(), MUTED)
+            let shunned = w
+                .trees
+                .iter()
+                .filter(|tree| tree.site == Some(SiteId(n.0 as u16)))
+                .all(|tree| w.defs.tree(tree.kind).spirits_avoid);
+            if shunned {
+                ("No spirit will work here".to_string(), MUTED)
+            } else {
+                ("Spirits allowed".to_string(), MUTED)
+            }
         };
         if text.0 != content {
             text.0 = content;

@@ -110,6 +110,8 @@ pub struct TreeTypeDef {
     pub map_char: char,
     /// Follows the seasons: grows faster in spring, and stops in winter.
     pub seasonal: bool,
+    /// No spirit will cut this.
+    pub spirits_avoid: bool,
     pub resource: ResourceId,
     pub skill: SkillId,
     /// Minimum skill level to cut this tree. Applies to the player and spirits.
@@ -518,6 +520,8 @@ struct RawTreeType {
     map_char: String,
     #[serde(default)]
     seasonal: bool,
+    #[serde(default)]
+    spirits_avoid: bool,
     resource: String,
     skill: String,
     #[serde(default = "one")]
@@ -858,6 +862,7 @@ impl GameDefs {
             trees.push(TreeTypeDef {
                 map_char: single_char(&t.map_char, &t.id)?,
                 seasonal: t.seasonal,
+                spirits_avoid: t.spirits_avoid,
                 resource: resource_id(&t.resource)?,
                 skill: skill_id(&t.skill)?,
                 level_required: t.level_required.max(1),
