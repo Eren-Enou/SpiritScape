@@ -40,10 +40,35 @@ const RECENT_NOTICES: usize = 6;
 /// Planned buildings with buttons in the Projects tab.
 const PLAN_ROWS: usize = 4;
 /// Further orders with buttons in the Production tab.
-const EXTRA_ORDER_BUTTONS: usize = 4;
-const EXTRA_ORDER_NAMES: [&str; 4] = ["Beams", "Panels", "Dressed Stone", "Keystones"];
-const EXTRA_ORDER_LESS: [&str; 4] = ["Beams -5", "Panels -5", "Dressed -5", "Keystones -5"];
-const EXTRA_ORDER_MORE: [&str; 4] = ["Beams +5", "Panels +5", "Dressed +5", "Keystones +5"];
+const EXTRA_ORDER_BUTTONS: usize = 6;
+const EXTRA_ORDER_NAMES: [&str; EXTRA_ORDER_BUTTONS] = [
+    "Beams",
+    "Panels",
+    "Dressed Stone",
+    "Keystones",
+    "Charcoal",
+    "Bricks",
+];
+const EXTRA_ORDER_LESS: [&str; EXTRA_ORDER_BUTTONS] = [
+    "Beams -5",
+    "Panels -5",
+    "Dressed -5",
+    "Keystones -5",
+    "Charcoal -5",
+    "Bricks -5",
+];
+const EXTRA_ORDER_MORE: [&str; EXTRA_ORDER_BUTTONS] = [
+    "Beams +5",
+    "Panels +5",
+    "Dressed +5",
+    "Keystones +5",
+    "Charcoal +5",
+    "Bricks +5",
+];
+/// Raw materials a player can ask to keep in stock.
+const STANDING_GOODS: [&str; 2] = ["stone", "clay"];
+const STANDING_LESS: [&str; 2] = ["Stone -20", "Clay -20"];
+const STANDING_MORE: [&str; 2] = ["Stone +20", "Clay +20"];
 
 /// Screen space covered by the UI: right-hand panel and bottom event log.
 pub const PANEL_WIDTH: f32 = 430.0;
@@ -100,6 +125,8 @@ enum UiAction {
     BuildCache,
     /// Adjust the nth further order's target.
     ExtraTarget(usize, i32),
+    /// Adjust how much of the nth raw material to keep in stock.
+    Standing(usize, i32),
     /// Put the nth further order first, or back level with the rest.
     ExtraPriority(usize),
     PlaceWorkshop,
@@ -212,6 +239,7 @@ struct GoalRoot;
 /// A card body and what it shows.
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
 enum Card {
+    Standing,
     Visitor,
     Markers,
     Ending,
@@ -588,6 +616,10 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                             ("", UiAction::Plan("oak_saplings")),
                             ("", UiAction::Plan("long_racks")),
                             ("", UiAction::Plan("stone_cellar")),
+                            ("", UiAction::Plan("clay_pits")),
+                            ("", UiAction::Plan("kiln")),
+                            ("", UiAction::Plan("warm_walls")),
+                            ("", UiAction::Plan("hearth_chimney")),
                             ("", UiAction::Plan("south_crossing")),
                             ("", UiAction::Plan("still_lantern")),
                             ("", UiAction::Plan("hearth_foundations")),
@@ -666,6 +698,18 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
 
             tab_panel(p, Tab::Gathering, |p| {
                 card(p, "WHAT LIMITS OUTPUT", |c| body(c, Card::Bottleneck));
+                card(p, "KEEP IN STOCK", |c| {
+                    body(c, Card::Standing);
+                    for i in 0..STANDING_GOODS.len() {
+                        button_row(
+                            c,
+                            &[
+                                (STANDING_LESS[i], UiAction::Standing(i, -20)),
+                                (STANDING_MORE[i], UiAction::Standing(i, 20)),
+                            ],
+                        );
+                    }
+                });
                 for i in 0..site_count {
                     card(p, "", |c| {
                         body(c, Card::Site(i));
@@ -1249,6 +1293,14 @@ fn on_button(
         UiAction::ToggleDetails => details.0 = !details.0,
         UiAction::ToggleScenarios => scenario_buttons.0 = !scenario_buttons.0,
         UiAction::WriteReport => sim.write_report(),
+        UiAction::Standing(i, d) => {
+            if let Some(resource) = sim.world.defs.resource_id(STANDING_GOODS[i]) {
+                let settlement = &sim.world.settlement;
+                let now = settlement.standing.get(&resource).copied().unwrap_or(0);
+                let target = (now as i32 + d).max(0) as u32;
+                sim.command(Command::SetStandingStock { resource, target });
+            }
+        }
         UiAction::ExtraTarget(i, d) => {
             if let Some(o) = sim.world.settlement.extra_orders.get(i) {
                 let output = o.output;
@@ -1495,6 +1547,7 @@ fn update_buttons(
             UiAction::RenameSpirit => !w.spirits.is_empty() && sim.naming.is_none(),
             UiAction::VisitorYes => w.visitor().is_some_and(|v| v.can_accept),
             UiAction::VisitorNo => w.visitor().is_some(),
+            UiAction::Standing(i, _) => can_dig(w, STANDING_GOODS[*i]),
             // Orders for a bench that hasn't been built are just clutter.
             UiAction::ExtraTarget(i, _) | UiAction::ExtraPriority(i) => w
                 .settlement
@@ -1813,6 +1866,7 @@ fn update_cards(
             Card::Planner => planner_lines(&sim.world),
             Card::Site(i) => site_lines(&sim.world, *i),
             Card::Bottleneck => bottleneck_lines(&sim.world),
+            Card::Standing => standing_lines(&sim.world),
             Card::TimeUse => time_use_lines(&sim.world),
             Card::Production => production_lines(&sim.world),
             Card::ProductionLimit => production_limit_lines(&sim.world),
@@ -1879,6 +1933,7 @@ fn header_lines(sim: &Sim) -> Vec<Line> {
         ScenarioKind::MasonYard => "Mason's Yard",
         ScenarioKind::CaravanYard => "Caravan yard",
         ScenarioKind::LateFinds => "Late finds",
+        ScenarioKind::KilnYard => "Kiln yard",
         ScenarioKind::FullMap => "Full map",
         ScenarioKind::NoRoomLeft => "No room left",
         ScenarioKind::QuarryStart => "Quarry",
@@ -2386,7 +2441,9 @@ fn soul_lines(sim: &Sim) -> Vec<Line> {
 
 fn order_lines(w: &World) -> Vec<Line> {
     let mut lines = Vec::new();
-    for o in w.order_reports() {
+    // Orders for a bench that hasn't been built are just clutter.
+    let reports = w.order_reports().into_iter();
+    for o in reports.filter(|o| !w.stations_for(o.output).is_empty()) {
         let met = o.in_main >= o.goal;
         lines.push(vec![
             text(o.name.clone()),
@@ -2477,6 +2534,30 @@ fn goal_lines(w: &World) -> Vec<Line> {
 }
 
 /// Who's here, if anyone.
+/// Whether there's anywhere on the map to get this raw material.
+fn can_dig(w: &World, id: &str) -> bool {
+    let found = w.defs.resource_id(id);
+    w.trees
+        .iter()
+        .any(|t| Some(w.defs.tree(t.kind).resource) == found)
+}
+
+fn standing_lines(w: &World) -> Vec<Line> {
+    let mut lines = vec![vec![muted(
+        "Spirits that gather these keep them topped up, with nothing asking.".to_string(),
+    )]];
+    for id in STANDING_GOODS.iter().filter(|id| can_dig(w, id)) {
+        let Some(r) = w.defs.resource_id(id) else {
+            continue;
+        };
+        let target = w.settlement.standing.get(&r).copied().unwrap_or(0);
+        let have = w.main().storage.get(r);
+        let name = &w.defs.resource(r).name;
+        lines.push(vec![text(format!("{name}: {have} of {target}"))]);
+    }
+    lines
+}
+
 fn visitor_lines(w: &World) -> Vec<Line> {
     let Some(v) = w.visitor() else {
         return Vec::new();

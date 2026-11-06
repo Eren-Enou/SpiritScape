@@ -195,7 +195,7 @@ fn watch_world(
         if cut("quarrying") {
             play(&mut commands, &assets, "stone", 0.3);
         }
-        if cut("woodworking") || cut("masonry") {
+        if cut("woodworking") || cut("masonry") || cut("kilnwork") {
             play(&mut commands, &assets, "saw", 0.25);
         }
         if season != seen.season && seen.season.is_some() {

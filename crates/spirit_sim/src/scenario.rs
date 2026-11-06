@@ -67,6 +67,8 @@ pub enum ScenarioKind {
     CaravanYard,
     /// Six caravans home, and everything they found ready to plan.
     LateFinds,
+    /// A Kiln with clay to fire.
+    KilnYard,
     /// Everything built: every road, both crossings. The busiest map there is.
     FullMap,
     /// Main Storage completely full, with nothing to spend it on.
@@ -86,7 +88,7 @@ pub enum ScenarioKind {
 }
 
 impl ScenarioKind {
-    pub const ALL: [ScenarioKind; 33] = [
+    pub const ALL: [ScenarioKind; 34] = [
         ScenarioKind::NewGame,
         ScenarioKind::Demo,
         ScenarioKind::Regrind,
@@ -112,6 +114,7 @@ impl ScenarioKind {
         ScenarioKind::MasonYard,
         ScenarioKind::CaravanYard,
         ScenarioKind::LateFinds,
+        ScenarioKind::KilnYard,
         ScenarioKind::FullMap,
         ScenarioKind::NoRoomLeft,
         ScenarioKind::QuarryStart,
@@ -149,6 +152,7 @@ impl ScenarioKind {
             ScenarioKind::MasonYard => "mason_yard",
             ScenarioKind::CaravanYard => "caravan_yard",
             ScenarioKind::LateFinds => "late_finds",
+            ScenarioKind::KilnYard => "kiln_yard",
             ScenarioKind::FullMap => "full_map",
             ScenarioKind::NoRoomLeft => "no_room_left",
             ScenarioKind::QuarryStart => "quarry_start",
@@ -392,6 +396,7 @@ impl World {
                 offers_refused: Vec::new(),
                 visitors_seen: Vec::new(),
                 visitor_last: None,
+                standing: BTreeMap::new(),
                 bench_bonus: 0,
                 queue: Vec::new(),
                 next_queue_id: 0,

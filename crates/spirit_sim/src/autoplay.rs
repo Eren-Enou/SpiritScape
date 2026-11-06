@@ -1343,38 +1343,79 @@ fn buy_for_goals(w: &mut World) {
     }
 }
 
-/// Cuts stone and dresses it by hand up to Keystones, then gives that to a
-/// spirit. A person would do this with clicks on the quarry and the yard.
-fn train_masonry(w: &mut World, end: u64, note: &mut dyn FnMut(&World)) -> Result<(), String> {
-    let skill = w.defs.skill_id("masonry").ok_or("no masonry")?;
-    let stone = w.defs.resource_id("stone").ok_or("no stone")?;
-    let dressed = w
+/// Sends a caravan if a goal needs something one hasn't found yet. Only worth
+/// doing late on: finds early in the game outrun the skills they need.
+fn send_for_finds(w: &mut World) {
+    if w.active_project().is_some() || !w.settlement.queue.is_empty() {
+        return;
+    }
+    let wanted_find = w
         .defs
-        .resource_id("dressed_stone")
-        .ok_or("no dressed stone")?;
-    let need = w.defs.xp_table.xp_for_level(8);
-    let outcrops: Vec<_> = w
+        .ambitions
+        .iter()
+        .flat_map(|a| &a.built)
+        .filter_map(|id| w.defs.building_kind_id(id))
+        .map(|k| w.defs.building(k).needs_caravans)
+        .max();
+    if wanted_find > Some(w.settlement.caravans) {
+        let caravan = w
+            .plannable()
+            .into_iter()
+            .find(|k| w.defs.building(*k).repeatable);
+        if let Some(kind) = caravan {
+            let _ = w.apply(Command::QueueBuilding { kind, site: None });
+        }
+    }
+}
+
+/// A trade learned by hand: carry the raw stuff to the bench until it's
+/// second nature, then hand that to a spirit.
+struct HandTraining {
+    skill: &'static str,
+    raw: &'static str,
+    made: &'static str,
+    batch: u32,
+    level: u32,
+}
+
+/// Works at a bench by hand up to a level, then gives that to a spirit. A
+/// person would do this with clicks on the source and the bench.
+fn train_by_hand(
+    w: &mut World,
+    end: u64,
+    trade: HandTraining,
+    note: &mut dyn FnMut(&World),
+) -> Result<(), String> {
+    let skill = w.defs.skill_id(trade.skill).ok_or("no such skill")?;
+    let raw = w.defs.resource_id(trade.raw).ok_or("no raw material")?;
+    let made = w.defs.resource_id(trade.made).ok_or("no product")?;
+    let need = w.defs.xp_table.xp_for_level(trade.level);
+    let sources: Vec<_> = w
         .trees
         .iter()
-        .filter(|t| w.defs.tree(t.kind).resource == stone)
+        .filter(|t| w.defs.tree(t.kind).resource == raw)
         .map(|t| t.id)
         .collect();
-    let yard = w
-        .stations_for(dressed)
-        .first()
-        .map(|b| b.pos)
-        .ok_or("no yard")?;
+    let bench = w.stations_for(made).first().map(|b| b.pos).ok_or_else(|| {
+        let stuck = stuck_report(w);
+        let caravans = w.settlement.caravans;
+        format!(
+            "no bench for {} after {caravans} caravans
+{stuck}",
+            trade.made
+        )
+    })?;
     let tps = w.defs.ticks_per_second as u64;
     while w.player.xp(skill) < need && w.tick < end {
         let idle = w.player.actor.queue.is_empty() && w.player.session.is_none();
         if idle {
             let bag = &w.player.actor.inventory;
-            let target = if bag.get(stone) >= 2 {
-                yard
+            let target = if bag.get(raw) >= trade.batch {
+                bench
             } else if bag.total() > 0 {
                 w.main().pos
             } else {
-                let grown = outcrops.iter().find(|t| w.trees[**t].is_grown());
+                let grown = sources.iter().find(|t| w.trees[**t].is_grown());
                 grown.map_or(w.main().pos, |t| w.trees[*t].pos)
             };
             let _ = w.apply(Command::PlayerInteract(target));
@@ -1503,7 +1544,14 @@ pub fn play_all_goals(hours: u64) -> Result<(World, AllGoals), String> {
         note(&w, &mut out);
     }
     bot.stop(&mut w);
-    train_masonry(&mut w, end, &mut |w| note(w, &mut out))?;
+    let masonry = HandTraining {
+        skill: "masonry",
+        raw: "stone",
+        made: "dressed_stone",
+        batch: 2,
+        level: 8,
+    };
+    train_by_hand(&mut w, end, masonry, &mut |w| note(w, &mut out))?;
     let keys = w.defs.resource_id("keystones").ok_or("no keystones")?;
     w.apply(Command::SetOrderTarget {
         output: keys,
@@ -1550,6 +1598,34 @@ pub fn play_all_goals(hours: u64) -> Result<(World, AllGoals), String> {
         w.run_ticks(10);
     }
     note(&w, &mut out);
+
+    // The kiln, once caravans have found the clay.
+    let kiln = w.defs.building_kind_id("kiln").ok_or("no kiln")?;
+    let lit = |w: &World| {
+        w.buildings
+            .iter()
+            .any(|b| b.kind == kiln && b.is_complete())
+    };
+    while !lit(&w) && w.tick < end {
+        bot.chop_until(&mut w, 60 * tps, lit);
+        buy_for_goals(&mut w);
+        send_for_finds(&mut w);
+        note(&w, &mut out);
+    }
+    bot.stop(&mut w);
+    let kilnwork = HandTraining {
+        skill: "kilnwork",
+        raw: "logs",
+        made: "charcoal",
+        batch: 3,
+        level: 5,
+    };
+    train_by_hand(&mut w, end, kilnwork, &mut |w| note(w, &mut out))?;
+    let bricks = w.defs.resource_id("bricks").ok_or("no bricks")?;
+    w.apply(Command::SetOrderTarget {
+        output: bricks,
+        target: 30,
+    })?;
 
     // Whatever's left, while the spirits get on with it.
     while w.next_ambition().is_some() && w.tick < end {

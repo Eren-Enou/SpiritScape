@@ -615,6 +615,8 @@ impl World {
     pub fn gather_goal_of(&self, r: ResourceId) -> u32 {
         let o = &self.settlement.objective;
         let base = if r == o.resource { o.target } else { 0 };
+        let standing = self.settlement.standing.get(&r).copied().unwrap_or(0);
+        let base = base.max(standing);
         let wanted = self.orders().iter().any(|o| {
             o.enabled && self.uses_input(o.output, r) && self.recipe_for(o.output).is_some()
         });

@@ -11,7 +11,7 @@ git fetch origin
 ```
 
 ```bash
-git checkout v0.34-coming-back
+git checkout v0.35-the-kiln
 ```
 
 Press `F6` at any time to write a report of your session. Note the time whenever something surprises you.
@@ -129,7 +129,18 @@ Press `B`, plan the Hearth of Spirits and wait. Then press `J`.
 
 - [ ] Did that feel like an ending? Did the spirits coming to the Hearth mean anything?
 
-## 11. Sound
+## 11. The Kiln (5 minutes)
+
+```bash
+cargo run --release -- --scenario kiln_yard
+```
+
+Press `P` and ask for Bricks, then press `G` and ask for some Stone.
+
+- [ ] Could you tell why Bricks were waiting?
+- [ ] Is a chain this long interesting, or just more waiting?
+
+## 12. Sound
 
 Listen as you play. `M` turns it off.
 
@@ -171,3 +182,5 @@ They're stacked, each targeting the one before, so they must be merged in this o
 | [#27](https://github.com/Eren-Enou/SpiritScape/pull/27) | v0.29 | Learning as you go |
 | [#28](https://github.com/Eren-Enou/SpiritScape/pull/28) | v0.30 | Sound and feedback |
 | [#29](https://github.com/Eren-Enou/SpiritScape/pull/29) | v0.31 | The moment |
+| [#30](https://github.com/Eren-Enou/SpiritScape/pull/30) | v0.32 | The Far Shore |
+| [#31](https://github.com/Eren-Enou/SpiritScape/pull/31) | v0.33 | Names |

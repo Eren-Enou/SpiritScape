@@ -254,7 +254,7 @@ fn every_find_is_described() {
 }
 
 #[test]
-fn each_of_the_first_six_caravans_opens_one_more_thing() {
+fn each_of_the_first_seven_caravans_opens_one_more_thing() {
     let w = world();
     let mut needs: Vec<u32> = w
         .defs
@@ -264,7 +264,7 @@ fn each_of_the_first_six_caravans_opens_one_more_thing() {
         .map(|b| b.needs_caravans)
         .collect();
     needs.sort();
-    assert_eq!(needs, vec![1, 2, 3, 4, 5, 6]);
+    assert_eq!(needs, vec![1, 2, 3, 4, 5, 6, 7]);
 }
 
 #[test]

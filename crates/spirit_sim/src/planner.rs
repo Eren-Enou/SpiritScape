@@ -737,6 +737,8 @@ impl World {
             || !plants.is_empty()
             || slot_bonus > 0
             || carry_bonus > 0
+            || def.winter_growth
+            || def.ending_line.is_some()
         {
             Some(format!("{name} complete. {benefit}"))
         } else if is_station {
