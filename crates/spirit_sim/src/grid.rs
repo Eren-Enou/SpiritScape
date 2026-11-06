@@ -164,6 +164,9 @@ pub struct Grid {
     /// until then.
     #[serde(default)]
     road_pct: u32,
+    /// Water frozen hard enough to walk on, as [x0, y0, x1, y1].
+    #[serde(default)]
+    frozen: Option<[i32; 4]>,
 }
 
 impl Grid {
@@ -174,6 +177,7 @@ impl Grid {
             terrain: layout.terrain.clone(),
             occupied: vec![false; layout.terrain.len()],
             road_pct: 0,
+            frozen: None,
         }
     }
 
@@ -198,6 +202,63 @@ impl Grid {
             let i = self.idx(p);
             self.occupied[i] = occupied;
         }
+    }
+
+    /// Freezes this stretch of water, or thaws whatever was frozen.
+    pub fn freeze(&mut self, area: Option<[i32; 4]>) {
+        self.frozen = area;
+    }
+
+    pub fn frozen_area(&self) -> Option<[i32; 4]> {
+        self.frozen
+    }
+
+    /// Water that will bear someone's weight, for now. Only the player will
+    /// try it, so this isn't walkable as far as anyone else is concerned.
+    pub fn is_ice(&self, p: TilePos) -> bool {
+        self.frozen.is_some_and(|[x0, y0, x1, y1]| {
+            (x0..=x1).contains(&p.x)
+                && (y0..=y1).contains(&p.y)
+                && self.terrain(p) == Some(Terrain::Water)
+        })
+    }
+
+    /// The way across for someone who'll walk on ice. Only worth asking when
+    /// there's no other way: nobody walks on it who doesn't have to.
+    pub fn path_over_ice(
+        &self,
+        from: TilePos,
+        goal: impl Fn(TilePos) -> bool,
+    ) -> Option<Vec<TilePos>> {
+        if self.frozen.is_none() || !self.in_bounds(from) {
+            return None;
+        }
+        let mut prev: Vec<Option<TilePos>> = vec![None; self.terrain.len()];
+        let mut seen = vec![false; self.terrain.len()];
+        let mut queue = VecDeque::from([from]);
+        seen[self.idx(from)] = true;
+        while let Some(p) = queue.pop_front() {
+            if goal(p) {
+                let mut path = Vec::new();
+                let mut at = p;
+                while at != from {
+                    path.push(at);
+                    at = prev[self.idx(at)]?;
+                }
+                path.reverse();
+                return Some(path);
+            }
+            for n in p.neighbors4() {
+                let open = self.is_walkable(n) || self.is_ice(n);
+                if !open || seen[self.idx(n)] {
+                    continue;
+                }
+                seen[self.idx(n)] = true;
+                prev[self.idx(n)] = Some(p);
+                queue.push_back(n);
+            }
+        }
+        None
     }
 
     /// Turns a tile into a walkable crossing.

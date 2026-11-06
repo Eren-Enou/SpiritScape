@@ -106,6 +106,81 @@ impl World {
         None
     }
 
+    /// Ticks left in the season it is now.
+    fn season_left(&self) -> u64 {
+        let tpm = self.defs.ticks_per_second as u64 * 60;
+        let year: u64 = self.defs.seasons.iter().map(|s| s.minutes * tpm).sum();
+        if year == 0 {
+            return 0;
+        }
+        let mut left = self.tick % year;
+        for s in &self.defs.seasons {
+            let length = s.minutes * tpm;
+            if left < length {
+                return length - left;
+            }
+            left -= length;
+        }
+        0
+    }
+
+    /// The south river freezes in winter. Going out on it is up to the player.
+    fn update_ice(&mut self, winter: bool) {
+        let area = self.defs.construction.ice_area;
+        let frozen = self.grid.frozen_area().is_some();
+        if winter && !frozen {
+            self.grid.freeze(Some(area));
+        } else if !winter && frozen {
+            self.grid.freeze(None);
+            self.settlement.ice_warned = false;
+            self.caught_by_the_thaw();
+        }
+        let far_out = self.player.actor.pos().y >= area[1];
+        let thin = self.season_left() < self.defs.construction.thaw_warning_ticks;
+        if winter && thin && far_out && !self.settlement.ice_warned {
+            self.settlement.ice_warned = true;
+            let msg = "The ice is groaning. Spring is close, and you're a long way from home.";
+            self.notices.push(self.tick, msg);
+        }
+    }
+
+    /// Anyone still out there when the ice goes gets home, but only just.
+    fn caught_by_the_thaw(&mut self) {
+        let land = self.grid.mainland();
+        let at = self.player.actor.pos();
+        if self.grid.on_land(&land, at) {
+            return;
+        }
+        let Some(to) = self.grid.nearest_land(&land, at) else {
+            return;
+        };
+        let lost: Vec<_> = self
+            .player
+            .actor
+            .inventory
+            .items()
+            .iter()
+            .map(|(r, n)| (*r, *n))
+            .collect();
+        for (r, n) in &lost {
+            self.player.actor.inventory.remove(*r, *n);
+            *self.ledger.left_behind.entry(*r).or_default() += *n as u64;
+        }
+        self.end_session(crate::session::SessionEnd::Player, String::new());
+        let actor = &mut self.player.actor;
+        actor.clear_tasks();
+        actor.mover.pos = to;
+        self.player.activity = "Idle".into();
+        let msg = if lost.is_empty() {
+            "The ice went out, and you only just got back."
+        } else {
+            "The ice went out. You got back, but what you were carrying didn't."
+        };
+        self.events
+            .push(self.tick, EventKind::Player, msg.to_string());
+        self.notices.push(self.tick, msg);
+    }
+
     /// Whether something standing keeps winter off.
     fn walls_are_warm(&self) -> bool {
         self.buildings
@@ -125,6 +200,7 @@ impl World {
             }
             self.settlement.season_seen = Some(name);
         }
+        self.update_ice(growth == 0);
         if growth == 1 {
             return;
         }

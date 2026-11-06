@@ -122,6 +122,9 @@ pub struct Settlement {
     /// Spirits do small things here, though it isn't a real game.
     #[serde(default)]
     pub moments: bool,
+    /// The player has been told the ice won't last, this winter.
+    #[serde(default)]
+    pub ice_warned: bool,
     /// The season last announced.
     #[serde(default)]
     pub season_seen: Option<String>,
@@ -789,7 +792,7 @@ impl World {
         if matches!(actor.queue.front(), Some(Task::Move { goal: g, .. }) if *g == goal) {
             return Ok("Walking".into());
         }
-        if !self.grid.is_walkable(target) {
+        if !self.grid.is_walkable(target) && !self.grid.is_ice(target) {
             return Err("Blocked".into());
         }
         // Walking away is how a player leaves whatever they were doing.
@@ -922,7 +925,7 @@ impl World {
                     Starts::Nothing,
                 )
             }
-        } else if self.grid.is_walkable(p) {
+        } else if self.grid.is_walkable(p) || self.grid.is_ice(p) {
             (
                 vec![Task::Move {
                     goal: Goal::Exact(p),

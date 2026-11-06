@@ -857,7 +857,10 @@ impl World {
         let land = self.grid.mainland();
         let stuck = |w: &World, p: TilePos| !w.grid.on_land(&land, p);
         let player = self.player.actor.pos();
-        if stuck(self, player)
+        // Out on the ice, or past it, is somewhere a player chose to go.
+        let frozen = self.grid.frozen_area().is_some();
+        if !frozen
+            && stuck(self, player)
             && let Some(to) = self.grid.nearest_land(&land, player)
         {
             let m = &mut self.player.actor.mover;
