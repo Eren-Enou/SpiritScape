@@ -1,6 +1,7 @@
-//! People who pass through a real game with an offer. They come in order, each
-//! once, and leave if nobody answers. An offer is a choice with a cost, so what
-//! they give should never be simply better than what they ask.
+//! People who pass through a real game with an offer. Each comes once, and
+//! leaves if nobody answers. Whoever is due first comes first, and anyone
+//! waiting on something holds up nobody behind them. An offer is a choice with
+//! a cost, so what they give should never be simply better than what they ask.
 
 use crate::defs::ResourceId;
 use crate::events::EventKind;
@@ -27,6 +28,21 @@ pub struct VisitorDef {
     /// A building that has to be finished first.
     #[serde(default)]
     pub needs_built: Option<String>,
+    /// Only comes if the player took this visitor's offer.
+    #[serde(default)]
+    pub remembers: Option<String>,
+    /// Only comes if the player turned this visitor down.
+    #[serde(default)]
+    pub refused: Option<String>,
+    /// Comes either way, but has heard how this visitor got on.
+    #[serde(default)]
+    pub knows: Option<String>,
+    /// What they say instead if that offer was taken.
+    #[serde(default)]
+    pub text_took: Option<String>,
+    /// What they say instead if that offer was turned down.
+    #[serde(default)]
+    pub text_refused: Option<String>,
     #[serde(default)]
     pub wants: Vec<AmountDef>,
     #[serde(default)]
@@ -84,27 +100,77 @@ impl World {
             }
             return;
         }
-        let next = self.settlement.visitors_met as usize;
-        let Some(def) = self.defs.visitors.get(next) else {
+        let tpm = self.defs.ticks_per_second as u64 * 60;
+        let gap = self.defs.construction.visitor_gap_minutes * tpm;
+        if self
+            .settlement
+            .visitor_last
+            .is_some_and(|t| self.tick < t + gap)
+        {
+            return;
+        }
+        let first = self.settlement.visitors_met as usize;
+        let Some(next) = (first..self.defs.visitors.len()).find(|i| self.visitor_due(*i)) else {
             return;
         };
+        let msg = format!(
+            "{} has arrived, with an offer.",
+            self.defs.visitors[next].name
+        );
+        self.settlement.visitor = Some(VisitorHere {
+            index: next as u32,
+            arrived: self.tick,
+        });
+        self.settlement.visitor_last = Some(self.tick);
+        self.settlement.visitors_seen.push(next as u32);
+        // Everyone before this count has been. Anyone past it is listed.
+        while self
+            .settlement
+            .visitors_seen
+            .contains(&self.settlement.visitors_met)
+        {
+            self.settlement.visitors_met += 1;
+        }
+        self.notices.push(self.tick, msg);
+    }
+
+    /// Whether this visitor could come right now.
+    fn visitor_due(&self, index: usize) -> bool {
+        let def = &self.defs.visitors[index];
+        let s = &self.settlement;
         let tpm = self.defs.ticks_per_second as u64 * 60;
-        let ready = def.needs_built.as_ref().is_none_or(|id| {
+        let built = def.needs_built.as_ref().is_none_or(|id| {
             let kind = self.defs.building_kind_id(id);
             self.buildings
                 .iter()
                 .any(|b| Some(b.kind) == kind && b.is_complete())
         });
-        if self.tick < def.after_minutes * tpm || !ready {
-            return;
-        }
-        let msg = format!("{} has arrived, with an offer.", def.name);
-        self.settlement.visitor = Some(VisitorHere {
-            index: next as u32,
-            arrived: self.tick,
+        self.tick >= def.after_minutes * tpm
+            && built
+            && !s.visitors_seen.contains(&(index as u32))
+            && def
+                .remembers
+                .as_ref()
+                .is_none_or(|id| s.offers_accepted.contains(id))
+            && def
+                .refused
+                .as_ref()
+                .is_none_or(|id| s.offers_refused.contains(id))
+    }
+
+    /// What a visitor says, given what they've heard.
+    fn visitor_text(&self, def: &VisitorDef) -> String {
+        let s = &self.settlement;
+        let heard = def.knows.as_ref().and_then(|id| {
+            if s.offers_accepted.contains(id) {
+                def.text_took.clone()
+            } else if s.offers_refused.contains(id) {
+                def.text_refused.clone()
+            } else {
+                None
+            }
         });
-        self.settlement.visitors_met += 1;
-        self.notices.push(self.tick, msg);
+        heard.unwrap_or_else(|| def.text.clone())
     }
 
     /// Who's here, and what they're offering.
@@ -127,7 +193,7 @@ impl World {
         let left = (here.arrived + self.patience_ticks()).saturating_sub(self.tick);
         Some(VisitorView {
             name: def.name.clone(),
-            text: def.text.clone(),
+            text: self.visitor_text(def),
             offer,
             can_accept,
             minutes_left: left.div_ceil(tpm),
@@ -144,6 +210,7 @@ impl World {
         let def = self.defs.visitors[here.index as usize].clone();
         if !accept {
             self.settlement.visitor = None;
+            self.settlement.offers_refused.push(def.id);
             return Ok(format!("{} nods, and moves on.", def.name));
         }
         let wants = self.amounts(&def.wants);
@@ -164,6 +231,7 @@ impl World {
         }
         self.settlement.visitor = None;
         self.settlement.offers_taken += 1;
+        self.settlement.offers_accepted.push(def.id.clone());
         self.events
             .push(self.tick, EventKind::Player, def.thanks.clone());
         self.notices.push(self.tick, def.thanks.clone());

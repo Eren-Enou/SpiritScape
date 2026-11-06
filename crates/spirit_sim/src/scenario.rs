@@ -65,6 +65,8 @@ pub enum ScenarioKind {
     MasonYard,
     /// Goods piled up, with a caravan's worth to send away.
     CaravanYard,
+    /// Six caravans home, and everything they found ready to plan.
+    LateFinds,
     /// Everything built: every road, both crossings. The busiest map there is.
     FullMap,
     /// Main Storage completely full, with nothing to spend it on.
@@ -84,7 +86,7 @@ pub enum ScenarioKind {
 }
 
 impl ScenarioKind {
-    pub const ALL: [ScenarioKind; 32] = [
+    pub const ALL: [ScenarioKind; 33] = [
         ScenarioKind::NewGame,
         ScenarioKind::Demo,
         ScenarioKind::Regrind,
@@ -109,6 +111,7 @@ impl ScenarioKind {
         ScenarioKind::LastStage,
         ScenarioKind::MasonYard,
         ScenarioKind::CaravanYard,
+        ScenarioKind::LateFinds,
         ScenarioKind::FullMap,
         ScenarioKind::NoRoomLeft,
         ScenarioKind::QuarryStart,
@@ -145,6 +148,7 @@ impl ScenarioKind {
             ScenarioKind::LastStage => "last_stage",
             ScenarioKind::MasonYard => "mason_yard",
             ScenarioKind::CaravanYard => "caravan_yard",
+            ScenarioKind::LateFinds => "late_finds",
             ScenarioKind::FullMap => "full_map",
             ScenarioKind::NoRoomLeft => "no_room_left",
             ScenarioKind::QuarryStart => "quarry_start",
@@ -224,6 +228,9 @@ pub struct ScenarioDef {
     /// Buildings already standing.
     #[serde(default)]
     pub prebuilt: Vec<PrebuiltSeed>,
+    /// Trade Caravans already sent.
+    #[serde(default)]
+    pub caravans: u32,
 }
 
 /// A full-grown tree of `kind`.
@@ -373,7 +380,7 @@ impl World {
                 extra_orders: extra_orders(&defs_orders),
                 carry_bonus: 0,
                 ambitions_seen: None,
-                caravans: 0,
+                caravans: scenario.caravans,
                 ended_at: None,
                 markers_read: Vec::new(),
                 season_seen: None,
@@ -381,6 +388,10 @@ impl World {
                 visitor: None,
                 visitors_met: 0,
                 offers_taken: 0,
+                offers_accepted: Vec::new(),
+                offers_refused: Vec::new(),
+                visitors_seen: Vec::new(),
+                visitor_last: None,
                 bench_bonus: 0,
                 queue: Vec::new(),
                 next_queue_id: 0,

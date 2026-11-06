@@ -745,10 +745,14 @@ impl World {
                 def.name, def.slots
             ))
         } else if bench_bonus > 0 {
-            Some(format!(
-                "{} complete. The bench can hold {bench_bonus} more logs for your training.",
-                def.name
-            ))
+            Some(if benefit.is_empty() {
+                format!(
+                    "{} complete. The bench can hold {bench_bonus} more logs for your training.",
+                    def.name
+                )
+            } else {
+                format!("{name} complete. {benefit}")
+            })
         } else if bonus > 0 {
             Some(format!(
                 "{} complete. Settlement storage capacity increased to {}.",

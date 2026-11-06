@@ -397,6 +397,18 @@ spirits = [
     { role = "builder", xp = 388, spawn = "B" },
 ]
 
+[late_finds]
+title = "Late finds"
+description = "Six caravans have been and gone. What they found is waiting in the Projects tab (B)."
+objective_target = 20
+auto_gather = true
+caravans = 6
+main_storage = { logs = 120, planks = 40, panels = 6, dressed_stone = 40, beams = 10 }
+spirits = [
+    { role = "builder", xp = 388, spawn = "B" },
+    { role = "builder", xp = 388, spawn = "B" },
+]
+
 [full_map]
 title = "Full map"
 description = "Everything is built: every road and both crossings, with a remote bench running. Walk around, and see how it all fits together."

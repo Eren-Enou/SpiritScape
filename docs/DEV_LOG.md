@@ -2,6 +2,14 @@
 
 The handoff between development runs. Newest first.
 
+## v0.34 Coming back
+
+**Status:** on branch `v0.34-coming-back`, with its PR targeting `v0.33-naming`. Not merged.
+
+**Shipped:** seven more visitors, three who only come because of an earlier answer and two who've heard how it went; three more caravan finds; and visitors no longer queue behind someone waiting for a building.
+
+**Next:** a fourth trade and a standing Stone target, a second ending, better reference players.
+
 ## v0.33 Names
 
 **Status:** on branch `v0.33-naming`, with its PR targeting `v0.32-the-far-shore`. Not merged.
@@ -248,6 +256,7 @@ The handoff between development runs. Newest first.
 
 - Should the player choose a road's route on the map? Fixed routes were the reversible choice.
 - Is 447 XP a minute from panels too fast? Only a playtest can say.
+- Should letting a visitor leave count as turning them down? For now it counts as neither.
 - Should a full store really let you throw goods away? It's the only way Woodcutting 20 stays reachable, because nothing uses logs and panels without limit.
 
 ## Standing notes
