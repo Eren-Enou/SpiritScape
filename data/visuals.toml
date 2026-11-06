@@ -286,3 +286,10 @@ model = "models/characters/Knight.glb"
 [spirit_look]
 alpha = 0.65
 glow = 0.45
+
+# Laid over the ground, as red, green, blue, alpha. Summer is the plain map.
+[season_tints]
+spring = [0.60, 1.00, 0.45, 0.06]
+summer = [1.00, 1.00, 1.00, 0.00]
+autumn = [0.86, 0.52, 0.14, 0.20]
+winter = [0.93, 0.96, 1.00, 0.62]

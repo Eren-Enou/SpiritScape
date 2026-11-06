@@ -82,6 +82,11 @@ fn main() -> AppExit {
         sim.speed = speed;
     }
 
+    // Development aid: jump a game forward, to see a later season.
+    if let Some(minutes) = value("--skip-minutes").and_then(|v| v.parse::<u64>().ok()) {
+        sim.world.tick += minutes * 60 * sim.world.defs.ticks_per_second as u64;
+    }
+
     let mut app = App::new();
     app.add_plugins(
         DefaultPlugins

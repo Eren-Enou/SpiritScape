@@ -67,7 +67,8 @@ impl Plugin for CharactersPlugin {
             Update,
             (
                 build_anim_graph,
-                spawn_characters,
+                // After the world is rebuilt, or the first frame spawns everyone twice.
+                spawn_characters.after(crate::world_view::rebuild_on_restart),
                 setup_rigs,
                 sync_characters,
             )

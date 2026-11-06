@@ -11,7 +11,7 @@ git fetch origin
 ```
 
 ```bash
-git checkout v0.30-feedback
+git checkout v0.31-the-moment
 ```
 
 Press `F6` at any time to write a report of your session. Note the time whenever something surprises you.
@@ -123,7 +123,7 @@ cargo run --release -- --scenario last_stage
 
 Press `B`, plan the Hearth of Spirits and wait. Then press `J`.
 
-- [ ] Did that feel like an ending?
+- [ ] Did that feel like an ending? Did the spirits coming to the Hearth mean anything?
 
 ## 11. Sound
 

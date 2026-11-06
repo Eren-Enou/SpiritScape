@@ -144,6 +144,7 @@ fn key(name: &str) -> Option<(KeyCode, Key)> {
         "G" => KeyCode::KeyG,
         "H" => KeyCode::KeyH,
         "M" => KeyCode::KeyM,
+        "Enter" => return Some((KeyCode::Enter, Key::Enter)),
         "C" => KeyCode::KeyC,
         "E" => KeyCode::KeyE,
         "P" => KeyCode::KeyP,
