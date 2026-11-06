@@ -202,6 +202,10 @@ pub struct ConstructionRules {
     pub visitor_gap_minutes: u64,
     /// How long spirits gather when the Hearth is lit.
     pub hearth_gathering_ticks: u64,
+    /// Time between one spirit boarding and the next.
+    pub homecoming_gap_ticks: u64,
+    /// How long anyone gets to reach the boat.
+    pub homecoming_limit_ticks: u64,
     /// How often to check that nobody's been walled in.
     pub stranded_check_ticks: u64,
 }
@@ -337,6 +341,8 @@ pub struct BuildingDef {
     pub winter_growth: bool,
     /// What the closing story says if this stands.
     pub ending_line: Option<String>,
+    /// Spirits can be called home to this.
+    pub calls_home: bool,
     /// Where this must be built, when it's tied to one place.
     pub access_site: Option<[i32; 2]>,
     /// Tiles that become a crossing when this is finished.
@@ -614,6 +620,8 @@ struct RawConstruction {
     visitor_gap_minutes: u64,
     visitor_patience_minutes: u64,
     hearth_gathering_seconds: f32,
+    homecoming_gap_seconds: f32,
+    homecoming_limit_seconds: f32,
     stranded_check_seconds: f32,
 }
 
@@ -721,6 +729,8 @@ struct RawBuilding {
     winter_growth: bool,
     #[serde(default)]
     ending_line: Option<String>,
+    #[serde(default)]
+    calls_home: bool,
     #[serde(default)]
     carry_bonus: u32,
     #[serde(default)]
@@ -924,6 +934,8 @@ impl GameDefs {
             visitor_gap_minutes: raw.construction.visitor_gap_minutes,
             visitor_patience_minutes: raw.construction.visitor_patience_minutes,
             hearth_gathering_ticks: ticks(raw.construction.hearth_gathering_seconds),
+            homecoming_gap_ticks: ticks(raw.construction.homecoming_gap_seconds),
+            homecoming_limit_ticks: ticks(raw.construction.homecoming_limit_seconds),
             stranded_check_ticks: ticks(raw.construction.stranded_check_seconds).max(1),
         };
 
@@ -1008,6 +1020,7 @@ impl GameDefs {
                 training_bonus: b.training_bonus,
                 winter_growth: b.winter_growth,
                 ending_line: b.ending_line,
+                calls_home: b.calls_home,
                 access_site: b.access_site,
                 opens: b.opens,
                 paves: road_tiles(&b.paves).map_err(|e| format!("{:?}: {e}", b.id))?,

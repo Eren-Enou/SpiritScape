@@ -261,8 +261,26 @@ impl World {
         true
     }
 
+    /// What the closing story says about what's standing. The boat only has
+    /// something to say if it's still at the shore.
+    pub(crate) fn building_lines(&self, boat: bool) -> Vec<String> {
+        let stands = |i: usize| {
+            self.buildings
+                .iter()
+                .any(|b| b.kind.index() == i && b.is_complete())
+        };
+        let lines = self.defs.buildings.iter().enumerate();
+        lines
+            .filter(|(i, def)| (boat || !def.calls_home) && stands(*i))
+            .filter_map(|(_, def)| def.ending_line.clone())
+            .collect()
+    }
+
     /// The closing account of a game, once the Hearth is lit.
     pub fn ending_story(&self) -> Option<Vec<String>> {
+        if let Some(story) = self.homecoming_story() {
+            return Some(story);
+        }
         let at = self.settlement.ended_at?;
         let tps = self.defs.ticks_per_second as u64;
         let secs = at / tps;
@@ -289,18 +307,7 @@ impl World {
             "{} Trade Caravans went out, and the settlement knows your name.",
             self.settlement.caravans
         ));
-        for (i, def) in self.defs.buildings.iter().enumerate() {
-            let Some(line) = &def.ending_line else {
-                continue;
-            };
-            let stands = self
-                .buildings
-                .iter()
-                .any(|b| b.kind.index() == i && b.is_complete());
-            if stands {
-                lines.push(line.clone());
-            }
-        }
+        lines.extend(self.building_lines(true));
         if self.settlement.markers_read.len() == self.defs.markers.len() {
             lines.push("Whoever cut those stones built no hearth. You did.".into());
         }

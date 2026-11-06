@@ -12,6 +12,7 @@ pub mod defs;
 pub mod entities;
 pub mod events;
 pub mod grid;
+pub mod homecoming;
 pub mod inventory;
 pub mod journey;
 pub mod metrics;

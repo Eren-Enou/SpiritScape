@@ -69,6 +69,8 @@ pub enum ScenarioKind {
     LateFinds,
     /// A Kiln with clay to fire.
     KilnYard,
+    /// The Still Boat at the shore, ready.
+    LastBoat,
     /// Everything built: every road, both crossings. The busiest map there is.
     FullMap,
     /// Main Storage completely full, with nothing to spend it on.
@@ -88,7 +90,7 @@ pub enum ScenarioKind {
 }
 
 impl ScenarioKind {
-    pub const ALL: [ScenarioKind; 34] = [
+    pub const ALL: [ScenarioKind; 35] = [
         ScenarioKind::NewGame,
         ScenarioKind::Demo,
         ScenarioKind::Regrind,
@@ -115,6 +117,7 @@ impl ScenarioKind {
         ScenarioKind::CaravanYard,
         ScenarioKind::LateFinds,
         ScenarioKind::KilnYard,
+        ScenarioKind::LastBoat,
         ScenarioKind::FullMap,
         ScenarioKind::NoRoomLeft,
         ScenarioKind::QuarryStart,
@@ -153,6 +156,7 @@ impl ScenarioKind {
             ScenarioKind::CaravanYard => "caravan_yard",
             ScenarioKind::LateFinds => "late_finds",
             ScenarioKind::KilnYard => "kiln_yard",
+            ScenarioKind::LastBoat => "last_boat",
             ScenarioKind::FullMap => "full_map",
             ScenarioKind::NoRoomLeft => "no_room_left",
             ScenarioKind::QuarryStart => "quarry_start",
@@ -178,6 +182,9 @@ pub struct SpiritSeed {
     #[serde(default)]
     pub level: Option<u32>,
     pub spawn: String,
+    /// Made from the player's own XP, as a real one would be.
+    #[serde(default)]
+    pub gifted: bool,
     /// Starts with the instruction to gather the top tier first.
     #[serde(default)]
     pub prefer_advanced: bool,
@@ -397,6 +404,7 @@ impl World {
                 visitors_seen: Vec::new(),
                 visitor_last: None,
                 standing: BTreeMap::new(),
+                homecoming: None,
                 bench_bonus: 0,
                 queue: Vec::new(),
                 next_queue_id: 0,
@@ -478,6 +486,9 @@ impl World {
                 .level
                 .map_or(seed.xp, |l| world.defs.xp_table.xp_for_level(l));
             let id = world.add_spirit(role, xp, pos);
+            if seed.gifted {
+                world.begin_story(id, xp);
+            }
             world.spirits[id].policy.prefer_advanced = seed.prefer_advanced;
             if let Some(key) = &seed.site {
                 let site = world

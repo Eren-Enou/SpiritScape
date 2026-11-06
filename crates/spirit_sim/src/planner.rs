@@ -739,6 +739,7 @@ impl World {
             || carry_bonus > 0
             || def.winter_growth
             || def.ending_line.is_some()
+            || def.calls_home
         {
             Some(format!("{name} complete. {benefit}"))
         } else if is_station {
