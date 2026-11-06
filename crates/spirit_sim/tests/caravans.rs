@@ -252,3 +252,59 @@ fn every_find_is_described() {
         assert!(b.caravan_find.len() > 10, "{}", b.id);
     }
 }
+
+#[test]
+fn each_of_the_first_six_caravans_opens_one_more_thing() {
+    let w = world();
+    let mut needs: Vec<u32> = w
+        .defs
+        .buildings
+        .iter()
+        .filter(|b| b.needs_caravans > 0)
+        .map(|b| b.needs_caravans)
+        .collect();
+    needs.sort();
+    assert_eq!(needs, vec![1, 2, 3, 4, 5, 6]);
+}
+
+#[test]
+fn a_late_find_can_be_built() {
+    let mut w = world();
+    w.settlement.caravans = 4;
+    stock(&mut w, "logs", 40);
+    let count = w.trees.len();
+    plan_named(&mut w, "oak_saplings").unwrap();
+    let kind = w.defs.building_kind_id("oak_saplings").unwrap();
+    assert!(run_until(&mut w, 6000, |w| w
+        .buildings
+        .iter()
+        .any(|b| b.kind == kind && b.is_complete())));
+    assert_eq!(w.trees.len(), count + 3);
+}
+
+#[test]
+fn each_late_find_does_what_it_says() {
+    let mut w = World::from_scenario(ScenarioKind::LateFinds);
+    let main = w.main_storage;
+    let room = w.buildings[main].storage.capacity;
+    let bench = w.settlement.bench_bonus;
+    for id in ["oak_saplings", "long_racks", "stone_cellar"] {
+        plan_named(&mut w, id).unwrap();
+    }
+    let done = |w: &World, id: &str| {
+        let k = w.defs.building_kind_id(id).unwrap();
+        w.buildings.iter().any(|b| b.kind == k && b.is_complete())
+    };
+    let all = |w: &World| {
+        ["oak_saplings", "long_racks", "stone_cellar"]
+            .iter()
+            .all(|id| done(w, id))
+    };
+    assert!(run_until(&mut w, 30_000, all));
+    assert_eq!(w.buildings[main].storage.capacity, room + 800);
+    assert_eq!(w.settlement.bench_bonus, bench + 60);
+    assert!(
+        w.notices.contains("Room for 60 more"),
+        "not the Log Rack's words"
+    );
+}

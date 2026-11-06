@@ -26,6 +26,13 @@ fn main() {
             println!("Main Storage: {} of {}.", main.total(), main.capacity);
             let left: u64 = w.ledger.left_behind.values().sum();
             println!("Left behind: {left} units.");
+            let came: Vec<&str> = w
+                .settlement
+                .visitors_seen
+                .iter()
+                .map(|i| w.defs.visitors[*i as usize].name.as_str())
+                .collect();
+            println!("Visitors, in the order they came: {came:?}");
             if std::env::args().any(|a| a == "--state") {
                 println!("\n```text\n{}\n```", r.final_state);
             }

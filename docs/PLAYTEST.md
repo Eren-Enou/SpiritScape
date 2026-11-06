@@ -11,7 +11,7 @@ git fetch origin
 ```
 
 ```bash
-git checkout v0.33-naming
+git checkout v0.34-coming-back
 ```
 
 Press `F6` at any time to write a report of your session. Note the time whenever something surprises you.
@@ -97,6 +97,8 @@ cargo run --release -- --scenario caravan_yard
 
 - [ ] Did a caravan feel like a choice, or a chore?
 - [ ] Did what it brought back feel like a reward?
+- [ ] Try `--scenario late_finds` too. Is there anything there you'd want before the sixth caravan?
+- [ ] In a real game, did a returning visitor make you remember what you'd said?
 
 ## 8. A spirit of your own (5 minutes)
 
@@ -158,3 +160,14 @@ They're stacked, each targeting the one before, so they must be merged in this o
 | [#16](https://github.com/Eren-Enou/SpiritScape/pull/16) | v0.18 | Demand chains, goal messages |
 | [#17](https://github.com/Eren-Enou/SpiritScape/pull/17) | v0.19 | Every goal reachable, Leave your load |
 | [#18](https://github.com/Eren-Enou/SpiritScape/pull/18) | v0.20 | Frame rate check and this guide |
+| [#19](https://github.com/Eren-Enou/SpiritScape/pull/19) | v0.21 | Trade Caravans |
+| [#20](https://github.com/Eren-Enou/SpiritScape/pull/20) | v0.22 | What caravans bring back |
+| [#21](https://github.com/Eren-Enou/SpiritScape/pull/21) | v0.23 | Spirit stories |
+| [#22](https://github.com/Eren-Enou/SpiritScape/pull/22) | v0.24 | Masonry |
+| [#23](https://github.com/Eren-Enou/SpiritScape/pull/23) | v0.25 | The Hearth of Spirits |
+| [#24](https://github.com/Eren-Enou/SpiritScape/pull/24) | v0.26 | The old stones |
+| [#25](https://github.com/Eren-Enou/SpiritScape/pull/25) | v0.27 | Seasons |
+| [#26](https://github.com/Eren-Enou/SpiritScape/pull/26) | v0.28 | Visitors |
+| [#27](https://github.com/Eren-Enou/SpiritScape/pull/27) | v0.29 | Learning as you go |
+| [#28](https://github.com/Eren-Enou/SpiritScape/pull/28) | v0.30 | Sound and feedback |
+| [#29](https://github.com/Eren-Enou/SpiritScape/pull/29) | v0.31 | The moment |

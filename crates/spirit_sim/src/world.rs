@@ -102,6 +102,17 @@ pub struct Settlement {
     pub visitors_met: u32,
     #[serde(default)]
     pub offers_taken: u32,
+    /// Whose offers were taken or turned down, for those who remember.
+    #[serde(default)]
+    pub offers_accepted: Vec<String>,
+    #[serde(default)]
+    pub offers_refused: Vec<String>,
+    /// Who has come, past the point where everyone has.
+    #[serde(default)]
+    pub visitors_seen: Vec<u32>,
+    /// When someone last arrived, so they don't come on each other's heels.
+    #[serde(default)]
+    pub visitor_last: Option<u64>,
     /// The season last announced.
     #[serde(default)]
     pub season_seen: Option<String>,

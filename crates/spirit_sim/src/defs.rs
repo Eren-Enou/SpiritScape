@@ -198,6 +198,8 @@ pub struct ConstructionRules {
     pub road_pct: u32,
     /// How long a visitor waits for an answer.
     pub visitor_patience_minutes: u64,
+    /// The least time between one visitor arriving and the next.
+    pub visitor_gap_minutes: u64,
     /// How long spirits gather when the Hearth is lit.
     pub hearth_gathering_ticks: u64,
     /// How often to check that nobody's been walled in.
@@ -605,6 +607,7 @@ struct RawConstruction {
     annex_reach: u32,
     raw_room: u32,
     road_pct: u32,
+    visitor_gap_minutes: u64,
     visitor_patience_minutes: u64,
     hearth_gathering_seconds: f32,
     stranded_check_seconds: f32,
@@ -910,6 +913,7 @@ impl GameDefs {
             annex_reach: raw.construction.annex_reach,
             raw_room: raw.construction.raw_room,
             road_pct: raw.construction.road_pct.clamp(1, 100),
+            visitor_gap_minutes: raw.construction.visitor_gap_minutes,
             visitor_patience_minutes: raw.construction.visitor_patience_minutes,
             hearth_gathering_ticks: ticks(raw.construction.hearth_gathering_seconds),
             stranded_check_ticks: ticks(raw.construction.stranded_check_seconds).max(1),

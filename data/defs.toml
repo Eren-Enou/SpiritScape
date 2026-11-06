@@ -451,6 +451,86 @@ id = "first_winter"
 when = "season:winter"
 text = "The trees won't grow back until spring. It's a good time for the bench, the quarry or the plan."
 
+# These come back only if something earlier went the right way. `remembers`
+# names a visitor whose offer you took, and `refused` one you turned down.
+[[visitors]]
+id = "pedlar_returns"
+name = "The pedlar, again"
+after_minutes = 320
+remembers = "pedlar"
+text = "\"You dealt fair with me once. My daughter's marrying a joiner, and I've orders to fill, if you're still cutting.\""
+thanks = "The pedlar pays above the odds, and asks after your spirits by name."
+wants = [{ resource = "logs", amount = 120 }]
+gives = [{ resource = "planks", amount = 60 }]
+
+[[visitors]]
+id = "surveyor_son"
+name = "A surveyor's son"
+after_minutes = 380
+refused = "surveyor"
+text = "\"My father said you turned him down, and that he'd have done the same. I've brought what he'd have left you. I only need planks for the road home.\""
+thanks = "He stacks the stone neatly, the way his father would have."
+wants = [{ resource = "planks", amount = 20 }]
+gives = [{ resource = "stone", amount = 40 }]
+
+[[visitors]]
+id = "shipwright_keel"
+name = "The shipwright"
+after_minutes = 440
+remembers = "shipwright"
+needs_built = "south_crossing"
+text = "\"I've a keel to lay. I'd not ask if it weren't the last ship I'll build. Stone for the slip, and I'll send back what I can.\""
+thanks = "The shipwright stays to watch the spirits work for a while, and doesn't say why."
+wants = [{ resource = "dressed_stone", amount = 40 }]
+gives = [{ resource = "beams", amount = 30 }]
+
+# These come either way. `knows` names someone earlier, and what they say
+# depends on how that went.
+[[visitors]]
+id = "pilgrim_party"
+name = "A party of pilgrims"
+after_minutes = 540
+needs_built = "hearth_foundations"
+knows = "pilgrim"
+text = "\"People say someone's raising a hearth out here. We didn't believe it, so we came to look. We've brought stone, and we only want planks for shelter.\""
+text_took = "\"One of ours came home and said you'd helped when you didn't have to. We've carried stone all this way. We only want planks for shelter.\""
+text_refused = "\"One of ours walked home from here with nothing, and told us to come anyway. We've carried stone all this way. We only want planks for shelter.\""
+thanks = "The pilgrims stay three nights, and leave the stone stacked better than they found it."
+wants = [{ resource = "planks", amount = 80 }]
+gives = [{ resource = "dressed_stone", amount = 30 }]
+
+[[visitors]]
+id = "apprentice"
+name = "A mason's apprentice"
+after_minutes = 640
+needs_built = "mason_yard"
+knows = "mason"
+text = "\"I'm told there's a yard out here that knows stone. Nobody's let me near a real job yet. Would you try me?\""
+text_took = "\"The old mason died in the spring. The last thing they talked about was your yard, and that night's work. I'd like to do the same.\""
+text_refused = "\"My master came here once, and you sent them away. They said you were right to. I'd like to change your mind.\""
+thanks = "The apprentice works slowly, and checks each one twice."
+wants = [{ resource = "dressed_stone", amount = 12 }]
+gives = [{ resource = "keystones", amount = 2 }]
+
+[[visitors]]
+id = "wet_boots"
+name = "A stranger with wet boots"
+after_minutes = 760
+needs_built = "still_lantern"
+text = "\"You keep a light for the far shore. Nobody's done that in a long time. I want nothing for it. Well. A little stillwood, to take back where it came from.\""
+thanks = "The stranger walks south. For a while the lantern burns steadier, or you think it does."
+wants = [{ resource = "stillwood", amount = 10 }]
+gives = [{ resource = "keystones", amount = 3 }]
+
+[[visitors]]
+id = "valley_child"
+name = "A child from the valley"
+after_minutes = 300
+needs_built = "hearth_of_spirits"
+text = "\"They say there's a fire here that spirits made. Is it true? Can I see one? My cart's got a broken board, too, if you've a plank or two to spare.\""
+thanks = "The child watches a spirit work until it gets dark, and has to be called home twice."
+wants = [{ resource = "planks", amount = 5 }]
+
 [[resources]]
 id = "logs"
 name = "Logs"
@@ -799,6 +879,7 @@ road_pct = 67
 hearth_gathering_seconds = 180.0
 # How long a visitor waits for an answer, in game minutes.
 visitor_patience_minutes = 10
+visitor_gap_minutes = 30
 # How often to look for anyone walled in, which older saves can contain.
 stranded_check_seconds = 10.0
 
@@ -1442,6 +1523,70 @@ build_seconds_per_level = 0.5
 min_build_seconds = 12.0
 color = [0.80, 0.86, 0.95]
 benefit = "A light from the shore they won't walk on. Every spirit carries two more, and something in them eases."
+
+# Later things caravans bring back.
+[[buildings]]
+id = "oak_saplings"
+name = "Oak Saplings"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+needs_caravans = 4
+caravan_find = "A bundle of oak saplings, wrapped in damp cloth. Plan Oak Saplings in Projects (B)."
+plants = [
+    { tree = "oak", at = [13, 7] },
+    { tree = "oak", at = [9, 11] },
+    { tree = "oak", at = [15, 12] },
+]
+cost = [{ resource = "logs", amount = 40 }]
+build_seconds = 20.0
+build_seconds_per_level = 0.5
+min_build_seconds = 8.0
+color = [0.50, 0.60, 0.38]
+benefit = "Three Oaks in the Starting Grove, with no river to cross."
+
+[[buildings]]
+id = "long_racks"
+name = "Long Racks"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+needs_caravans = 5
+caravan_find = "Plans for long racks, from a yard that's closed. Plan Long Racks in Projects (B)."
+training_bonus = 60
+scales_goods = true
+cost = [
+    { resource = "planks", amount = 30 },
+    { resource = "panels", amount = 5 },
+]
+build_seconds = 20.0
+build_seconds_per_level = 0.5
+min_build_seconds = 8.0
+color = [0.70, 0.60, 0.45]
+benefit = "Room for 60 more of what you're training with at every bench."
+
+[[buildings]]
+id = "stone_cellar"
+name = "Stone Cellar"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+needs_caravans = 6
+caravan_find = "A mason's drawing of a cellar. Plan a Stone Cellar in Projects (B)."
+capacity_bonus = 800
+scales_goods = true
+cost = [
+    { resource = "dressed_stone", amount = 40 },
+    { resource = "beams", amount = 10 },
+]
+build_seconds = 40.0
+build_seconds_per_level = 0.5
+min_build_seconds = 16.0
+color = [0.60, 0.60, 0.62]
+benefit = "More room in Main Storage than anything else: 800."
 
 [objective]
 # "Maintain <target> <resource> in the main settlement storage."
