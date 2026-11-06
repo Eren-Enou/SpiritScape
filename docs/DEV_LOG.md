@@ -2,6 +2,14 @@
 
 The handoff between development runs. Newest first.
 
+## v0.33 Names
+
+**Status:** on branch `v0.33-naming`, with its PR targeting `v0.32-the-far-shore`. Not merged.
+
+**Shipped:** naming spirits, and traits that come round in order with the next one shown.
+
+**Next:** more caravan finds and visitors, a fourth trade, a second ending.
+
 ## v0.32 The Far Shore
 
 **Status:** on branch `v0.32-the-far-shore`, with its PR targeting `v0.31-the-moment`. Not merged.

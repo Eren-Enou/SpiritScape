@@ -53,6 +53,9 @@ pub struct DeedDef {
     pub text: String,
 }
 
+/// The longest name a spirit can have.
+pub const MAX_NAME: usize = 18;
+
 fn measured(s: &Spirit, measure: &str) -> u32 {
     match measure {
         "gathered" => s.units_gathered,
@@ -74,8 +77,7 @@ impl World {
         if count == 0 {
             return;
         }
-        // Spread by when it was made, so no spirit's trait can be chosen.
-        let pick = (id as u64 * 7 + tick / 10) as usize % count;
+        let pick = id % count;
         s.character = Some(pick as u16);
         s.actor.inventory.capacity += self.defs.traits[pick].carry;
     }
@@ -159,6 +161,31 @@ impl World {
             .filter(|m| read.contains(&m.id))
             .map(|m| (m.title.clone(), m.text.clone()))
             .collect()
+    }
+
+    /// What the next spirit made will be like. Traits come round in order, so
+    /// a player can see it coming and decide what to make of it.
+    pub fn next_trait(&self) -> Option<&TraitDef> {
+        let count = self.defs.traits.len();
+        (count > 0).then(|| &self.defs.traits[self.spirits.len() % count])
+    }
+
+    /// Gives a spirit the name the player chose.
+    pub(crate) fn rename_spirit(&mut self, id: SpiritId, name: &str) -> Result<String, String> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err("A name needs at least one letter".into());
+        }
+        if name.chars().count() > MAX_NAME {
+            return Err(format!("Names can be {MAX_NAME} letters at most"));
+        }
+        let Some(s) = self.spirits.get_mut(id) else {
+            return Err("There's no such spirit".into());
+        };
+        let msg = format!("{} is now called {name}", s.name);
+        s.name = name.to_string();
+        self.events.push(self.tick, EventKind::Player, msg.clone());
+        Ok(msg)
     }
 
     /// Records deeds as they're earned.

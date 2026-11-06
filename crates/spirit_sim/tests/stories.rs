@@ -37,40 +37,66 @@ fn a_spirit_made_from_xp_has_a_trait_and_remembers_its_making() {
 #[test]
 fn a_trait_with_a_carry_bonus_changes_what_it_carries() {
     let mut w = world();
-    let strong = w.defs.traits.iter().position(|t| t.carry > 0).unwrap();
-    for _ in 0..200 {
-        w.step();
-        let id = make_probe(&mut w);
-        if id == Some(strong as u16) {
-            return;
-        }
+    while w.next_trait().unwrap().carry == 0 {
+        let extra = w.spirits[0].clone();
+        w.spirits.push(extra);
     }
-    panic!("no spirit ever got the trait");
-}
-
-/// Checks one spirit made now, on a copy so XP lasts.
-fn make_probe(w: &mut World) -> Option<u16> {
-    let mut copy = w.clone();
-    let id = make_spirit(&mut copy);
-    let s = &copy.spirits[id];
-    let role = copy.defs.role(s.role);
-    let extra = copy.defs.traits[s.character? as usize].carry;
+    let bonus = w.next_trait().unwrap().carry;
+    let id = make_spirit(&mut w);
+    let s = &w.spirits[id];
+    let role = w.defs.role(s.role);
     assert_eq!(
         s.actor.inventory.capacity,
-        role.capacity_at(s.level()) + extra
+        role.capacity_at(s.level()) + bonus
     );
-    s.character
 }
 
 #[test]
-fn traits_are_spread_across_spirits() {
+fn the_next_trait_can_be_seen_coming_and_they_come_round_in_turn() {
     let mut w = world();
     let mut seen = std::collections::BTreeSet::new();
-    for _ in 0..40 {
-        w.run_ticks(10);
-        seen.insert(make_probe(&mut w));
+    for _ in 0..w.defs.traits.len() {
+        seen.insert(w.next_trait().unwrap().id.clone());
+        let extra = w.spirits[0].clone();
+        w.spirits.push(extra);
     }
     assert_eq!(seen.len(), w.defs.traits.len());
+    let told = w.next_trait().unwrap().id.clone();
+    let id = make_spirit(&mut w);
+    let got = w.spirits[id].character.unwrap() as usize;
+    assert_eq!(w.defs.traits[got].id, told);
+}
+
+#[test]
+fn a_spirit_can_be_named_and_keeps_its_title() {
+    let mut w = world();
+    w.spirits[0].trips = 100;
+    w.run_ticks(100);
+    let name = "Old Pine".to_string();
+    w.apply(Command::RenameSpirit { id: 0, name }).unwrap();
+    assert!(w.spirit_title(&w.spirits[0]).starts_with("Old Pine the "));
+}
+
+#[test]
+fn a_name_has_to_be_a_name() {
+    let mut w = world();
+    let bad = |w: &mut World, name: &str| {
+        let name = name.to_string();
+        w.apply(Command::RenameSpirit { id: 0, name }).is_err()
+    };
+    assert!(bad(&mut w, "   "));
+    assert!(bad(&mut w, &"x".repeat(19)));
+    let was = w.spirits[0].name.clone();
+    assert_eq!(w.spirits[0].name, was);
+}
+
+#[test]
+fn a_chosen_name_survives_saving() {
+    let mut w = world();
+    let name = "Fern".to_string();
+    w.apply(Command::RenameSpirit { id: 0, name }).unwrap();
+    let (loaded, _) = decode(&encode(&w, "quarry_start")).unwrap();
+    assert_eq!(loaded.spirits[0].name, "Fern");
 }
 
 #[test]

@@ -34,6 +34,8 @@ pub struct Sim {
     pub soul_armed: bool,
     /// Feedback from the last player command.
     pub message: String,
+    /// The name being typed for the selected spirit.
+    pub naming: Option<String>,
     /// Bumped when the world is replaced so the renderer rebuilds its entities.
     pub generation: u32,
     /// Large on-screen notice and its remaining seconds.
@@ -79,6 +81,7 @@ impl Sim {
             speed: Self::default_speed(scenario, &world),
             accumulator: 0.0,
             message: String::new(),
+            naming: None,
             generation: 0,
             banner: None,
             notices_seen: world.notices.total,

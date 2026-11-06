@@ -11,7 +11,7 @@ git fetch origin
 ```
 
 ```bash
-git checkout v0.32-the-far-shore
+git checkout v0.33-naming
 ```
 
 Press `F6` at any time to write a report of your session. Note the time whenever something surprises you.
@@ -106,7 +106,8 @@ cargo run --release -- --scenario quarry_start
 
 Make a spirit from the Soul tab (`R`), then look at it in the Spirits tab (`O`).
 
-- [ ] Did it feel like someone, or like a stat line?
+- [ ] Did it feel like someone, or like a stat line? Did you want to rename it?
+- [ ] Did seeing the next trait change when you made a spirit?
 
 ## 9. The Mason's Yard (5 minutes)
 
