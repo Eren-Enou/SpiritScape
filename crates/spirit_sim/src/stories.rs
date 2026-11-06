@@ -252,6 +252,14 @@ impl World {
             "{} Trade Caravans went out, and the settlement knows your name.",
             self.settlement.caravans
         ));
+        let lantern = self.defs.building_kind_id("still_lantern");
+        if self
+            .buildings
+            .iter()
+            .any(|b| Some(b.kind) == lantern && b.is_complete())
+        {
+            lines.push("A light from the Far Shore burns here too. You went where they wouldn't, and brought it back.".into());
+        }
         if self.settlement.markers_read.len() == self.defs.markers.len() {
             lines.push("Whoever cut those stones built no hearth. You did.".into());
         }

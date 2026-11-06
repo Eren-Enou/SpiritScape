@@ -411,6 +411,7 @@ prebuilt = [
     { building = "workshop", at = [36, 4] },
     { building = "forest_crossing", at = [48, 4] },
     { building = "stone_causeway", at = [21, 20] },
+    { building = "south_crossing", at = [12, 28] },
     { building = "grove_lane", at = [6, 14] },
     { building = "north_road", at = [17, 13] },
     { building = "old_growth_road", at = [23, 3] },

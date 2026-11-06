@@ -154,8 +154,14 @@ built = ["hearth_foundations", "hearth_walls", "hearth_of_spirits"]
 [[ambitions]]
 id = "markers"
 title = "Read the old stones"
-hint = "Someone was here before you. Six stones are out there, one of them beyond the ravine."
-markers = 6
+hint = "Someone was here before you. Seven stones are out there, one beyond the ravine and one across the south river."
+markers = 7
+
+[[ambitions]]
+id = "far_shore"
+title = "Light a Still Lantern"
+hint = "Cross the south river and cut Stillwood yourself. It needs Woodcutting 12, and no spirit will help."
+built = ["south_crossing", "still_lantern"]
 
 [[ambitions]]
 id = "master_wood"
@@ -276,6 +282,12 @@ id = "south"
 at = [42, 24]
 title = "The Split Stone"
 text = "There is one thing left to give. I think if I give it, the work will go on without anyone to watch it. I think that's what I wanted."
+
+[[markers]]
+id = "shore"
+at = [31, 35]
+title = "The Shore Stone"
+text = "They won't cross. I've watched them stop at the water and turn round. I come here when I want to be sure what's left of me is mine."
 
 [[markers]]
 id = "hollow"
@@ -475,6 +487,11 @@ name = "Dressed Stone"
 id = "keystones"
 name = "Keystones"
 
+# Only the player can bring this home.
+[[resources]]
+id = "stillwood"
+name = "Stillwood"
+
 [[skills]]
 id = "woodcutting"
 name = "Woodcutting"
@@ -574,6 +591,24 @@ chop_seconds = 3.5
 chop_seconds_per_level = 0.1
 min_chop_seconds = 1.2
 why = "The only source of Stone, which the Stone Causeway is built from."
+
+# Grows only on the Far Shore. Spirits won't touch it, or go near it: this is
+# the one thing in the game you can only do yourself.
+[[tree_types]]
+id = "stilltree"
+name = "Stilltree"
+map_char = "S"
+resource = "stillwood"
+skill = "woodcutting"
+level_required = 12
+spirits_avoid = true
+logs = 3
+regrow_seconds = 240.0
+xp_per_log = 90
+chop_seconds = 5.0
+chop_seconds_per_level = 0.1
+min_chop_seconds = 2.0
+why = "It grows on the Far Shore, and no spirit will cut it."
 
 # ---------------------------------------------------------------------------
 # Recipes: timed processing at a station building. The player and spirits use
@@ -725,6 +760,13 @@ region = "old_growth"
 id = "south_quarry"
 name = "South Quarry"
 area = [2, 21, 12, 27]
+regrow_pct = 100
+
+# South of the river. Spirits won't work here.
+[[sites]]
+id = "far_shore"
+name = "The Far Shore"
+area = [0, 30, 47, 39]
 regrow_pct = 100
 
 # When a long walk is worth making. These stop spirits crossing the map for a
@@ -1356,6 +1398,50 @@ build_seconds_per_level = 0.5
 min_build_seconds = 45.0
 color = [0.95, 0.70, 0.35]
 benefit = "The last stage. Light it, and see what your settlement became."
+
+# The way south. It needs Keystones, so Masonry comes first.
+[[buildings]]
+id = "south_crossing"
+name = "South Crossing"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+access_site = [12, 28]
+opens = [[12, 28], [12, 29]]
+unlocks_site = "far_shore"
+requires = ["mason_yard"]
+scales_goods = true
+cost = [
+    { resource = "dressed_stone", amount = 20 },
+    { resource = "keystones", amount = 4 },
+    { resource = "beams", amount = 10 },
+]
+build_seconds = 50.0
+build_seconds_per_level = 0.5
+min_build_seconds = 20.0
+color = [0.60, 0.58, 0.54]
+benefit = "A way over the south river to the Far Shore, where the spirits won't follow you."
+
+# Made from what only you can bring back, for all of them.
+[[buildings]]
+id = "still_lantern"
+name = "Still Lantern"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+requires = ["south_crossing"]
+carry_bonus = 2
+cost = [
+    { resource = "stillwood", amount = 30 },
+    { resource = "dressed_stone", amount = 10 },
+]
+build_seconds = 30.0
+build_seconds_per_level = 0.5
+min_build_seconds = 12.0
+color = [0.80, 0.86, 0.95]
+benefit = "A light from the shore they won't walk on. Every spirit carries two more, and something in them eases."
 
 [objective]
 # "Maintain <target> <resource> in the main settlement storage."

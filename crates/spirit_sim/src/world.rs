@@ -980,7 +980,7 @@ impl World {
             spirit_can_cut: tiers
                 .iter()
                 .copied()
-                .filter(|k| spirit_level >= required(k))
+                .filter(|k| spirit_level >= required(k) && !self.defs.tree(*k).spirits_avoid)
                 .collect(),
             lost_recipes: recipes
                 .iter()

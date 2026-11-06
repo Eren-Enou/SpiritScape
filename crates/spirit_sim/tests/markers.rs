@@ -16,7 +16,9 @@ fn visit(w: &mut World, x: i32, y: i32) {
 
 #[test]
 fn every_stone_stands_on_open_ground_and_can_be_reached() {
-    let w = World::from_scenario(ScenarioKind::ExpandedCentral);
+    let mut w = World::from_scenario(ScenarioKind::ExpandedCentral);
+    w.grid.open_crossing(TilePos::new(12, 28));
+    w.grid.open_crossing(TilePos::new(12, 29));
     let field = w.grid.distance_field(&[TilePos::new(6, 15)]);
     for m in &w.defs.markers {
         let p = TilePos::new(m.at[0], m.at[1]);

@@ -372,6 +372,10 @@ impl World {
         self.input_spare(r)
     }
 
+    pub fn spirit_can_cut_for_test(&self, s: &Spirit, kind: crate::defs::TreeKindId) -> bool {
+        self.spirit_can_cut(s, kind)
+    }
+
     pub fn gatherers_for_test(&self) -> Vec<&Spirit> {
         self.gatherers().collect()
     }

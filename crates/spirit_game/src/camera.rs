@@ -158,7 +158,10 @@ fn follow_camera(
     let g = &sim.world.grid;
     let (target, distance) = if rig.overview {
         let center = tile_world((g.width - 1) as f32 / 2.0, (g.height - 1) as f32 / 2.0);
-        (center, 46.0 * g.width as f32 / 48.0)
+        (
+            center,
+            46.0 * (g.width as f32 / 48.0).max(g.height as f32 / 30.0),
+        )
     } else {
         let (x, y) = sim.world.player.actor.mover.visual_pos();
         (tile_world(x, y), rig.distance)

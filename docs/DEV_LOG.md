@@ -2,6 +2,16 @@
 
 The handoff between development runs. Newest first.
 
+## v0.32 The Far Shore
+
+**Status:** on branch `v0.32-the-far-shore`, with its PR targeting `v0.31-the-moment`. Not merged.
+
+**Shipped:** the South Crossing, the Far Shore, Stilltrees that only the player can cut, a Still Lantern, a seventh stone, an 18th goal, and save format 9.
+
+**Measured:** all 18 goals by 16:49.
+
+**Next:** naming spirits, more finds and visitors, a fourth trade, a second ending.
+
 ## v0.31 The Moment
 
 **Status:** on branch `v0.31-the-moment`, with its PR targeting `v0.30-feedback`. Not merged.
