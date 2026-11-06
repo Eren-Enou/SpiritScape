@@ -389,7 +389,14 @@ impl World {
         let main = self.main().storage.available(r);
         let outposts: u32 = self.outposts().map(|b| b.storage.get(r)).sum();
         let finished: u32 = if self.order_for(r).is_some() {
-            self.stations_for(r).iter().map(|b| b.storage.get(r)).sum()
+            let made: u32 = self.stations_for(r).iter().map(|b| b.storage.get(r)).sum();
+            // What's set aside for the player's training isn't going anywhere.
+            let held = if self.training_input() == r {
+                self.bench_stock()
+            } else {
+                0
+            };
+            made.saturating_sub(held)
         } else {
             0
         };

@@ -2,6 +2,22 @@
 
 The handoff between development runs. Newest first.
 
+## v0.37 Playing styles
+
+**Status:** on branch `v0.37-players`, with its PR targeting `v0.36-second-ending`. Not merged.
+
+**Shipped:** six ways to play the reference game, and a fix for a deadlock where planks set aside for training counted as stock.
+
+**Measured:** winter costs about 3½ hours of 17. Holding more logs is what helps, not planning around winter. Offers save about 2 minutes.
+
+**Next, now the first backlog is done:**
+
+1. Small moments for spirits, so there's more to care about.
+2. A river that freezes in winter, so something new happens in the first winter.
+3. Making offers matter more, because v0.37 showed they barely register.
+4. Models for the Kiln and the Still Boat, which are stand-ins.
+5. Warm Walls come very late for what winter costs. Look at opening them sooner.
+
 ## v0.36 The Still Boat
 
 **Status:** on branch `v0.36-second-ending`, with its PR targeting `v0.35-the-kiln`. Not merged.
@@ -276,6 +292,8 @@ The handoff between development runs. Newest first.
 
 - Should the player choose a road's route on the map? Fixed routes were the reversible choice.
 - Is 447 XP a minute from panels too fast? Only a playtest can say.
+- Winter costs the reference game about a fifth of its time. Is that the right size?
+- Offers save about 2 minutes in 17 hours. Should they matter more, or is being remembered reward enough?
 - Is one tip enough of a hint that the Still Boat exists? It's deliberately not a goal.
 - Should letting a visitor leave count as turning them down? For now it counts as neither.
 - Should a full store really let you throw goods away? It's the only way Woodcutting 20 stays reachable, because nothing uses logs and panels without limit.

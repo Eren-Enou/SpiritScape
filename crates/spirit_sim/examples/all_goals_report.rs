@@ -62,6 +62,25 @@ Saved and loaded with {} spirits.",
     );
 }
 
+/// The longest stretches with nothing new to read, and what ended each one.
+fn longest_gaps(firsts: &[(u64, String)], end: u64) {
+    let mut times: Vec<&(u64, String)> = firsts.iter().collect();
+    times.sort_by_key(|f| f.0);
+    let mut gaps: Vec<(u64, u64, &str)> = times
+        .windows(2)
+        .map(|p| (p[1].0 - p[0].0, p[0].0, p[1].1.as_str()))
+        .collect();
+    gaps.sort();
+    gaps.reverse();
+    println!("\n## Longest stretches with nothing new\n");
+    println!("{} new things in {}.\n", firsts.len(), clock(end));
+    println!("| Length | From | Ended by |\n|---|---|---|");
+    for (length, from, next) in gaps.iter().take(8) {
+        let short: String = next.chars().take(70).collect();
+        println!("| {} | {} | {short} |", clock(*length), clock(*from));
+    }
+}
+
 fn main() {
     println!("# All goals report\n");
     match play_all_goals(60) {
@@ -84,6 +103,9 @@ fn main() {
                 .map(|i| w.defs.visitors[*i as usize].name.as_str())
                 .collect();
             println!("Visitors, in the order they came: {came:?}");
+            if std::env::args().any(|a| a == "--gaps") {
+                longest_gaps(&r.firsts, r.seconds);
+            }
             if std::env::args().any(|a| a == "--home") {
                 call_them_home(&mut w);
             }

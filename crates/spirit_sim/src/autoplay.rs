@@ -29,6 +29,73 @@ pub enum Goal {
     Chop,
 }
 
+/// What a reference player says to visitors.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Offers {
+    /// Lets them come and go without an answer.
+    #[default]
+    Ignore,
+    /// Takes every offer it has the goods for.
+    Take,
+    /// Turns everyone down.
+    Refuse,
+}
+
+/// How a reference player goes about things, on top of the route itself.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Style {
+    pub offers: Offers,
+    /// Puts logs by in autumn, and stops once winter's over.
+    pub plans_for_winter: bool,
+    /// Keeps the same logs by all year. It's the control for planning: what
+    /// that gains might only be from holding more logs.
+    pub stocks_all_year: bool,
+    /// Plays a world where winter never stops anything growing, to measure
+    /// what winter costs. It isn't a way a person can play.
+    pub no_winter: bool,
+}
+
+/// Looks after what a style cares about. Once a game minute is often enough:
+/// visitors wait for ten.
+fn tend(w: &mut World, style: Style) {
+    if let Some(v) = w.visitor() {
+        let answer = match style.offers {
+            Offers::Take if v.can_accept => Some(true),
+            Offers::Refuse => Some(false),
+            _ => None,
+        };
+        if let Some(yes) = answer {
+            let _ = w.apply(Command::AnswerVisitor(yes));
+        }
+    }
+    if style.plans_for_winter || style.stocks_all_year {
+        keep_logs_by(w, style.stocks_all_year);
+    }
+}
+
+/// Asks for a third of the store in logs through autumn and winter, or all
+/// year round.
+fn keep_logs_by(w: &mut World, all_year: bool) {
+    let Some(season) = w.season().map(|s| s.id.clone()) else {
+        return;
+    };
+    let Some(logs) = w.defs.resource_id("logs") else {
+        return;
+    };
+    let wanted = match season.as_str() {
+        "autumn" | "winter" => w.main().storage.capacity / 3,
+        _ if all_year => w.main().storage.capacity / 3,
+        _ => 0,
+    };
+    let now = w.settlement.standing.get(&logs).copied().unwrap_or(0);
+    if now != wanted {
+        let _ = w.apply(Command::SetStandingStock {
+            resource: logs,
+            target: wanted,
+        });
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Bot {
     wc: SkillId,
@@ -47,6 +114,8 @@ pub struct Bot {
     pub advice_taken: Vec<crate::advice::StorageFix>,
     /// The skill it gathers with, when that isn't Woodcutting.
     pub gathers: Option<SkillId>,
+    /// What it does about visitors and winter.
+    pub style: Style,
     /// Tick of the last time it acted on that advice.
     last_relief: u64,
 }
@@ -64,6 +133,7 @@ impl Bot {
             guided: false,
             advice_taken: Vec::new(),
             gathers: None,
+            style: Style::default(),
             last_relief: 0,
         }
     }
@@ -173,7 +243,9 @@ impl Bot {
         let spot = self.nearest_tree(w);
         let empty_handed = bag.total() == 0;
         let tps = w.defs.ticks_per_second as u64;
-        if bag.is_full() && w.player_room_for(self.logs) == 0 {
+        // What matters is room for what it's holding, which needn't be logs.
+        let holding = bag.items().keys().next().copied().unwrap_or(self.logs);
+        if bag.is_full() && w.player_room_for(holding) == 0 {
             // Nothing to do but wait for room; a person wouldn't keep clicking.
             self.next_action = w.tick + 10 * tps;
         } else if bag.is_full() || spot.is_none() && !empty_handed {
@@ -255,6 +327,9 @@ impl Bot {
 
     /// Issues the next action when the player is free. Call once per tick.
     pub fn play(&mut self, w: &mut World, goal: Goal) {
+        if w.tick.is_multiple_of(60 * w.defs.ticks_per_second as u64) {
+            tend(w, self.style);
+        }
         let busy = !w.player.actor.queue.is_empty() || w.player.session.is_some();
         if busy || w.tick < self.next_action {
             return;
@@ -394,14 +469,24 @@ fn enable_area(w: &mut World, bot: &mut Bot, limit: u64) {
 
 /// Plays the intended first cycle under a profile and reports how it went.
 pub fn play_first_cycle(profile: &str) -> Result<(World, PacingReport), String> {
-    play_cycle(profile, true)
+    play_cycle(profile, true, Style::default())
 }
 
 /// The first cycle, with automatic targeting on or off.
-fn play_cycle(profile: &str, auto_gather: bool) -> Result<(World, PacingReport), String> {
+fn play_cycle(
+    profile: &str,
+    auto_gather: bool,
+    style: Style,
+) -> Result<(World, PacingReport), String> {
     let mut w = World::new_journey(profile)?;
+    if style.no_winter {
+        for season in w.defs.seasons.iter_mut().filter(|s| s.growth == 0) {
+            season.growth = 1;
+        }
+    }
     w.apply(Command::SetAutoGather(auto_gather))?;
     let mut bot = Bot::new(&w);
+    bot.style = style;
     let table = w.defs.xp_table.clone();
     let tps = w.defs.ticks_per_second as u64;
     let hour = 3600 * tps;
@@ -652,7 +737,7 @@ pub fn play_full_session(
     auto_gather: bool,
     minutes: u64,
 ) -> Result<(World, FullSession), String> {
-    let (mut w, first_cycle) = play_cycle(profile, auto_gather)?;
+    let (mut w, first_cycle) = play_cycle(profile, auto_gather, Style::default())?;
     let mut bot = Bot::new(&w);
     let tps = w.defs.ticks_per_second as u64;
     let hour = 3600 * tps;
@@ -1310,6 +1395,8 @@ pub struct AllGoals {
     pub missed: Vec<String>,
     pub seconds: u64,
     pub final_state: String,
+    /// Everything the game said for the first time, and when.
+    pub firsts: Vec<(u64, String)>,
 }
 
 /// Plans whatever can be paid for that a goal still needs.
@@ -1384,6 +1471,7 @@ fn train_by_hand(
     w: &mut World,
     end: u64,
     trade: HandTraining,
+    style: Style,
     note: &mut dyn FnMut(&World),
 ) -> Result<(), String> {
     let skill = w.defs.skill_id(trade.skill).ok_or("no such skill")?;
@@ -1422,6 +1510,7 @@ fn train_by_hand(
         }
         w.run_ticks(tps);
         if w.tick.is_multiple_of(60 * tps) {
+            tend(w, style);
             note(w);
         }
     }
@@ -1464,10 +1553,16 @@ fn cut_stillwood(w: &mut World, end: u64) {
 /// run out. It cuts stone, makes panels when there's plenty of planks, buys
 /// what the goals name, and trains both wood skills to the top.
 pub fn play_all_goals(hours: u64) -> Result<(World, AllGoals), String> {
-    let (mut w, _) = play_guided("normal")?;
+    play_all_goals_styled(hours, Style::default())
+}
+
+/// The same long game, played a particular way.
+pub fn play_all_goals_styled(hours: u64, style: Style) -> Result<(World, AllGoals), String> {
+    let (mut w, _) = play_route("normal", true, style)?;
     let mut bot = Bot::new(&w);
     bot.heeds_storage_advice = true;
     bot.guided = true;
+    bot.style = style;
     let tps = w.defs.ticks_per_second as u64;
     let end = w.tick + hours * 3600 * tps;
     let table = w.defs.xp_table.clone();
@@ -1486,6 +1581,11 @@ pub fn play_all_goals(hours: u64) -> Result<(World, AllGoals), String> {
         for a in w.ambitions().into_iter().filter(|a| a.done) {
             if !out.met.iter().any(|m| m.0 == a.title) {
                 out.met.push((a.title, w.tick / tps));
+            }
+        }
+        for n in w.notices.iter() {
+            if !out.firsts.iter().any(|f| f.1 == n.text) {
+                out.firsts.push((n.tick / tps, n.text.clone()));
             }
         }
     };
@@ -1531,6 +1631,13 @@ pub fn play_all_goals(hours: u64) -> Result<(World, AllGoals), String> {
     w.apply(Command::SoulSeparate {
         skill: quarrying,
         xp: enough,
+    })
+    .map_err(|e| {
+        format!(
+            "{e}
+{}",
+            stuck_report(&w)
+        )
     })?;
     let yard = w.defs.building_kind_id("mason_yard").ok_or("no yard")?;
     let ready = |w: &World| {
@@ -1551,7 +1658,7 @@ pub fn play_all_goals(hours: u64) -> Result<(World, AllGoals), String> {
         batch: 2,
         level: 8,
     };
-    train_by_hand(&mut w, end, masonry, &mut |w| note(w, &mut out))?;
+    train_by_hand(&mut w, end, masonry, style, &mut |w| note(w, &mut out))?;
     let keys = w.defs.resource_id("keystones").ok_or("no keystones")?;
     w.apply(Command::SetOrderTarget {
         output: keys,
@@ -1620,7 +1727,7 @@ pub fn play_all_goals(hours: u64) -> Result<(World, AllGoals), String> {
         batch: 3,
         level: 5,
     };
-    train_by_hand(&mut w, end, kilnwork, &mut |w| note(w, &mut out))?;
+    train_by_hand(&mut w, end, kilnwork, style, &mut |w| note(w, &mut out))?;
     let bricks = w.defs.resource_id("bricks").ok_or("no bricks")?;
     w.apply(Command::SetOrderTarget {
         output: bricks,
@@ -1873,6 +1980,15 @@ fn stuck_report(w: &World) -> String {
         w.main().storage.contents(),
         w.main().storage.capacity
     );
+    out += &format!(
+        "\n  player at {} doing {:?} bag {:?} queue {} session {} fixes {:?}",
+        w.player.actor.pos(),
+        w.player.activity,
+        w.player.actor.inventory.items(),
+        w.player.actor.queue.len(),
+        w.player.session.is_some(),
+        w.storage_fixes(),
+    );
     for v in w.plan_views() {
         out += &format!("\n  plan {} {:?} {:?}", v.name, v.stage, v.reason);
         for n in v.needs {
@@ -1916,6 +2032,17 @@ fn stuck_report(w: &World) -> String {
             b.state,
             b.storage.contents()
         );
+        let held: Vec<_> = (0..w.defs.resources.len())
+            .map(|i| ResourceId(i as u16))
+            .filter(|r| b.storage.reserved(*r) > 0)
+            .map(|r| (r, b.storage.reserved(r)))
+            .collect();
+        if !held.is_empty() {
+            out += &format!(" reserved {held:?}");
+        }
+    }
+    for s in &w.spirits {
+        out += &format!("\n  pile {} {:?}", s.name, w.output_pile(s.id));
     }
     for o in w.order_reports() {
         out += &format!(
@@ -1929,21 +2056,26 @@ fn stuck_report(w: &World) -> String {
 /// Plays from a new game to the crossing and watches the result. Nothing is
 /// granted: every level is earned, and every building is paid for.
 pub fn play_to_expansion(profile: &str) -> Result<(World, ExpansionRoute), String> {
-    play_route(profile, false)
+    play_route(profile, false, Style::default())
 }
 
 /// The same route for a player who knows only what the game tells them: no
 /// stashing planks elsewhere and no fewer logs kept, unless a message says so.
 pub fn play_guided(profile: &str) -> Result<(World, ExpansionRoute), String> {
-    play_route(profile, true)
+    play_route(profile, true, Style::default())
 }
 
-fn play_route(profile: &str, guided: bool) -> Result<(World, ExpansionRoute), String> {
-    let (mut w, cycle) = play_cycle(profile, true)?;
+fn play_route(
+    profile: &str,
+    guided: bool,
+    style: Style,
+) -> Result<(World, ExpansionRoute), String> {
+    let (mut w, cycle) = play_cycle(profile, true, style)?;
     let mut route = ExpansionRoute::default();
     let mut bot = Bot::new(&w);
     bot.heeds_storage_advice = true;
     bot.guided = guided;
+    bot.style = style;
     let tps = w.defs.ticks_per_second as u64;
     let long = 6 * 3600 * tps;
     for (m, t) in &cycle.milestones {
