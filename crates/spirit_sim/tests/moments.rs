@@ -173,3 +173,26 @@ fn a_new_name_is_used_from_then_on() {
             .contains("Bartholomew")
     );
 }
+
+#[test]
+fn a_spirit_grows_into_things() {
+    let mut young = quiet();
+    for _ in 0..4 {
+        hour(&mut young);
+    }
+    assert!(
+        all(&young)
+            .iter()
+            .all(|m| young.defs.moments[*m as usize].after_hours == 0)
+    );
+    let mut old = quiet();
+    old.tick = 20 * 36_000;
+    for _ in 0..6 {
+        hour(&mut old);
+    }
+    assert!(
+        all(&old)
+            .iter()
+            .any(|m| old.defs.moments[*m as usize].after_hours > 0)
+    );
+}

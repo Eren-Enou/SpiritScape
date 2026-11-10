@@ -2,6 +2,14 @@
 
 The handoff between development runs. Newest first.
 
+## v0.43 Notes
+
+**Status:** on branch `v0.43-notes`, with its PR targeting `v0.42-own-models`. Not merged.
+
+**Shipped:** A notes tab (`L`), an autumn tip about logs, and 7 moments for older spirits. First built as the unpublished v0.42.
+
+**Next:** Port the far shore's finds and the reference style that sends caravans early.
+
 ## v0.42 Our own models
 
 **Status:** on branch `v0.42-own-models`, with its PR targeting `v0.41-what-they-leave`. Not merged.
@@ -334,6 +342,7 @@ The handoff between development runs. Newest first.
 
 - Should the player choose a road's route on the map? Fixed routes were the reversible choice.
 - Is 447 XP a minute from panels too fast? Only a playtest can say.
+- Warm Walls come very late. Should they come sooner? It needs a playtest, because the reference player's first caravan is at 11:14.
 - Should the thaw take your whole load, or is that too harsh?
 - Winter costs the reference game about a fifth of its time. Is that the right size?
 - Offers save about 2 minutes in 17 hours. Should they matter more, or is being remembered reward enough?

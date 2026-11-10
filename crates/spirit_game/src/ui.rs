@@ -198,6 +198,7 @@ enum Tab {
     Soul,
     Outpost,
     Projects,
+    Notes,
 }
 
 /// Show routine spirit events in the log too.
@@ -246,6 +247,7 @@ struct GoalRoot;
 /// A card body and what it shows.
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
 enum Card {
+    Notes,
     Boat,
     Standing,
     Visitor,
@@ -475,6 +477,9 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                     ("Save", UiAction::SaveGame),
                     ("Menu", UiAction::OpenMenu),
                     ("Scenarios", UiAction::ToggleScenarios),
+                    // Not a tab, and up here it doesn't push the tabs onto a
+                    // fourth row.
+                    ("", UiAction::ToggleDetails),
                 ],
             );
             button_row(
@@ -589,9 +594,13 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                     ("Soul (R)", UiAction::ShowTab(Tab::Soul)),
                     ("Outpost (U)", UiAction::ShowTab(Tab::Outpost)),
                     ("Projects (B)", UiAction::ShowTab(Tab::Projects)),
-                    ("", UiAction::ToggleDetails),
+                    ("Notes (L)", UiAction::ShowTab(Tab::Notes)),
                 ],
             );
+
+            tab_panel(p, Tab::Notes, |p| {
+                card(p, "YOUR NOTES", |c| body(c, Card::Notes));
+            });
 
             tab_panel(p, Tab::Projects, |p| {
                 card(p, "SETTLEMENT PLAN", |c| {
@@ -1018,6 +1027,12 @@ fn show_tab(
         *tab = match *tab {
             Tab::Production => Tab::Settlement,
             _ => Tab::Production,
+        };
+    }
+    if keys.just_pressed(KeyCode::KeyL) {
+        *tab = match *tab {
+            Tab::Notes => Tab::Settlement,
+            _ => Tab::Notes,
         };
     }
     if keys.just_pressed(KeyCode::KeyJ) {
@@ -1896,6 +1911,7 @@ fn update_cards(
             Card::Bottleneck => bottleneck_lines(&sim.world),
             Card::Standing => standing_lines(&sim.world),
             Card::Boat => boat_lines(&sim),
+            Card::Notes => note_lines(&sim.world),
             Card::TimeUse => time_use_lines(&sim.world),
             Card::Production => production_lines(&sim.world),
             Card::ProductionLimit => production_limit_lines(&sim.world),
@@ -2085,6 +2101,7 @@ fn tab_key(tab: Tab) -> Option<&'static str> {
         Tab::Soul => Some("soul"),
         Tab::Outpost => Some("outpost"),
         Tab::Projects => Some("projects"),
+        Tab::Notes => Some("notes"),
     }
 }
 
@@ -2566,6 +2583,19 @@ fn goal_lines(w: &World) -> Vec<Line> {
 }
 
 /// Who's here, if anyone.
+/// Everything worth looking up again.
+fn note_lines(w: &World) -> Vec<Line> {
+    let mut lines = Vec::new();
+    for section in w.notes() {
+        lines.push(vec![text(section.title.to_string())]);
+        lines.extend(section.lines.into_iter().map(|l| vec![muted(l)]));
+    }
+    if lines.is_empty() {
+        lines.push(vec![muted("Nothing yet.")]);
+    }
+    lines
+}
+
 /// Whether there are no spirits yet, or none any more.
 fn no_spirits(w: &World) -> &'static str {
     if w.homecoming_finished() {

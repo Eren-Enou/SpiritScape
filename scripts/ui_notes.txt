@@ -1,0 +1,14 @@
+# UI test of the notes tab:
+#   cargo run --release -- --scenario caravan_yard --save-dir target/ui_saves42 --script scripts/ui_notes.txt --capture target/ui_notes
+1.5 key L
+1.9 expect YOUR NOTES
+2.0 expect Nothing yet
+2.1 key B
+2.5 press Plan Trade Caravan*
+2.7 press 8x
+16.0 press 1x
+16.2 key L
+16.6 expect What the caravans found
+16.7 expect Ironwood saplings
+16.8 shot 01_notes
+17.0 exit

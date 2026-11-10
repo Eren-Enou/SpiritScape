@@ -34,6 +34,9 @@ pub struct MomentDef {
     /// Only near the southern water.
     #[serde(default)]
     pub shore: bool,
+    /// Only a spirit that has been around this long.
+    #[serde(default)]
+    pub after_hours: u64,
 }
 
 /// A number that looks random, but is the same every time.
@@ -49,12 +52,14 @@ impl World {
             .map(|t| t.id.as_str());
         let skill = self.defs.skill(s.skill()).id.as_str();
         let season = self.season().map(|d| d.id.as_str());
+        let hour = self.defs.ticks_per_second as u64 * 3600;
         m.character.as_deref().is_none_or(|c| Some(c) == character)
             && m.season.as_deref().is_none_or(|x| Some(x) == season)
             && m.skill.as_deref().is_none_or(|x| x == skill)
             && (!m.gifted || s.gift_xp > 0)
             && (!m.named || s.renamed)
             && (!m.shore || s.actor.pos().y >= SHORE_ROW)
+            && self.tick >= s.born + m.after_hours * hour
     }
 
     /// Who gets a moment this time. Named spirits are more likely.

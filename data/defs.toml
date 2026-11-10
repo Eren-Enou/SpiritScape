@@ -2005,6 +2005,56 @@ season = "winter"
 shore = true
 text = "{name} put one foot on the ice, and took it back."
 
+[[tips]]
+id = "notes"
+when = "phase:first_spirit"
+opens = "notes"
+text = "Press L for your notes. Everything you've been told is kept there, in case you forget."
+
+[[tips]]
+id = "first_autumn"
+when = "season:autumn"
+text = "Autumn. Nothing grows back in winter, so it's a good time to put more logs by. Raise your Logs target in the Settlement tab."
+
+# These only come to a spirit that has been around a while.
+[[moments]]
+id = "own_path"
+after_hours = 5
+text = "{name} has worn a path of its own between the trees."
+
+[[moments]]
+id = "knows_the_board"
+after_hours = 7
+text = "{name} stepped over the loose board without looking."
+
+[[moments]]
+id = "not_new"
+after_hours = 9
+text = "{name} doesn't look new any more. You can't say when that happened."
+
+[[moments]]
+id = "first_tree"
+after_hours = 10
+skill = "woodcutting"
+gifted = true
+text = "{name} stopped by the first tree it ever cut. It has grown back twice since."
+
+[[moments]]
+id = "without_them"
+after_hours = 12
+text = "You tried to picture this place without {name}, and couldn't."
+
+[[moments]]
+id = "older_than_trees"
+after_hours = 14
+text = "{name} has been here longer than most of the trees."
+
+[[moments]]
+id = "waits_for_you"
+after_hours = 16
+named = true
+text = "{name} waited for you at the end of the road. You hadn't said you were coming."
+
 [objective]
 # "Maintain <target> <resource> in the main settlement storage."
 resource = "logs"

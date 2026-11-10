@@ -17,6 +17,7 @@ pub mod inventory;
 pub mod journey;
 pub mod metrics;
 pub mod moments;
+pub mod notes;
 pub mod outpost;
 pub mod planner;
 pub mod production;

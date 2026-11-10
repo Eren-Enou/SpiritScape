@@ -106,6 +106,15 @@ fn main() {
             let moments: Vec<usize> = w.spirits.iter().map(|s| s.moments.len()).collect();
             let total: usize = moments.iter().sum();
             println!("Small moments: {total}, by spirit {moments:?}.");
+            if std::env::args().any(|a| a == "--timeline") {
+                let mut all: Vec<_> = r.firsts.iter().collect();
+                all.sort_by_key(|f| f.0);
+                println!("\n## Everything new, in order\n");
+                for (at, text) in all {
+                    let short: String = text.chars().take(90).collect();
+                    println!("{} {short}", clock(*at));
+                }
+            }
             if std::env::args().any(|a| a == "--gaps") {
                 longest_gaps(&r.firsts, r.seconds);
             }
