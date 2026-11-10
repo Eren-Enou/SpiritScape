@@ -2153,3 +2153,18 @@ formed = "{a} and {b} keep each other company now."
 story = "Has kept company with {other} since {time}."
 hearth = "{a} and {b} stood together by the Hearth."
 boat = "{a} and {b} crossed together."
+
+# Once the game has ended, a stone of your own, carved where you stand. Most of
+# it is what you did. The last line is the player's to choose.
+[your_stone]
+title = "Your Stone"
+hearth = "I gave {xp} XP of myself to make {made} helpers. We built a hearth, and they stood by it."
+boat = "I gave {xp} XP of myself to make {made} helpers. Then I called them home, and took it back."
+company = "{a} and {b} kept each other company. I saw it."
+stones = "I read every stone the last one left. This one is for whoever comes next."
+carved = "You carve a stone of your own, where you stand."
+choices = [
+    { label = "Give some, not all", text = "Whoever finds this: give some of it away. Not all of it." },
+    { label = "They look up", text = "Whoever finds this: they look up, if you let them." },
+    { label = "I'm still here", text = "Whoever finds this: I'm still here." },
+]

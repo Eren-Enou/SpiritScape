@@ -148,6 +148,8 @@ enum UiAction {
     CallHome,
     CallHomeYes,
     CallHomeNo,
+    /// Carve a stone of your own, ending with the nth line.
+    CarveStone(usize),
     /// Put the nth further order first, or back level with the rest.
     ExtraPriority(usize),
     PlaceWorkshop,
@@ -263,6 +265,7 @@ struct GoalRoot;
 enum Card {
     Notes,
     Boat,
+    YourStone,
     Standing,
     Visitor,
     Markers,
@@ -808,6 +811,10 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                             ("Not yet", UiAction::CallHomeNo),
                         ],
                     );
+                    body(c, Card::YourStone);
+                    for i in 0..3 {
+                        button_row(c, &[("", UiAction::CarveStone(i))]);
+                    }
                 });
                 card(p, "AMBITIONS", |c| body(c, Card::Ambitions));
                 card(p, "THE OLD STONES", |c| body(c, Card::Markers));
@@ -1259,6 +1266,7 @@ fn on_button(
             sim.calling_home = false;
             sim.command(Command::CallHome);
         }
+        UiAction::CarveStone(i) => sim.command(Command::CarveStone(i)),
         UiAction::VisitorYes => sim.command(Command::AnswerVisitor(true)),
         UiAction::VisitorNo => sim.command(Command::AnswerVisitor(false)),
         UiAction::Plan(id) => {
@@ -1619,6 +1627,7 @@ fn update_buttons(
             UiAction::RenameSpirit => !w.spirits.is_empty() && sim.naming.is_none(),
             UiAction::CallHome => w.can_call_home() && !sim.calling_home,
             UiAction::CallHomeYes | UiAction::CallHomeNo => w.can_call_home() && sim.calling_home,
+            UiAction::CarveStone(i) => w.can_carve_stone() && *i < w.defs.your_stone.choices.len(),
             UiAction::VisitorYes => w.visitor().is_some_and(|v| v.can_accept),
             UiAction::VisitorNo => w.visitor().is_some(),
             UiAction::Standing(i, _) => can_dig(w, STANDING_GOODS[*i]),
@@ -1743,6 +1752,10 @@ fn update_buttons(
             },
             UiAction::OrderBuilding => match orderable(w) {
                 Some(kind) => format!("Order {}", w.defs.building(kind).name),
+                None => continue,
+            },
+            UiAction::CarveStone(i) => match w.defs.your_stone.choices.get(*i) {
+                Some(c) => format!("Carve: {}", c.label),
                 None => continue,
             },
             UiAction::SoulOption(i) => match options.get(*i) {
@@ -1944,6 +1957,7 @@ fn update_cards(
             Card::Bottleneck => bottleneck_lines(&sim.world),
             Card::Standing => standing_lines(&sim.world),
             Card::Boat => boat_lines(&sim),
+            Card::YourStone => your_stone_lines(&sim.world),
             Card::Notes => note_lines(&sim.world),
             Card::TimeUse => time_use_lines(&sim.world),
             Card::Production => production_lines(&sim.world),
@@ -2723,6 +2737,28 @@ fn marker_lines(w: &World) -> Vec<Line> {
         lines.push(vec![text(title)]);
         lines.push(vec![muted(words)]);
     }
+    lines
+}
+
+/// A stone of your own: what it says, or what it would.
+fn your_stone_lines(w: &World) -> Vec<Line> {
+    let defs = &w.defs.your_stone;
+    if let Some(stone) = &w.settlement.your_stone {
+        let mut lines = vec![vec![text(defs.title.clone())]];
+        lines.extend(stone.lines.iter().map(|l| vec![muted(l.clone())]));
+        return lines;
+    }
+    if !w.can_carve_stone() {
+        return Vec::new();
+    }
+    let mut lines = vec![vec![text(
+        "You could leave a stone of your own, like the old ones. It goes where you stand.",
+    )]];
+    // Everything but the last line is already decided by what you did.
+    let words = w.stone_words(0).unwrap_or_default();
+    let said = words.len().saturating_sub(1);
+    lines.extend(words.into_iter().take(said).map(|l| vec![muted(l)]));
+    lines.push(vec![muted("Choose how it ends:")]);
     lines
 }
 

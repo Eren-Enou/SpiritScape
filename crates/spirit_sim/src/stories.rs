@@ -513,6 +513,7 @@ impl World {
         lines.extend(self.visitor_lines());
         lines.extend(self.building_lines(true));
         lines.extend(self.relic_line());
+        lines.extend(self.your_stone_line());
         if self.settlement.markers_read.len() == self.defs.markers.len() {
             lines.push("Whoever cut those stones built no hearth. You did.".into());
         }

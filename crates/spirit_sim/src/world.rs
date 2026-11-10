@@ -135,6 +135,9 @@ pub struct Settlement {
     /// How many moments each pair of spirits has shared, lower id first.
     #[serde(default)]
     pub shared_moments: Vec<(usize, usize, u32)>,
+    /// The stone the player carved, once it's over.
+    #[serde(default)]
+    pub your_stone: Option<crate::your_stone::YourStone>,
     /// The totals at the end of each year.
     #[serde(default)]
     pub years: Vec<crate::stories::YearEnd>,
@@ -281,6 +284,8 @@ pub enum Command {
     AnswerVisitor(bool),
     /// Call every spirit to the Still Boat. It can't be undone.
     CallHome,
+    /// Once it's over, carve a stone where you stand, ending with this line.
+    CarveStone(usize),
     /// Give a spirit a name of the player's choosing.
     RenameSpirit {
         id: SpiritId,
@@ -772,6 +777,7 @@ impl World {
             Command::LeaveLoad => self.leave_load(),
             Command::AnswerVisitor(accept) => self.answer_visitor(accept),
             Command::CallHome => self.call_home(),
+            Command::CarveStone(choice) => self.carve_stone(choice),
             Command::RenameSpirit { id, name } => self.rename_spirit(id, &name),
             Command::SetAutoGather(on) => Ok(self.set_auto_gather(on)),
             Command::SetPlayerRecipe(r) => self.set_player_recipe(r),

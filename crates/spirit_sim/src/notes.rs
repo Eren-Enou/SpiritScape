@@ -27,6 +27,15 @@ impl World {
                 lines: self.notes_people(),
             },
             NoteSection {
+                title: "Your stone",
+                lines: self
+                    .settlement
+                    .your_stone
+                    .as_ref()
+                    .map(|s| s.lines.clone())
+                    .unwrap_or_default(),
+            },
+            NoteSection {
                 title: "Who keeps company",
                 lines: self.bond_notes(),
             },

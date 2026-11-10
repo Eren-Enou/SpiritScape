@@ -434,6 +434,8 @@ pub struct GameDefs {
     pub relics: Vec<crate::stories::RelicDef>,
     /// When spirits come to keep each other company, and what's said.
     pub bonds: crate::bonds::BondDefs,
+    /// What a stone of your own can say.
+    pub your_stone: crate::your_stone::YourStoneDefs,
     /// What spirits made by Soul Separation can be like.
     pub traits: Vec<crate::stories::TraitDef>,
     /// Milestones in a spirit's working life.
@@ -491,6 +493,8 @@ struct RawDefs {
     relics: Vec<crate::stories::RelicDef>,
     #[serde(default)]
     bonds: crate::bonds::BondDefs,
+    #[serde(default)]
+    your_stone: crate::your_stone::YourStoneDefs,
     #[serde(default)]
     traits: Vec<crate::stories::TraitDef>,
     #[serde(default)]
@@ -1150,6 +1154,7 @@ impl GameDefs {
             markers: raw.markers,
             relics: raw.relics,
             bonds: raw.bonds,
+            your_stone: raw.your_stone,
             traits: raw.traits,
             deeds: raw.deeds,
             moments: raw.moments,

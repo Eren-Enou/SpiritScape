@@ -440,6 +440,7 @@ impl World {
                 ice_warned: false,
                 relics_found: Vec::new(),
                 shared_moments: Vec::new(),
+                your_stone: None,
                 years: Vec::new(),
                 seasons: scenario.seasons,
                 bench_bonus: 0,
