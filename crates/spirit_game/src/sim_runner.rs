@@ -38,6 +38,8 @@ pub struct Sim {
     pub naming: Option<String>,
     /// Asking whether to call the spirits home.
     pub calling_home: bool,
+    /// How the player likes the game to look and sound.
+    pub settings: crate::settings::Settings,
     /// Bumped when the world is replaced so the renderer rebuilds its entities.
     pub generation: u32,
     /// Large on-screen notice and its remaining seconds.
@@ -85,6 +87,7 @@ impl Sim {
             message: String::new(),
             naming: None,
             calling_home: false,
+            settings: Default::default(),
             generation: 0,
             banner: None,
             notices_seen: world.notices.total,

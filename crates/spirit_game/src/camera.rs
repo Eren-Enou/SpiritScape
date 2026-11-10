@@ -128,6 +128,7 @@ fn camera_controls(
     keys: Res<ButtonInput<KeyCode>>,
     scroll: Res<AccumulatedMouseScroll>,
     ui: Res<UiVisible>,
+    ui_scale: Res<UiScale>,
     cursor: Res<Cursor>,
     windows: Query<&Window>,
     mut rig: ResMut<CameraRig>,
@@ -137,7 +138,7 @@ fn camera_controls(
     }
     let over_panel = windows
         .single()
-        .is_ok_and(|w| cursor_over_panel(w, &cursor, ui.0));
+        .is_ok_and(|w| cursor_over_panel(w, &cursor, ui.0, ui_scale.0));
     if scroll.delta.y != 0.0 && !over_panel {
         rig.distance =
             (rig.distance * (1.0 - scroll.delta.y * 0.1)).clamp(MIN_DISTANCE, MAX_DISTANCE);
@@ -148,6 +149,7 @@ fn follow_camera(
     time: Res<Time>,
     sim: Res<Sim>,
     ui: Res<UiVisible>,
+    ui_scale: Res<UiScale>,
     mut rig: ResMut<CameraRig>,
     windows: Query<&Window>,
     mut camera: Query<(&mut Transform, &Projection), With<Camera3d>>,
@@ -176,8 +178,9 @@ fn follow_camera(
         && let (Ok(window), Projection::Perspective(p)) = (windows.single(), projection)
     {
         let world_per_px = 2.0 * distance * (p.fov / 2.0).tan() / window.height();
-        let shift = tf.right() * (PANEL_WIDTH / 2.0 * world_per_px)
-            - tf.up() * (LOG_HEIGHT / 2.0 * world_per_px);
+        let per_px = world_per_px * ui_scale.0;
+        let shift =
+            tf.right() * (PANEL_WIDTH / 2.0 * per_px) - tf.up() * (LOG_HEIGHT / 2.0 * per_px);
         tf.translation += shift;
     }
 }
@@ -188,11 +191,13 @@ fn cursor_tile(
     camera: &Camera,
     cam_t: &GlobalTransform,
     ui_visible: bool,
+    scale: f32,
     world: &spirit_sim::World,
 ) -> Option<TilePos> {
     let cursor = cursor.0?;
     if ui_visible
-        && (cursor.x > window.width() - PANEL_WIDTH || cursor.y > window.height() - LOG_HEIGHT)
+        && (cursor.x > window.width() - PANEL_WIDTH * scale
+            || cursor.y > window.height() - LOG_HEIGHT * scale)
     {
         return None; // Over the UI.
     }
@@ -236,10 +241,12 @@ fn object_height(world: &spirit_sim::World, p: TilePos) -> f32 {
     0.0
 }
 
+#[allow(clippy::too_many_arguments)]
 fn hover_tile(
     windows: Query<&Window>,
     camera: Query<(&Camera, &GlobalTransform), With<Camera3d>>,
     ui: Res<UiVisible>,
+    ui_scale: Res<UiScale>,
     cursor: Res<Cursor>,
     sim: Res<Sim>,
     mut hovered: ResMut<HoveredTile>,
@@ -248,7 +255,7 @@ fn hover_tile(
     let (Ok(window), Ok((camera, cam_t))) = (windows.single(), camera.single()) else {
         return;
     };
-    hovered.0 = cursor_tile(window, &cursor, camera, cam_t, ui.0, &sim.world)
+    hovered.0 = cursor_tile(window, &cursor, camera, cam_t, ui.0, ui_scale.0, &sim.world)
         .filter(|p| sim.world.grid.in_bounds(*p));
     if let Some(p) = hovered.0 {
         let c = tile_world(p.x as f32, p.y as f32) + Vec3::Y * 0.03;

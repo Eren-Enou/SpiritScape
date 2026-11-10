@@ -156,6 +156,7 @@ fn watch_world(
         };
         return;
     }
+    let loud = sim.settings.loudness();
     let (px, py) = w.player.actor.mover.visual_pos();
     let player = tile_world(px, py);
     if levels > seen.levels {
@@ -168,7 +169,7 @@ fn watch_world(
             14,
         );
         if sound.on {
-            play(&mut commands, &assets, "level", 0.6);
+            play(&mut commands, &assets, "level", loud * 0.6);
         }
     }
     if built > seen.built {
@@ -185,7 +186,7 @@ fn watch_world(
             );
         }
         if sound.on && !ended {
-            play(&mut commands, &assets, "built", 0.5);
+            play(&mut commands, &assets, "built", loud * 0.5);
         }
     }
     if sound.on {
@@ -196,21 +197,21 @@ fn watch_world(
             })
         };
         if cut("woodcutting") {
-            play(&mut commands, &assets, "chop", 0.3);
+            play(&mut commands, &assets, "chop", loud * 0.3);
         }
         if cut("quarrying") {
-            play(&mut commands, &assets, "stone", 0.3);
+            play(&mut commands, &assets, "stone", loud * 0.3);
         }
         if cut("woodworking") || cut("masonry") || cut("kilnwork") {
-            play(&mut commands, &assets, "saw", 0.25);
+            play(&mut commands, &assets, "saw", loud * 0.25);
         }
         if season != seen.season && seen.season.is_some() {
-            play(&mut commands, &assets, "season", 0.5);
+            play(&mut commands, &assets, "season", loud * 0.5);
         } else if w.notices.total > seen.notices && levels == seen.levels && built == seen.built {
-            play(&mut commands, &assets, "notice", 0.25);
+            play(&mut commands, &assets, "notice", loud * 0.25);
         }
         if endings > seen.endings {
-            play(&mut commands, &assets, "hearth", 0.8);
+            play(&mut commands, &assets, "hearth", loud * 0.8);
         }
     }
     if endings > seen.endings {

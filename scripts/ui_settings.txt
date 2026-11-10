@@ -1,0 +1,15 @@
+# UI test of sound and text size:
+#   cargo run --release -- --scenario kiln_yard --save-dir target/ui_saves44 --script scripts/ui_settings.txt --capture target/ui_settings
+1.5 press Menu
+2.0 expect Sound: 100%
+2.1 expect Text: 100%
+2.2 press Sound: 100%
+2.6 expect Sound: 75%
+2.8 press Text: 100%
+3.2 expect Text: 115%
+3.4 shot 01_menu
+3.6 press Text: 115%
+4.0 expect Text: 130%
+4.2 press Back
+4.8 shot 02_large_text
+5.8 exit
