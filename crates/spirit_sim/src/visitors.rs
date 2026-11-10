@@ -3,15 +3,25 @@
 //! waiting on something holds up nobody behind them. An offer is a choice with
 //! a cost, so what they give should never be simply better than what they ask.
 
-use crate::defs::ResourceId;
+use crate::defs::{ResourceId, SkillId};
 use crate::events::EventKind;
 use crate::world::World;
 use serde::{Deserialize, Serialize};
+
+/// How many of the people who came through the closing story mentions.
+const MAX_ENDING_LINES: usize = 3;
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct AmountDef {
     pub resource: String,
     pub amount: u32,
+}
+
+/// Something the player picks up from someone who knows their trade.
+#[derive(Clone, Debug, Deserialize)]
+pub struct Lesson {
+    pub skill: String,
+    pub xp: u64,
 }
 
 /// Someone who passes through.
@@ -43,6 +53,15 @@ pub struct VisitorDef {
     /// What they say instead if that offer was turned down.
     #[serde(default)]
     pub text_refused: Option<String>,
+    /// What the player learns from them, if the offer's taken.
+    #[serde(default)]
+    pub teaches: Option<Lesson>,
+    /// What the closing story says if the offer was taken.
+    #[serde(default)]
+    pub ending_took: Option<String>,
+    /// What the closing story says if it was turned down.
+    #[serde(default)]
+    pub ending_refused: Option<String>,
     #[serde(default)]
     pub wants: Vec<AmountDef>,
     #[serde(default)]
@@ -158,6 +177,33 @@ impl World {
                 .is_none_or(|id| s.offers_refused.contains(id))
     }
 
+    fn lesson_of(&self, def: &VisitorDef) -> Option<(SkillId, u64)> {
+        let lesson = def.teaches.as_ref()?;
+        Some((self.defs.skill_id(&lesson.skill)?, lesson.xp))
+    }
+
+    /// What's left of the people who came through. Only the latest few: a
+    /// closing story isn't a ledger.
+    pub(crate) fn visitor_lines(&self) -> Vec<String> {
+        let s = &self.settlement;
+        let lines: Vec<String> = self
+            .defs
+            .visitors
+            .iter()
+            .filter_map(|v| {
+                if s.offers_accepted.contains(&v.id) {
+                    v.ending_took.clone()
+                } else if s.offers_refused.contains(&v.id) {
+                    v.ending_refused.clone()
+                } else {
+                    None
+                }
+            })
+            .collect();
+        let from = lines.len().saturating_sub(MAX_ENDING_LINES);
+        lines[from..].to_vec()
+    }
+
     /// What a visitor says, given what they've heard.
     fn visitor_text(&self, def: &VisitorDef) -> String {
         let s = &self.settlement;
@@ -194,7 +240,13 @@ impl World {
         Some(VisitorView {
             name: def.name.clone(),
             text: self.visitor_text(def),
-            offer,
+            offer: match self.lesson_of(def) {
+                Some((skill, _)) => {
+                    let name = &self.defs.skill(skill).name;
+                    format!("{offer} You'd learn something of {name}, too.")
+                }
+                None => offer,
+            },
             can_accept,
             minutes_left: left.div_ceil(tpm),
         })
@@ -232,6 +284,12 @@ impl World {
         self.settlement.visitor = None;
         self.settlement.offers_taken += 1;
         self.settlement.offers_accepted.push(def.id.clone());
+        if let Some((skill, xp)) = self.lesson_of(&def) {
+            self.player_earned_xp(skill, xp);
+            let name = &self.defs.skill(skill).name;
+            let msg = format!("You picked up a thing or two: {xp} {name} XP.");
+            self.notices.push(self.tick, msg);
+        }
         self.events
             .push(self.tick, EventKind::Player, def.thanks.clone());
         self.notices.push(self.tick, def.thanks.clone());

@@ -243,3 +243,11 @@ fn a_spirit_made_after_the_boat_left_cannot_be_called_home() {
     w.run_ticks(3000);
     assert_eq!(all_xp(&w), after, "what it was made from stays given");
 }
+
+#[test]
+fn the_people_you_met_are_in_this_story_too() {
+    let mut w = shore();
+    w.settlement.offers_refused.push("mason".into());
+    call_and_wait(&mut w);
+    assert!(story(&w).contains("never did cut that last keystone"));
+}
