@@ -21,6 +21,7 @@ mod cards;
 mod characters;
 mod feedback;
 mod script;
+mod settings;
 mod sim_runner;
 mod status;
 mod ui;
@@ -60,6 +61,7 @@ fn main() -> AppExit {
     if let Some(dir) = value("--save-dir") {
         sim.store = SaveStore::new(dir);
     }
+    sim.settings = settings::Settings::load(sim.store.dir());
     if let Some(seconds) = value("--autosave").and_then(|v| v.parse().ok()) {
         sim.autosave_seconds = seconds;
     }

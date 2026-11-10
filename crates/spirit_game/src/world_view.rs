@@ -679,6 +679,7 @@ fn update_site_banners(
 #[allow(clippy::type_complexity)]
 fn update_labels(
     sim: Res<Sim>,
+    ui_scale: Res<UiScale>,
     camera: Query<(&Camera, &GlobalTransform), With<Camera3d>>,
     mut labels: Query<(
         Entity,
@@ -773,6 +774,8 @@ fn update_labels(
         }
         match camera.world_to_viewport(cam_t, pos + Vec3::Y * height) {
             Ok(screen) => {
+                // Positions here are scaled along with the rest of the UI.
+                let screen = screen / ui_scale.0;
                 let size = computed.size() * computed.inverse_scale_factor();
                 let top_left = Vec2::new(screen.x - size.x / 2.0, screen.y - size.y);
                 placed.push((priority, entity, top_left, size));
@@ -809,6 +812,7 @@ fn update_labels(
 /// regrowth time, or storage contents.
 fn update_hover_tip(
     sim: Res<Sim>,
+    ui_scale: Res<UiScale>,
     hovered: Res<HoveredTile>,
     cursor: Res<Cursor>,
     mut tip: Query<(&mut Text, &mut TextColor, &mut Node, &mut Visibility), With<HoverTip>>,
@@ -921,8 +925,8 @@ fn update_hover_tip(
                 text.0 = content;
             }
             color.0 = c;
-            node.left = Val::Px(cursor.x + 18.0);
-            node.top = Val::Px(cursor.y + 12.0);
+            node.left = Val::Px(cursor.x / ui_scale.0 + 18.0);
+            node.top = Val::Px(cursor.y / ui_scale.0 + 12.0);
             vis.set_if_neq(Visibility::Inherited);
         }
         _ => {

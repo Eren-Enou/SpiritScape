@@ -203,6 +203,7 @@ fn run_script(
     mut exit: MessageWriter<AppExit>,
     texts: Query<(&Text, Option<&ChildOf>, &InheritedVisibility)>,
     button_nodes: Query<(&ComputedNode, &UiGlobalTransform), With<Button>>,
+    ui_scale: Res<UiScale>,
     camera: Query<(&Camera, &GlobalTransform), With<Camera3d>>,
     windows: Query<&Window>,
 ) {
@@ -266,7 +267,8 @@ fn run_script(
                     return None;
                 }
                 let (node, transform) = button_nodes.get(parent?.parent()).ok()?;
-                (node.size().x > 0.0).then(|| transform.translation * node.inverse_scale_factor())
+                (node.size().x > 0.0)
+                    .then(|| transform.translation * node.inverse_scale_factor() * ui_scale.0)
             });
             let height = windows.single().map_or(f32::MAX, |w| w.height());
             match found {

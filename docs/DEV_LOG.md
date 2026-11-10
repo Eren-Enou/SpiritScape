@@ -2,6 +2,14 @@
 
 The handoff between development runs. Newest first.
 
+## v0.45 Settings
+
+**Status:** on branch `v0.45-settings`, with its PR targeting `v0.44-left-behind`. Not merged.
+
+**Shipped:** sound volume and text size in the Menu, kept in settings.txt beside the saves, with name labels, tooltips, map clicks and the script tool all following the text size. First built as the unpublished v0.44.
+
+**Next:** port Companions.
+
 ## v0.44 Left behind
 
 **Status:** on branch `v0.44-left-behind`, with its PR targeting `v0.43-notes`. Not merged.

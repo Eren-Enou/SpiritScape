@@ -90,8 +90,19 @@ struct ScrollPanel;
 
 /// Whether the cursor is over the right-hand panel (so the wheel scrolls it
 /// instead of zooming the camera).
-pub fn cursor_over_panel(window: &Window, cursor: &Cursor, ui_visible: bool) -> bool {
-    ui_visible && cursor.0.is_some_and(|c| c.x > window.width() - PANEL_WIDTH)
+pub fn cursor_over_panel(window: &Window, cursor: &Cursor, ui_visible: bool, scale: f32) -> bool {
+    ui_visible
+        && cursor
+            .0
+            .is_some_and(|c| c.x > window.width() - PANEL_WIDTH * scale)
+}
+
+/// Makes the panels the size the player asked for.
+fn apply_text_size(sim: Res<Sim>, mut scale: ResMut<UiScale>) {
+    let wanted = sim.settings.scale();
+    if scale.0 != wanted {
+        scale.0 = wanted;
+    }
 }
 
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
@@ -130,6 +141,9 @@ enum UiAction {
     ExtraTarget(usize, i32),
     /// Adjust how much of the nth raw material to keep in stock.
     Standing(usize, i32),
+    /// Step through how loud the game is, or how big its text is.
+    CycleVolume,
+    CycleTextSize,
     /// Ask whether to call the spirits home, then answer.
     CallHome,
     CallHomeYes,
@@ -319,6 +333,7 @@ impl Plugin for UiPlugin {
                     update_banner,
                     scroll_panel,
                     update_menu,
+                    apply_text_size,
                 ),
             );
     }
@@ -905,6 +920,10 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                         ("Back", UiAction::MenuBack),
                     ],
                 );
+                button_row(
+                    c,
+                    &[("", UiAction::CycleVolume), ("", UiAction::CycleTextSize)],
+                );
             });
         });
 
@@ -1160,6 +1179,7 @@ fn update_menu(
 fn scroll_panel(
     scroll: Res<AccumulatedMouseScroll>,
     visible: Res<UiVisible>,
+    ui_scale: Res<UiScale>,
     cursor: Res<Cursor>,
     windows: Query<&Window>,
     mut panel: Query<(&mut ScrollPosition, &ComputedNode), With<ScrollPanel>>,
@@ -1167,7 +1187,7 @@ fn scroll_panel(
     let Ok(window) = windows.single() else {
         return;
     };
-    if scroll.delta.y == 0.0 || !cursor_over_panel(window, &cursor, visible.0) {
+    if scroll.delta.y == 0.0 || !cursor_over_panel(window, &cursor, visible.0, ui_scale.0) {
         return;
     }
     let step = match scroll.unit {
@@ -1222,6 +1242,17 @@ fn on_button(
         UiAction::StopActivity => sim.command(Command::PlayerStop),
         UiAction::LeaveLoad => sim.command(Command::LeaveLoad),
         UiAction::RenameSpirit => sim.naming = Some(String::new()),
+        UiAction::CycleVolume | UiAction::CycleTextSize => {
+            if action == UiAction::CycleVolume {
+                sim.settings.next_volume();
+            } else {
+                sim.settings.next_text_size();
+            }
+            let settings = sim.settings;
+            if let Err(e) = settings.save(sim.store.dir()) {
+                sim.message = format!("Couldn't keep that setting: {e}");
+            }
+        }
         UiAction::CallHome => sim.calling_home = true,
         UiAction::CallHomeNo => sim.calling_home = false,
         UiAction::CallHomeYes => {
@@ -1886,6 +1917,8 @@ fn update_buttons(
             UiAction::ToggleDetails => {
                 format!("Details: {}", if details.0 { "ON" } else { "OFF" })
             }
+            UiAction::CycleVolume => format!("Sound: {}%", sim.settings.volume),
+            UiAction::CycleTextSize => format!("Text: {}%", sim.settings.text_size),
             _ => continue,
         };
         if text.0 != content {

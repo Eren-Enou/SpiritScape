@@ -11,7 +11,7 @@ git fetch origin
 ```
 
 ```bash
-git checkout v0.44-left-behind
+git checkout v0.45-settings
 ```
 
 Then double-click **`play.bat`**. The first time, it builds the game, which takes several minutes. After that it starts straight away.
@@ -48,6 +48,7 @@ Write down your answers as you play:
 - [ ] Could you read the panels at a glance, or did you have to study them?
 - [ ] Did you ever look something up in your notes (`L`)? Did you find it?
 - [ ] Did sounds and sparks help, or get in the way? (`M` turns sound off.)
+- [ ] Did you change the sound or text size in the Menu? Did it stay changed next time?
 - [ ] When did you first want to stop? When did you first not want to?
 - [ ] When a visitor came, did you know what saying yes or no would mean?
 
