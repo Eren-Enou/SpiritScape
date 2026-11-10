@@ -210,6 +210,8 @@ pub struct ConstructionRules {
     pub moment_ticks: u64,
     /// How long that stays on the map.
     pub moment_shown_ticks: u64,
+    /// How long spirits stay at the Hearth at the start of each winter.
+    pub midwinter_ticks: u64,
     /// The water that freezes in winter, as [x0, y0, x1, y1].
     pub ice_area: [i32; 4],
     /// How long before spring the ice starts to warn the player.
@@ -638,6 +640,7 @@ struct RawConstruction {
     homecoming_limit_seconds: f32,
     moment_seconds: f32,
     moment_shown_seconds: f32,
+    midwinter_seconds: f32,
     ice_area: [i32; 4],
     thaw_warning_seconds: f32,
     stranded_check_seconds: f32,
@@ -956,6 +959,7 @@ impl GameDefs {
             homecoming_limit_ticks: ticks(raw.construction.homecoming_limit_seconds),
             moment_ticks: ticks(raw.construction.moment_seconds),
             moment_shown_ticks: ticks(raw.construction.moment_shown_seconds),
+            midwinter_ticks: ticks(raw.construction.midwinter_seconds),
             ice_area: raw.construction.ice_area,
             thaw_warning_ticks: ticks(raw.construction.thaw_warning_seconds),
             stranded_check_ticks: ticks(raw.construction.stranded_check_seconds).max(1),

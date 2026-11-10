@@ -5,6 +5,6 @@
 77.5 shot 01_a_moment
 78.0 key O
 78.5 press Next spirit
-78.9 expect just to see
+78.9 expect sharpened an axe the way you used to
 79.0 shot 02_their_story
 79.5 exit

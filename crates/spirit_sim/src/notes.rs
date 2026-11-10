@@ -27,6 +27,10 @@ impl World {
                 lines: self.notes_people(),
             },
             NoteSection {
+                title: "How the years have gone",
+                lines: self.year_lines(),
+            },
+            NoteSection {
                 title: "What you found over the water",
                 lines: self
                     .relics_found()

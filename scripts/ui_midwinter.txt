@@ -1,0 +1,9 @@
+# UI test of the spirits going to the Hearth at the start of winter:
+#   cargo run --release -- --scenario midwinter --save-dir target/ui_saves47 --script scripts/ui_midwinter.txt --capture target/ui_midwinter
+1.5 shot 01_autumn
+1.7 press 8x
+9.2 press 1x
+9.4 expect Midwinter
+9.6 shot 02_midwinter
+12.0 shot 03_at_the_hearth
+12.5 exit

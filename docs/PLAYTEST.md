@@ -11,7 +11,7 @@ git fetch origin
 ```
 
 ```bash
-git checkout v0.45-settings
+git checkout v0.46-together
 ```
 
 Then double-click **`play.bat`**. The first time, it builds the game, which takes several minutes. After that it starts straight away.
@@ -40,6 +40,7 @@ Write down your answers as you play:
 - [ ] Did you understand what Soul Separation would cost you before you did it?
 - [ ] Did giving up your levels feel like a real choice?
 - [ ] Did you care about the spirit afterwards? Did you rename it?
+- [ ] Did you notice spirits noticing each other? (Their stories are in the Spirits tab, `O`.)
 
 **After that**
 
@@ -72,6 +73,7 @@ Double-click **`scenarios.bat`** and pick a number. Each one starts right where 
 | 10 | The Still Boat | Press `J`, and decide | Did you hesitate? Did the closing words feel earned? |
 | 11 | The whole map | Walk around | Does it look like one place? |
 | 12 | Brickyard | Look at the Kiln, Warm Walls, Hearth Chimney and Still Boat | Can you tell what each one is without reading its label? |
+| 13 | Midwinter | Watch for a minute as winter starts | Did the spirits going to the Hearth feel like something, or like an interruption? |
 
 ## Four decisions only you can make
 

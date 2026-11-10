@@ -9,6 +9,8 @@ use serde::Deserialize;
 
 /// How far from the southern water a spirit can still be said to be at it.
 const SHORE_ROW: i32 = 25;
+/// How close another spirit has to be for one to notice it.
+const COMPANION_TILES: u32 = 8;
 /// How many more chances a named spirit gets than one you never named.
 const NAMED_WEIGHT: usize = 3;
 
@@ -37,6 +39,9 @@ pub struct MomentDef {
     /// Only a spirit that has been around this long.
     #[serde(default)]
     pub after_hours: u64,
+    /// Needs another spirit close by, for `{other}` in the text.
+    #[serde(default)]
+    pub pair: bool,
 }
 
 /// A number that looks random, but is the same every time.
@@ -60,6 +65,17 @@ impl World {
             && (!m.named || s.renamed)
             && (!m.shore || s.actor.pos().y >= SHORE_ROW)
             && self.tick >= s.born + m.after_hours * hour
+            && (!m.pair || self.companion(s).is_some())
+    }
+
+    /// The spirit nearest this one, if any is close.
+    fn companion(&self, s: &Spirit) -> Option<&Spirit> {
+        let at = s.actor.pos();
+        self.spirits
+            .iter()
+            .filter(|o| o.id != s.id && !o.aboard)
+            .filter(|o| o.actor.pos().manhattan(at) <= COMPANION_TILES)
+            .min_by_key(|o| (o.actor.pos().manhattan(at), o.id))
     }
 
     /// Who gets a moment this time. Named spirits are more likely.
@@ -97,13 +113,22 @@ impl World {
         }
         let pick = fits[mix(turn + 1) % fits.len()];
         let tick = self.tick;
-        let text = self.moment_text(s, pick);
-        self.spirits[sid].moments.push((pick as u16, tick));
+        let other = self.companion(s).map(|o| o.name.clone());
+        let s = &mut self.spirits[sid];
+        s.moments.push((pick as u16, tick));
+        if let Some(other) = other.filter(|_| self.defs.moments[pick].pair) {
+            s.moment_others.insert(pick as u16, other);
+        }
+        let text = self.moment_text(&self.spirits[sid], pick);
         self.events.push(tick, EventKind::Spirit, text);
     }
 
     fn moment_text(&self, s: &Spirit, moment: usize) -> String {
-        self.defs.moments[moment].text.replace("{name}", &s.name)
+        let text = self.defs.moments[moment].text.replace("{name}", &s.name);
+        match s.moment_others.get(&(moment as u16)) {
+            Some(other) => text.replace("{other}", other),
+            None => text,
+        }
     }
 
     /// What a spirit is doing that's worth a second look, for a few seconds.

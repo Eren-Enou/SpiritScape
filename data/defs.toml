@@ -901,6 +901,7 @@ homecoming_gap_seconds = 2.5
 homecoming_limit_seconds = 600.0
 moment_seconds = 600.0
 moment_shown_seconds = 8.0
+midwinter_seconds = 90.0
 ice_area = [0, 28, 47, 29]
 thaw_warning_seconds = 180.0
 # How long a visitor waits for an answer, in game minutes.
@@ -2080,6 +2081,44 @@ id = "cairn"
 at = [45, 31]
 title = "Four stones"
 text = "Stacked with care, with nothing under them. It's the only thing here that wasn't made to be useful."
+
+[[tips]]
+id = "naming"
+when = "phase:first_craft"
+text = "Your spirits came with names, but you can give them better ones in the Spirits tab (O). They seem to notice."
+
+# These need another spirit close by.
+[[moments]]
+id = "waited"
+pair = true
+text = "{name} waited for {other} at the bend in the path."
+
+[[moments]]
+id = "looked_back"
+pair = true
+text = "{name} and {other} passed without stopping, and each of them looked back."
+
+[[moments]]
+id = "left_something"
+pair = true
+text = "{name} left something on {other}'s pile, and didn't mention it."
+
+[[moments]]
+id = "beside"
+pair = true
+text = "{name} walked beside {other} for a while. Nobody had told it to."
+
+[[moments]]
+id = "same_hours"
+pair = true
+after_hours = 6
+text = "{name} and {other} have started keeping the same hours."
+
+[[moments]]
+id = "stopped_too"
+pair = true
+after_hours = 10
+text = "{name} stopped working when {other} did, and they stood there."
 
 [objective]
 # "Maintain <target> <resource> in the main settlement storage."

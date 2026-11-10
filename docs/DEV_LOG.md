@@ -2,6 +2,14 @@
 
 The handoff between development runs. Newest first.
 
+## v0.46 Together
+
+**Status:** on branch `v0.46-together`, with its PR targeting `v0.45-settings`. Not merged.
+
+**Shipped:** spirits who notice each other in six new moments, a midwinter gathering at the lit Hearth each year, a line in your notes for every year, a tip about naming, and a midwinter scenario to see it. First built as the unpublished v0.46.
+
+**Next:** add new depth: the next milestone of my own.
+
 ## v0.45 Settings
 
 **Status:** on branch `v0.45-settings`, with its PR targeting `v0.44-left-behind`. Not merged.

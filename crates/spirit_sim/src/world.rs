@@ -132,6 +132,12 @@ pub struct Settlement {
     /// What's been found on the far shore.
     #[serde(default)]
     pub relics_found: Vec<String>,
+    /// The totals at the end of each year.
+    #[serde(default)]
+    pub years: Vec<crate::stories::YearEnd>,
+    /// The year turns here, though it isn't a real game.
+    #[serde(default)]
+    pub seasons: bool,
     /// The season last announced.
     #[serde(default)]
     pub season_seen: Option<String>,

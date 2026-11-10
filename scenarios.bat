@@ -22,6 +22,7 @@ echo   9  The Hearth             The first ending
 echo  10  The Still Boat         The other ending
 echo  11  The whole map          Everything built
 echo  12  Brickyard              Everything fire can make, side by side
+echo  13  Midwinter              The Hearth lit, and winter a minute away
 echo.
 set /p CHOICE="Which one? "
 
@@ -38,6 +39,7 @@ if "%CHOICE%"=="9" set "ARGS=--scenario last_stage"
 if "%CHOICE%"=="10" set "ARGS=--scenario last_boat"
 if "%CHOICE%"=="11" set "ARGS=--scenario full_map"
 if "%CHOICE%"=="12" set "ARGS=--scenario brickyard"
+if "%CHOICE%"=="13" set "ARGS=--scenario midwinter"
 if "%ARGS%"=="" (
   echo That isn't one of the numbers above.
   pause

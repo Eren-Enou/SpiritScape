@@ -8,7 +8,7 @@ use crate::events::EventKind;
 use crate::grid::TilePos;
 use crate::tasks::{Goal, Task};
 use crate::world::World;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// A lasting difference, given to spirits made by Soul Separation.
 #[derive(Clone, Debug, Deserialize)]
@@ -39,6 +39,16 @@ pub struct MarkerDef {
     pub at: [i32; 2],
     pub title: String,
     pub text: String,
+}
+
+/// A running total, kept at the end of each year so the notes can show how
+/// much each year added.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct YearEnd {
+    pub gathered: u64,
+    pub made: u64,
+    pub spirits: u32,
+    pub built: u32,
 }
 
 /// Something left on the far shore by whoever was here before.
@@ -98,8 +108,11 @@ impl World {
     /// there's nothing to save.
     pub fn season(&self) -> Option<&SeasonDef> {
         // Fast development games would spin through the year in minutes.
-        self.journey.as_ref()?;
-        if self.defs.profile.id == "development" {
+        if self.journey.is_none() && !self.settlement.seasons {
+            return None;
+        }
+        // A scenario that asks for seasons gets them, whatever its pace.
+        if self.defs.profile.id == "development" && !self.settlement.seasons {
             return None;
         }
         let tpm = self.defs.ticks_per_second as u64 * 60;
@@ -116,6 +129,63 @@ impl World {
             left -= length;
         }
         None
+    }
+
+    /// What a new season brings, besides the weather.
+    fn season_turned(&mut self, name: &str, growth: u64) {
+        if self.defs.seasons.first().is_some_and(|s| s.id == name) {
+            let end = self.year_end();
+            self.settlement.years.push(end);
+            let msg = "Another year. Your notes (L) say how the last one went.";
+            self.notices.push(self.tick, msg);
+        }
+        if growth == 0 && self.hearth().is_some() && !self.spirits.is_empty() {
+            let msg = "Midwinter. They've stopped what they were doing, and gone to the Hearth.";
+            self.notices.push(self.tick, msg);
+        }
+    }
+
+    /// The totals so far.
+    fn year_end(&self) -> YearEnd {
+        let built = self.buildings.iter().filter(|b| b.is_complete()).count();
+        YearEnd {
+            gathered: self.ledger.harvested.values().sum(),
+            made: self.ledger.crafted.values().sum(),
+            spirits: self.spirits.len() as u32,
+            built: built as u32,
+        }
+    }
+
+    /// Each year so far, as a line for the notes.
+    pub(crate) fn year_lines(&self) -> Vec<String> {
+        let mut before = YearEnd::default();
+        let years = self.settlement.years.iter().enumerate();
+        let plural = |n: u32| if n == 1 { "" } else { "s" };
+        years
+            .map(|(i, end)| {
+                let gathered = end.gathered.saturating_sub(before.gathered);
+                let made = end.made.saturating_sub(before.made);
+                let spirits = end.spirits.saturating_sub(before.spirits);
+                let built = end.built.saturating_sub(before.built);
+                before = *end;
+                format!(
+                    "Year {}: {gathered} gathered, {made} made, {spirits} new spirit{}, {built} thing{} built.",
+                    i + 1,
+                    plural(spirits),
+                    plural(built),
+                )
+            })
+            .collect()
+    }
+
+    /// Whether this is the first of winter, with the Hearth lit.
+    fn midwinter(&self) -> bool {
+        let tpm = self.defs.ticks_per_second as u64 * 60;
+        let Some(season) = self.season().filter(|s| s.growth == 0) else {
+            return false;
+        };
+        let passed = (season.minutes * tpm).saturating_sub(self.season_left());
+        self.hearth().is_some() && passed < self.defs.construction.midwinter_ticks
     }
 
     /// Ticks left in the season it is now.
@@ -209,6 +279,7 @@ impl World {
         if self.settlement.season_seen.as_deref() != Some(name.as_str()) {
             if self.settlement.season_seen.is_some() {
                 self.notices.push(self.tick, text);
+                self.season_turned(&name, growth);
             }
             self.settlement.season_seen = Some(name);
         }
@@ -357,12 +428,17 @@ impl World {
             .map(|b| b.pos)
     }
 
+    /// What a spirit standing by the Hearth is doing.
+    pub const AT_THE_HEARTH: &'static str = "At the Hearth";
+
     /// Whether spirits are gathering at the Hearth right now.
     pub fn hearth_gathering(&self) -> bool {
         let length = self.defs.construction.hearth_gathering_ticks;
-        self.settlement
+        let just_lit = self
+            .settlement
             .ended_at
-            .is_some_and(|at| self.tick < at + length)
+            .is_some_and(|at| self.tick < at + length);
+        just_lit || self.midwinter()
     }
 
     /// When the Hearth is lit, every spirit finishes what it's doing and comes
@@ -377,7 +453,7 @@ impl World {
         let wait = self.tick + self.defs.idle_rethink_ticks;
         let s = &mut self.spirits[sid];
         s.next_think = wait;
-        s.activity = Activity::Idle("At the Hearth".into());
+        s.activity = Activity::Idle(Self::AT_THE_HEARTH.into());
         if !s.actor.pos().is_adjacent(hearth) {
             s.actor.queue.push_back(Task::Move {
                 goal: Goal::Adjacent(hearth),
