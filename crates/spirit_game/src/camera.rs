@@ -158,7 +158,10 @@ fn follow_camera(
     let g = &sim.world.grid;
     let (target, distance) = if rig.overview {
         let center = tile_world((g.width - 1) as f32 / 2.0, (g.height - 1) as f32 / 2.0);
-        (center, 46.0)
+        (
+            center,
+            46.0 * (g.width as f32 / 48.0).max(g.height as f32 / 30.0),
+        )
     } else {
         let (x, y) = sim.world.player.actor.mover.visual_pos();
         (tile_world(x, y), rig.distance)
@@ -276,7 +279,17 @@ fn map_clicks(
         && let Some(tile) = hovered.0
     {
         if let Some(kind) = sim.placing {
-            sim.command(Command::RequestBuildingAt { kind, site: tile });
+            // With something under way, it joins the plan.
+            let busy =
+                sim.world.active_project().is_some() || !sim.world.settlement.queue.is_empty();
+            if busy {
+                sim.command(Command::QueueBuilding {
+                    kind,
+                    site: Some(tile),
+                });
+            } else {
+                sim.command(Command::RequestBuildingAt { kind, site: tile });
+            }
             if !sim.message.starts_with("Can't") {
                 sim.placing = None;
             }

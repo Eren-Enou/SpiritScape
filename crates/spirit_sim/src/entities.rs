@@ -51,8 +51,12 @@ impl Tree {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum BuildingState {
-    UnderConstruction { project: ProjectId },
+    UnderConstruction {
+        project: ProjectId,
+    },
     Complete,
+    /// Called off before work began. Only its record remains.
+    Removed,
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -69,6 +73,9 @@ pub struct Building {
     /// Stock haulers leave here for local use.
     #[serde(default)]
     pub keep: BTreeMap<ResourceId, u32>,
+    /// Places added at this bench by annexes beside it.
+    #[serde(default)]
+    pub extra_slots: u32,
 }
 
 impl Building {
@@ -84,6 +91,9 @@ pub struct Mover {
     pub path: VecDeque<TilePos>,
     pub progress: u32,
     pub ticks_per_tile: u32,
+    /// Ticks this step takes, which roads shorten. 0 means `ticks_per_tile`.
+    #[serde(default)]
+    pub stride: u32,
 }
 
 impl Mover {
@@ -93,6 +103,7 @@ impl Mover {
             path: VecDeque::new(),
             progress: 0,
             ticks_per_tile,
+            stride: 0,
         }
     }
 
@@ -100,7 +111,12 @@ impl Mover {
     pub fn visual_pos(&self) -> (f32, f32) {
         match self.path.front() {
             Some(next) if self.progress > 0 => {
-                let t = self.progress as f32 / self.ticks_per_tile as f32;
+                let step = if self.stride > 0 {
+                    self.stride
+                } else {
+                    self.ticks_per_tile
+                };
+                let t = self.progress as f32 / step as f32;
                 (
                     self.pos.x as f32 + (next.x - self.pos.x) as f32 * t,
                     self.pos.y as f32 + (next.y - self.pos.y) as f32 * t,
@@ -289,6 +305,26 @@ pub struct Spirit {
     pub time: TimeLog,
     /// Last tick each kind of decision was logged, to rate-limit repeats.
     pub(crate) log_times: BTreeMap<String, u64>,
+    /// When it was made, and how much of the player's XP it was made from.
+    #[serde(default)]
+    pub born: u64,
+    #[serde(default)]
+    pub gift_xp: u64,
+    /// Its trait, for a spirit made by Soul Separation.
+    #[serde(default)]
+    pub character: Option<u16>,
+    /// Deeds earned and when, in order.
+    #[serde(default)]
+    pub deeds: Vec<(u16, u64)>,
+    /// On the boat, and done with all of this.
+    #[serde(default)]
+    pub aboard: bool,
+    /// The player has given it a name.
+    #[serde(default)]
+    pub renamed: bool,
+    /// Small things it has done, and when.
+    #[serde(default)]
+    pub moments: Vec<(u16, u64)>,
 }
 
 impl Spirit {
@@ -324,6 +360,13 @@ impl Spirit {
             last_tree_kind: None,
             time: TimeLog::default(),
             log_times: BTreeMap::new(),
+            born: 0,
+            gift_xp: 0,
+            character: None,
+            deeds: Vec::new(),
+            aboard: false,
+            renamed: false,
+            moments: Vec::new(),
         }
     }
 
@@ -471,6 +514,8 @@ pub enum ProjectState {
     /// All materials on site; the builder is assembling the building.
     Building,
     Complete,
+    /// Called off before work began.
+    Cancelled,
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -482,6 +527,9 @@ pub struct Project {
     pub state: ProjectState,
     pub assigned: Option<SpiritId>,
     pub reserved: bool,
+    /// Stock claimed so far, when storage is too full to wait for everything.
+    #[serde(default)]
+    pub claimed: BTreeMap<ResourceId, u32>,
     pub delivered: BTreeMap<ResourceId, u32>,
     pub consumed: BTreeMap<ResourceId, u32>,
     pub build_progress: u32,
@@ -495,7 +543,16 @@ pub struct Project {
 }
 
 impl Project {
+    /// How much of a material is set aside for this project.
+    pub fn claimed_of(&self, r: ResourceId, need: u32) -> u32 {
+        if self.reserved {
+            need
+        } else {
+            self.claimed.get(&r).copied().unwrap_or(0)
+        }
+    }
+
     pub fn is_active(&self) -> bool {
-        self.state != ProjectState::Complete
+        !matches!(self.state, ProjectState::Complete | ProjectState::Cancelled)
     }
 }

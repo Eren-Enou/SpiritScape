@@ -279,12 +279,41 @@ impl World {
         "Stopped".into()
     }
 
+    /// Whether Main Storage won't take anything the player is carrying.
+    pub fn load_is_stuck(&self) -> bool {
+        let bag = self.player.actor.inventory.items();
+        !bag.is_empty() && bag.keys().all(|r| self.player_room_for(*r) == 0)
+    }
+
+    /// The last resort when storage won't take a load: it's left where it is,
+    /// and it's gone. Refused while there's anywhere to put it.
+    pub(crate) fn leave_load(&mut self) -> Result<String, String> {
+        if !self.load_is_stuck() {
+            return Err("Main Storage can still take that".into());
+        }
+        let items: Vec<(ResourceId, u32)> = self
+            .player
+            .actor
+            .inventory
+            .items()
+            .iter()
+            .map(|(r, n)| (*r, *n))
+            .collect();
+        for (r, n) in items {
+            self.player.actor.inventory.remove(r, n);
+            *self.ledger.left_behind.entry(r).or_default() += n as u64;
+        }
+        let msg = "You left your load behind".to_string();
+        self.events.push(self.tick, EventKind::Player, msg.clone());
+        Ok(msg)
+    }
+
     pub(crate) fn set_auto_gather(&mut self, on: bool) -> String {
         self.player.auto_gather = on;
         let msg = if on {
-            "When a tree is finished you'll move on to another nearby"
+            "When one is finished you'll move on to another nearby"
         } else {
-            "When a tree is finished you'll stop and wait for your next click"
+            "When one is finished you'll stop and wait for your next click"
         };
         self.events.push(self.tick, EventKind::Player, msg);
         msg.into()
@@ -440,7 +469,7 @@ impl World {
             }
             NextTree::WaitUntil(at) => {
                 let secs = (at - self.tick).div_ceil(tps);
-                self.player.activity = format!("Waiting for trees to regrow ({secs}s)");
+                self.player.activity = format!("Waiting for it to recover ({secs}s)");
                 let tick = self.tick;
                 if let Some(s) = &mut self.player.session {
                     s.waiting_since.get_or_insert(tick);
@@ -770,7 +799,7 @@ impl World {
 
     fn bench_note(&self, building: BuildingId) -> Option<String> {
         let b = &self.buildings[building];
-        let slots = self.defs.building(b.kind).slots;
+        let slots = self.slots_of(b);
         Some(format!(
             "{} of {slots} places in use",
             self.slots_used(building)

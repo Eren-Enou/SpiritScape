@@ -4,8 +4,8 @@ use crate::defs::{
     BuildingKindId, GameDefs, JobKind, RecipeId, ResourceId, RoleId, SiteId, SkillId, TreeKindId,
 };
 use crate::entities::{
-    Activity, Actor, Building, BuildingId, Player, Project, Spirit, SpiritId, SpiritPolicy, Tree,
-    TreeState,
+    Activity, Actor, Building, BuildingId, BuildingState, Player, Project, ProjectId, Spirit,
+    SpiritId, SpiritPolicy, Tree, TreeState,
 };
 use crate::events::{EventKind, EventLog, Notices};
 use crate::grid::{Grid, TilePos};
@@ -19,7 +19,7 @@ use crate::training::{TrainingMode, TrainingSupport};
 use std::collections::BTreeMap;
 use std::hash::{Hash, Hasher};
 
-const SPIRIT_NAMES: &[&str] = &[
+pub const SPIRIT_NAMES: &[&str] = &[
     "Oakroot",
     "Mossbell",
     "Ashwhisper",
@@ -28,6 +28,22 @@ const SPIRIT_NAMES: &[&str] = &[
     "Emberleaf",
     "Thistledown",
     "Willowmere",
+    "Hazelhush",
+    "Rowanrest",
+    "Bramblewick",
+    "Sedgewhisper",
+    "Larchling",
+    "Dewfall",
+    "Hollowcap",
+    "Yarrowsong",
+    "Pinewake",
+    "Lichenlight",
+    "Alderhum",
+    "Tansybrook",
+    "Quillfern",
+    "Marrowmoss",
+    "Sorrelshade",
+    "Elderdrift",
 ];
 
 /// Running totals used to verify conservation of resources and XP.
@@ -41,6 +57,9 @@ pub struct Ledger {
     pub consumed: BTreeMap<ResourceId, u64>,
     /// Resources used up as recipe inputs.
     pub processed: BTreeMap<ResourceId, u64>,
+    /// Resources the player left behind because nowhere could take them.
+    #[serde(default)]
+    pub left_behind: BTreeMap<ResourceId, u64>,
     /// Resources created as recipe outputs.
     pub crafted: BTreeMap<ResourceId, u64>,
     /// Completed batches of each recipe.
@@ -49,6 +68,10 @@ pub struct Ledger {
     pub xp_earned: u64,
     /// XP the player transferred into spirits.
     pub xp_separated: u64,
+    /// XP that came back to the player when spirits went home on the Still
+    /// Boat. It was the player's before, so it isn't counted as earned again.
+    #[serde(default)]
+    pub xp_returned: u64,
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -71,9 +94,68 @@ pub struct Settlement {
     /// Orders beyond the main one.
     #[serde(default)]
     pub extra_orders: Vec<ProductionOrder>,
+    /// Tips already given. None until they've first been read, so an older
+    /// save isn't told everything again.
+    #[serde(default)]
+    pub tips_seen: Option<Vec<String>>,
+    /// Who's at the settlement right now.
+    #[serde(default)]
+    pub visitor: Option<crate::visitors::VisitorHere>,
+    /// Visitors so far, and offers taken.
+    #[serde(default)]
+    pub visitors_met: u32,
+    #[serde(default)]
+    pub offers_taken: u32,
+    /// Whose offers were taken or turned down, for those who remember.
+    #[serde(default)]
+    pub offers_accepted: Vec<String>,
+    #[serde(default)]
+    pub offers_refused: Vec<String>,
+    /// Who has come, past the point where everyone has.
+    #[serde(default)]
+    pub visitors_seen: Vec<u32>,
+    /// When someone last arrived, so they don't come on each other's heels.
+    #[serde(default)]
+    pub visitor_last: Option<u64>,
+    /// Raw materials to keep in stock with nothing asking for them.
+    #[serde(default)]
+    pub standing: BTreeMap<ResourceId, u32>,
+    /// The spirits called home to the boat, once that happens.
+    #[serde(default)]
+    pub homecoming: Option<crate::homecoming::Homecoming>,
+    /// Spirits do small things here, though it isn't a real game.
+    #[serde(default)]
+    pub moments: bool,
+    /// The player has been told the ice won't last, this winter.
+    #[serde(default)]
+    pub ice_warned: bool,
+    /// The season last announced.
+    #[serde(default)]
+    pub season_seen: Option<String>,
+    /// Old stones the player has read, by id.
+    #[serde(default)]
+    pub markers_read: Vec<String>,
+    /// When the Hearth was lit, in ticks.
+    #[serde(default)]
+    pub ended_at: Option<u64>,
+    /// Trade Caravans sent so far.
+    #[serde(default)]
+    pub caravans: u32,
+    /// Long-term goals already announced. None until they've first been read,
+    /// so an older save isn't told everything it's already done.
+    #[serde(default)]
+    pub ambitions_seen: Option<Vec<String>>,
+    /// More that every spirit can carry, from what's been built.
+    #[serde(default)]
+    pub carry_bonus: u32,
     /// Room added at stations for logs set aside for the player.
     #[serde(default)]
     pub bench_bonus: u32,
+    /// Buildings planned after the current project.
+    #[serde(default)]
+    pub queue: Vec<crate::projects::QueuedProject>,
+    #[serde(default)]
+    pub next_queue_id: u32,
 }
 
 /// What a Soul Separation would do, shown before the player confirms.
@@ -117,6 +199,11 @@ pub enum Command {
         xp: u64,
     },
     SetObjectiveTarget(u32),
+    /// Keep this much of a raw material in stock, wanted or not.
+    SetStandingStock {
+        resource: ResourceId,
+        target: u32,
+    },
     SetAutonomousConstruction(bool),
     /// Open or close a gathering site to spirits.
     SetSiteOpen {
@@ -176,6 +263,17 @@ pub enum Command {
     SetTrainingFirst(bool),
     /// Stop what the player is doing, where they stand.
     PlayerStop,
+    /// Leave what's in the bag behind, when nowhere can take it.
+    LeaveLoad,
+    /// Take or turn down what a visitor is offering.
+    AnswerVisitor(bool),
+    /// Call every spirit to the Still Boat. It can't be undone.
+    CallHome,
+    /// Give a spirit a name of the player's choosing.
+    RenameSpirit {
+        id: SpiritId,
+        name: String,
+    },
     /// Whether a gathering session moves on to another tree by itself.
     SetAutoGather(bool),
     /// Choose what to make at a bench, or the best available with `None`.
@@ -195,6 +293,20 @@ pub enum Command {
         site: SiteId,
         on: bool,
     },
+    /// Add a building to the end of the construction plan.
+    QueueBuilding {
+        kind: BuildingKindId,
+        site: Option<TilePos>,
+    },
+    /// Move a planned building one place up or down.
+    MoveQueued {
+        id: u32,
+        up: bool,
+    },
+    /// Take a building off the plan.
+    CancelQueued(u32),
+    /// Call off a project nobody has started on.
+    CancelProject(ProjectId),
 }
 
 #[derive(Clone, Debug)]
@@ -236,7 +348,8 @@ impl World {
             None => format!("Spirit {}", id + 1),
         };
         let level = self.defs.xp_table.level_for_xp(xp);
-        let actor = Actor::new(pos, role_def.move_ticks, role_def.capacity_at(level));
+        let capacity = role_def.capacity_at(level) + self.settlement.carry_bonus;
+        let actor = Actor::new(pos, role_def.move_ticks, capacity);
         let spirit = Spirit::new(
             id,
             name,
@@ -263,7 +376,11 @@ impl World {
     }
 
     pub fn building_at(&self, p: TilePos) -> Option<&Building> {
-        self.buildings.iter().find(|b| b.pos == p)
+        self.buildings
+            .iter()
+            .filter(|b| b.pos == p && b.state != BuildingState::Removed)
+            // A finished road is ground, not something to walk up to.
+            .find(|b| !(b.is_complete() && !self.defs.building(b.kind).paves.is_empty()))
     }
 
     pub fn spirit_level_name(&self, s: &Spirit) -> String {
@@ -282,7 +399,14 @@ impl World {
         let main = self.main().storage.available(r);
         let outposts: u32 = self.outposts().map(|b| b.storage.get(r)).sum();
         let finished: u32 = if self.order_for(r).is_some() {
-            self.stations_for(r).iter().map(|b| b.storage.get(r)).sum()
+            let made: u32 = self.stations_for(r).iter().map(|b| b.storage.get(r)).sum();
+            // What's set aside for the player's training isn't going anywhere.
+            let held = if self.training_input() == r {
+                self.bench_stock()
+            } else {
+                0
+            };
+            made.saturating_sub(held)
         } else {
             0
         };
@@ -347,7 +471,8 @@ impl World {
                 get(&self.ledger.seeded) + get(&self.ledger.harvested) + get(&self.ledger.crafted);
             let accounted = self.resource_in_world(r)
                 + get(&self.ledger.consumed)
-                + get(&self.ledger.processed);
+                + get(&self.ledger.processed)
+                + get(&self.ledger.left_behind);
             if created != accounted {
                 return Err(format!(
                     "{}: seeded+harvested+crafted={created} but present+consumed+processed={accounted}",
@@ -434,12 +559,16 @@ impl World {
         for p in &self.projects {
             (p.site, p.state as u8, p.build_progress).hash(&mut h);
         }
+        for q in &self.settlement.queue {
+            (q.id, q.kind, q.site).hash(&mut h);
+        }
         self.ledger.crafted.hash(&mut h);
         self.ledger.batches.hash(&mut h);
         self.events.total.hash(&mut h);
         self.notices.total.hash(&mut h);
         self.ledger.xp_earned.hash(&mut h);
         self.ledger.xp_separated.hash(&mut h);
+        self.ledger.xp_returned.hash(&mut h);
         self.player.time.hash(&mut h);
         h.finish()
     }
@@ -467,6 +596,20 @@ impl World {
                 let msg = format!(
                     "Objective changed: maintain {target} {} in Main Storage",
                     self.defs.resource(o.resource).name
+                );
+                self.events.push(self.tick, EventKind::Player, msg.clone());
+                Ok(msg)
+            }
+            Command::SetStandingStock { resource, target } => {
+                let target = target.min(self.main().storage.capacity);
+                if target == 0 {
+                    self.settlement.standing.remove(&resource);
+                } else {
+                    self.settlement.standing.insert(resource, target);
+                }
+                let msg = format!(
+                    "Spirits will keep {target} {} in stock",
+                    self.defs.resource(resource).name
                 );
                 self.events.push(self.tick, EventKind::Player, msg.clone());
                 Ok(msg)
@@ -614,6 +757,10 @@ impl World {
             Command::SetTrainingSupply(on) => Ok(self.set_training_supply(on)),
             Command::SetTrainingFirst(on) => Ok(self.set_training_first(on)),
             Command::PlayerStop => Ok(self.player_stop()),
+            Command::LeaveLoad => self.leave_load(),
+            Command::AnswerVisitor(accept) => self.answer_visitor(accept),
+            Command::CallHome => self.call_home(),
+            Command::RenameSpirit { id, name } => self.rename_spirit(id, &name),
             Command::SetAutoGather(on) => Ok(self.set_auto_gather(on)),
             Command::SetPlayerRecipe(r) => self.set_player_recipe(r),
             Command::SetTrainingMode(mode) => Ok(self.set_training_mode(mode)),
@@ -624,6 +771,10 @@ impl World {
                 amount,
             } => self.set_local_stock(building, resource, amount),
             Command::SetOutpostStaffed { site, on } => self.set_outpost_staffed(site, on),
+            Command::QueueBuilding { kind, site } => self.queue_building(kind, site),
+            Command::MoveQueued { id, up } => self.move_queued(id, up),
+            Command::CancelQueued(id) => self.cancel_queued(id),
+            Command::CancelProject(id) => self.cancel_project(id),
         }
     }
 
@@ -646,7 +797,7 @@ impl World {
         if matches!(actor.queue.front(), Some(Task::Move { goal: g, .. }) if *g == goal) {
             return Ok("Walking".into());
         }
-        if !self.grid.is_walkable(target) {
+        if !self.grid.is_walkable(target) && !self.grid.is_ice(target) {
             return Err("Blocked".into());
         }
         // Walking away is how a player leaves whatever they were doing.
@@ -675,13 +826,15 @@ impl World {
             Crafting(usize),
             Nothing,
         }
-        let log = &mut self.player.log;
         let tree_here = self.trees.iter().any(|t| t.pos == p);
-        let building_here = self.buildings.iter().find(|b| b.pos == p);
-        match building_here {
+        let station_here = self
+            .building_at(p)
+            .map(|b| self.defs.building(b.kind).is_station);
+        let log = &mut self.player.log;
+        match station_here {
             _ if tree_here => log.gather_interactions += 1,
-            Some(b) if self.defs.building(b.kind).is_station => log.workshop_interactions += 1,
-            Some(_) => log.storage_interactions += 1,
+            Some(true) => log.workshop_interactions += 1,
+            Some(false) => log.storage_interactions += 1,
             None => log.walk_interactions += 1,
         }
         let (tasks, activity, starts) = if let Some(tree) = self.tree_at(p) {
@@ -706,6 +859,12 @@ impl World {
             if !tree.is_grown() {
                 return Err(format!("The {name} is depleted"));
             }
+            if let Some(k) = tree.site.and_then(|s| self.site_locked_by(s)) {
+                return Err(format!(
+                    "You can't reach it yet: it needs a {}",
+                    self.defs.building(k).name
+                ));
+            }
             (
                 vec![
                     Task::Move {
@@ -717,7 +876,10 @@ impl World {
                 format!("Chopping {name}"),
                 Starts::Gathering(tree.id),
             )
-        } else if let Some(b) = self.building_at(p) {
+        } else if let Some(b) = self
+            .building_at(p)
+            .filter(|b| !(b.is_complete() && self.grid.is_walkable(b.pos)))
+        {
             if !b.is_complete() {
                 return Err(format!("{} is still under construction", b.name));
             }
@@ -768,7 +930,7 @@ impl World {
                     Starts::Nothing,
                 )
             }
-        } else if self.grid.is_walkable(p) {
+        } else if self.grid.is_walkable(p) || self.grid.is_ice(p) {
             (
                 vec![Task::Move {
                     goal: Goal::Exact(p),
@@ -807,6 +969,7 @@ impl World {
         recipes.sort_by_key(|d| std::cmp::Reverse(d.level_required));
         recipes
             .into_iter()
+            .filter(|d| !d.chosen_only)
             .filter(|d| self.player.level(d.skill, &self.defs.xp_table) >= d.level_required)
             .flat_map(|d| d.inputs.iter())
             .find(|(r, n)| b.storage.available(*r) >= *n)
@@ -846,7 +1009,7 @@ impl World {
         let after_xp = current_xp.saturating_sub(xp);
         let after_level = table.level_for_xp(after_xp);
         let spirit_level = table.level_for_xp(xp);
-        let tiers = self.defs.tree_tiers(skill);
+        let tiers = self.tiers_in_world(skill);
         let required = |k: &TreeKindId| self.defs.tree(*k).level_required;
         let recipes = self.defs.recipe_tiers(skill);
         let recipe_level = |r: &RecipeId| self.defs.recipe(*r).level_required;
@@ -880,7 +1043,7 @@ impl World {
             spirit_can_cut: tiers
                 .iter()
                 .copied()
-                .filter(|k| spirit_level >= required(k))
+                .filter(|k| spirit_level >= required(k) && !self.defs.tree(*k).spirits_avoid)
                 .collect(),
             lost_recipes: recipes
                 .iter()
@@ -895,6 +1058,14 @@ impl World {
             benefit: self.spirit_benefit(skill, spirit_level),
             error,
         }
+    }
+
+    /// The kinds of tree a skill works on that are actually out there. Some
+    /// only appear later, and there's no point announcing them before that.
+    pub fn tiers_in_world(&self, skill: SkillId) -> Vec<TreeKindId> {
+        let mut tiers = self.defs.tree_tiers(skill);
+        tiers.retain(|k| self.trees.iter().any(|t| t.kind == *k));
+        tiers
     }
 
     pub(crate) fn tree_names(&self, kinds: &[TreeKindId]) -> String {
@@ -944,6 +1115,7 @@ impl World {
         }
         let pos = self.player.actor.pos();
         let id = self.add_spirit(role, xp, pos);
+        self.begin_story(id, xp);
         let s = &self.spirits[id];
         let mut msg = format!(
             "Soul Separation: sacrificed {xp} {skill_name} XP (level {} -> {}). {} awakens as a {} at permanent level {}",
@@ -1001,6 +1173,13 @@ impl World {
                 s.time.snapshot(self.tick, window);
             }
         }
+        if self
+            .tick
+            .is_multiple_of(self.defs.construction.stranded_check_ticks)
+        {
+            self.free_the_stranded();
+        }
+        self.update_queue();
         self.update_projects();
         if self
             .tick
@@ -1016,10 +1195,21 @@ impl World {
         for e in events {
             self.handle_event(e);
         }
+        self.update_homecoming();
+        self.update_moments();
         self.update_session();
         self.update_play_log();
         self.update_storage_warning();
         self.update_journey();
+        if self.tick.is_multiple_of(SNAPSHOT_TICKS) {
+            self.update_ambitions();
+            self.update_deeds();
+            self.update_visitors();
+            self.update_tips();
+        }
+        if self.tick.is_multiple_of(5) {
+            self.update_markers();
+        }
     }
 
     pub fn run_ticks(&mut self, n: u64) {
@@ -1029,6 +1219,7 @@ impl World {
     }
 
     fn regrow_trees(&mut self) {
+        self.update_season();
         for t in &mut self.trees {
             if let TreeState::Depleted { regrow_at } = t.state
                 && self.tick >= regrow_at
@@ -1052,6 +1243,7 @@ impl World {
         events: &'a mut Vec<SimEvent>,
         player_output_at_station: bool,
         player_recipe: Option<RecipeId>,
+        player_room: Option<(BuildingId, BTreeMap<ResourceId, u32>)>,
     ) -> TaskCtx<'a> {
         TaskCtx {
             defs,
@@ -1064,12 +1256,19 @@ impl World {
             events,
             player_output_at_station,
             player_recipe,
+            player_room,
         }
     }
 
     fn step_player(&mut self, events: &mut Vec<SimEvent>) {
         let level = self.player_task_level();
         let at_station = self.player_output_at_station();
+        let room =
+            matches!(self.player.actor.queue.front(), Some(Task::Deposit { .. })).then(|| {
+                let carried = self.player.actor.inventory.items().keys();
+                let limits = carried.map(|r| (*r, self.player_room_for(*r))).collect();
+                (self.main_storage, limits)
+            });
         let World {
             defs,
             grid,
@@ -1086,7 +1285,7 @@ impl World {
         }
         let recipe = player.recipe;
         let mut ctx = Self::task_ctx(
-            defs, grid, trees, buildings, projects, ledger, *tick, events, at_station, recipe,
+            defs, grid, trees, buildings, projects, ledger, *tick, events, at_station, recipe, room,
         );
         let mut failure = None;
         match tasks::step(&mut player.actor, Who::Player, level, None, &mut ctx) {
@@ -1144,6 +1343,9 @@ impl World {
             budgets.craft.insert(r, self.deficit_of(r) as i64);
         }
         for sid in 0..self.spirits.len() {
+            if self.spirits[sid].aboard {
+                continue;
+            }
             self.switch_craft_if_needed(sid);
             if self.spirits[sid].actor.queue.is_empty() && self.tick >= self.spirits[sid].next_think
             {
@@ -1167,7 +1369,7 @@ impl World {
             }
             let level = spirit.level();
             let mut ctx = Self::task_ctx(
-                defs, grid, trees, buildings, projects, ledger, *tick, events, false, None,
+                defs, grid, trees, buildings, projects, ledger, *tick, events, false, None, None,
             );
             match tasks::step(
                 &mut spirit.actor,
@@ -1210,16 +1412,28 @@ impl World {
         }
     }
 
-    fn player_earned_xp(&mut self, skill: SkillId, xp: u64) {
-        let table = &self.defs.xp_table;
-        let before = self.player.level(skill, table);
-        let highest_before = self.player.history(skill).highest_level;
-        self.player.add_xp(skill, xp, &self.defs.xp_table);
+    pub(crate) fn player_earned_xp(&mut self, skill: SkillId, xp: u64) {
         self.ledger.xp_earned += xp;
         *self.player.log.xp_earned.entry(skill).or_default() += xp;
         if let Some(s) = &mut self.player.session {
             s.xp += xp;
         }
+        self.give_player_xp(skill, xp);
+    }
+
+    /// XP a spirit gives back when it goes home. It was the player's before,
+    /// so it goes in its own column rather than counting as earned again.
+    pub(crate) fn player_regained_xp(&mut self, skill: SkillId, xp: u64) {
+        self.ledger.xp_returned += xp;
+        self.give_player_xp(skill, xp);
+    }
+
+    /// Adds XP and says what that opens up.
+    fn give_player_xp(&mut self, skill: SkillId, xp: u64) {
+        let table = &self.defs.xp_table;
+        let before = self.player.level(skill, table);
+        let highest_before = self.player.history(skill).highest_level;
+        self.player.add_xp(skill, xp, &self.defs.xp_table);
         let after = self.player.level(skill, &self.defs.xp_table);
         if after <= before {
             return;
@@ -1231,8 +1445,7 @@ impl World {
             format!("{skill_name} level up! You are now level {after}.")
         };
         let unlocked: Vec<TreeKindId> = self
-            .defs
-            .tree_tiers(skill)
+            .tiers_in_world(skill)
             .into_iter()
             .filter(|k| (before + 1..=after).contains(&self.defs.tree(*k).level_required))
             .collect();

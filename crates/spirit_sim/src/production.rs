@@ -270,6 +270,7 @@ impl World {
             .orders()
             .iter()
             .filter(|o| o.enabled && self.uses_input(o.output, r))
+            .filter(|o| !self.only_when_chosen(o.output) || self.deficit_of(o.output) > 0)
             .flat_map(|o| self.staffed_stations(o.output))
             .filter(|station| self.in_site(station, site))
             .map(|station| self.defs.building(station.kind).input_buffer)
@@ -321,7 +322,7 @@ impl World {
             .filter_map(|b| {
                 let level = self
                     .staff()
-                    .filter(|s| self.may_work_at(s, b.id))
+                    .filter(|s| self.may_work_at(s, b.id) && self.can_make(s, output))
                     .map(|s| s.level())
                     .max()?;
                 self.defs
@@ -335,20 +336,90 @@ impl World {
         self.recipe_for(self.settlement.order.output)
     }
 
-    /// Output still to be reserved by active projects.
+    /// What the plan still has to claim: projects not yet reserved, and
+    /// everything queued. Reserved stock is already out of `available`, so
+    /// nothing is counted twice. The queue's limit keeps this bounded.
     pub(crate) fn project_demand(&self, r: ResourceId) -> u32 {
-        self.projects
+        let cost_of = |k: crate::defs::BuildingKindId| -> u32 {
+            let cost = self.defs.building(k).cost.iter();
+            cost.filter(|(res, _)| *res == r).map(|(_, n)| *n).sum()
+        };
+        let waiting: u32 = self
+            .projects
             .iter()
             .filter(|p| p.is_active() && !p.reserved)
-            .flat_map(|p| self.defs.building(p.kind).cost.iter())
-            .filter(|(res, _)| *res == r)
-            .map(|(_, n)| *n)
-            .sum()
+            .map(|p| {
+                let need = cost_of(p.kind);
+                need.saturating_sub(p.claimed_of(r, need))
+            })
+            .sum();
+        let queued: u32 = self.settlement.queue.iter().map(|q| cost_of(q.kind)).sum();
+        waiting + queued
+    }
+
+    /// Room in Main Storage for `r`. Finished goods nobody wants leave some
+    /// free for raw materials, so surplus can't stop the settlement getting
+    /// what it needs to build with.
+    pub(crate) fn main_room_for(&self, r: ResourceId) -> u32 {
+        let free = self.main().storage.free();
+        let finished = self.defs.recipes.iter().any(|d| d.output.0 == r);
+        let wanted = self.main().storage.available(r) < self.goal_of(r);
+        if finished && !wanted {
+            free.saturating_sub(self.defs.construction.raw_room)
+        } else {
+            free
+        }
+    }
+
+    /// Room for what the player brings. While a project is waiting on
+    /// materials, their spare logs can't take the room it needs. Otherwise
+    /// it's all theirs.
+    pub(crate) fn player_room_for(&self, r: ResourceId) -> u32 {
+        let waiting = self.active_project().is_some_and(|p| !p.reserved);
+        if waiting {
+            self.haul_room_for(r)
+        } else {
+            self.main_room_for(r)
+        }
+    }
+
+    /// Room for hauling a store's stock home. Raw materials nothing needs yet
+    /// can wait where they are, rather than take the last of the room.
+    pub(crate) fn haul_room_for(&self, r: ResourceId) -> u32 {
+        let main = &self.main().storage;
+        let surplus = main.available(r) >= self.gather_goal_of(r);
+        if surplus && self.order_for(r).is_none() {
+            main.free().saturating_sub(self.defs.construction.raw_room)
+        } else {
+            self.main_room_for(r)
+        }
+    }
+
+    /// Workers that fit at a bench, counting annexes.
+    pub fn slots_of(&self, b: &Building) -> u32 {
+        self.defs.building(b.kind).slots + b.extra_slots
     }
 
     /// The stock an order aims for: its target plus unreserved project needs.
     pub fn goal_of(&self, output: ResourceId) -> u32 {
-        self.order_for(output).map_or(0, |o| o.target) + self.project_demand(output)
+        self.order_for(output).map_or(0, |o| o.target)
+            + self.project_demand(output)
+            + self.demand_from_orders(output)
+    }
+
+    /// What other orders need of `output` as a material, capped like any other
+    /// upstream demand. Recipes can't form a loop, so this always ends.
+    fn demand_from_orders(&self, output: ResourceId) -> u32 {
+        self.orders()
+            .iter()
+            .filter(|o| o.output != output && self.uses_input(o.output, output))
+            .filter_map(|o| {
+                let def = self.defs.recipe(self.recipe_for(o.output)?);
+                let per_batch = def.inputs.iter().find(|i| i.0 == output)?.1;
+                Some(self.deficit_of(o.output).div_ceil(def.output.1) * per_batch)
+            })
+            .sum::<u32>()
+            .min(self.defs.production.upstream_cap)
     }
 
     pub fn production_goal(&self) -> u32 {
@@ -400,7 +471,10 @@ impl World {
     fn staffed_stations(&self, output: ResourceId) -> Vec<&Building> {
         self.stations_for(output)
             .into_iter()
-            .filter(|b| self.staff().any(|s| self.may_work_at(s, b.id)))
+            .filter(|b| {
+                self.staff()
+                    .any(|s| self.may_work_at(s, b.id) && self.can_make(s, output))
+            })
             .collect()
     }
 
@@ -503,6 +577,13 @@ impl World {
             .min(self.defs.production.upstream_cap)
     }
 
+    /// Whether `output` is only made on request, so holding materials for it
+    /// makes no sense until someone wants some.
+    fn only_when_chosen(&self, output: ResourceId) -> bool {
+        let mut made = self.defs.recipes.iter().filter(|d| d.output.0 == output);
+        made.all(|d| d.chosen_only)
+    }
+
     /// Whether any recipe for `output` uses `input`.
     fn uses_input(&self, output: ResourceId, input: ResourceId) -> bool {
         self.defs
@@ -534,6 +615,8 @@ impl World {
     pub fn gather_goal_of(&self, r: ResourceId) -> u32 {
         let o = &self.settlement.objective;
         let base = if r == o.resource { o.target } else { 0 };
+        let standing = self.settlement.standing.get(&r).copied().unwrap_or(0);
+        let base = base.max(standing);
         let wanted = self.orders().iter().any(|o| {
             o.enabled && self.uses_input(o.output, r) && self.recipe_for(o.output).is_some()
         });
@@ -575,13 +658,34 @@ impl World {
     }
 
     /// The fullest pile of finished goods this spirit serves.
+    /// Stock of `r` a bench is holding as an input for another order.
+    fn used_at_bench(&self, b: &Building, r: ResourceId) -> u32 {
+        let wanted = self.orders().into_iter().any(|o| {
+            o.output != r
+                && self.deficit_of(o.output) > 0
+                && self
+                    .recipe_for(o.output)
+                    .is_some_and(|id| self.defs.recipe(id).inputs.iter().any(|i| i.0 == r))
+        });
+        if wanted {
+            self.defs.building(b.kind).input_buffer
+        } else {
+            0
+        }
+    }
+
     pub(crate) fn output_pile(&self, sid: SpiritId) -> Option<(BuildingId, ResourceId, u32)> {
         let s = &self.spirits[sid];
         let mut best: Option<(BuildingId, ResourceId, u32)> = None;
         for b in self.stations().filter(|b| self.serves(s, b)) {
             for o in self.orders() {
-                let n = b.storage.available(o.output);
-                if n > 0 && best.is_none_or(|x| n > x.2) {
+                // What the bench is about to use isn't there to be taken away.
+                let n = b
+                    .storage
+                    .available(o.output)
+                    .saturating_sub(self.used_at_bench(b, o.output));
+                let room = self.main_room_for(o.output) > 0;
+                if n > 0 && room && best.is_none_or(|x| n > x.2) {
                     best = Some((b.id, o.output, n));
                 }
             }
@@ -617,8 +721,24 @@ impl World {
             } else {
                 load
             };
-            waiting >= need.max(1)
+            // A shelf that can't take another batch is as full as it gets, so
+            // a big enough hauler must not wait for more than it can ever hold.
+            waiting >= need.min(self.shelf_can_reach(b)).max(1)
         })
+    }
+
+    /// The most finished goods a bench can pile up before its worker stops.
+    fn shelf_can_reach(&self, b: &Building) -> u32 {
+        let def = self.defs.building(b.kind);
+        let shelf = def.capacity.saturating_sub(def.input_buffer);
+        let batch = self
+            .defs
+            .station_recipes(b.kind)
+            .iter()
+            .map(|r| self.defs.recipe(*r).output.1)
+            .max()
+            .unwrap_or(1);
+        shelf.saturating_sub(batch - 1)
     }
 
     /// Spirits working at or headed for a station.
@@ -651,7 +771,7 @@ impl World {
     /// Whether a spirit may take a place here. One place stays free for the
     /// player when they've asked for that.
     pub(crate) fn slot_free_for_spirit(&self, b: &Building) -> bool {
-        let slots = self.defs.building(b.kind).slots;
+        let slots = self.slots_of(b);
         let promised = self.settlement.training.keep_bench_place
             && self.training_bench().is_some_and(|t| t.id == b.id);
         let held = promised || self.player_at_station(b.id);
@@ -662,7 +782,7 @@ impl World {
     /// that arrived last steps away. Otherwise a full station says so.
     pub(crate) fn claim_player_slot(&mut self, id: BuildingId) -> Result<(), String> {
         let b = &self.buildings[id];
-        let slots = self.defs.building(b.kind).slots;
+        let slots = self.slots_of(b);
         if self.player_at_station(id) || (self.spirits_at(id).count() as u32) < slots {
             return Ok(());
         }
@@ -692,7 +812,7 @@ impl World {
         };
         let def = self.defs.building(b.kind);
         let limit = def.capacity.saturating_sub(def.input_buffer);
-        b.storage.get(self.settlement.order.output) >= limit || b.storage.free() == 0
+        b.storage.available(self.settlement.order.output) >= limit || b.storage.free() == 0
     }
 
     pub fn workshop_status(&self) -> WorkshopStatus {
@@ -952,7 +1072,7 @@ impl World {
                 id: b.id,
                 name: b.name.clone(),
                 occupied: self.slots_used(b.id),
-                slots: self.defs.building(b.kind).slots,
+                slots: self.slots_of(b),
                 crafted: b.crafted,
                 workers: self.spirits_at(b.id).map(|s| s.name.clone()).collect(),
             })

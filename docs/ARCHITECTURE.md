@@ -20,9 +20,11 @@
  | training    support for the player's skilling: cache, bench, priorities   |
  | session     the player's continuous gathering and bench work              |
  | outpost     remote sites: staffing, local stock, worker states            |
+ | projects    the construction plan, cancelling, and how plans are shown    |
  | advice      read-only summaries: glance, storage advice, play report      |
  | soul        comparing sacrifices; milestone wording                       |
  | journey     new-game guidance and milestone times                         |
+ | ambitions   long-term goals, read from data and worked out from the world |
  | save        versioned files, validation, atomic replacement               |
  | autoplay    a reference player, for tests and pacing measurements         |
  | scenario  new game and demo setup from scenarios.toml                   |
@@ -148,3 +150,27 @@ All decisions about where things go pass through a few functions in `production.
 - `surplus_at` and `held_at`: what a store can send home, after what it's told to keep and what a local bench needs.
 
 Stock is never shared between buildings. Each unit is moved by a task, so conservation is checked the same way it always was. See [V0.8_OUTPOSTS.md](V0.8_OUTPOSTS.md).
+
+## The construction plan and carrying choices (v0.9)
+
+`projects.rs` holds the plan: a short list on `Settlement`. Only its front ever becomes a `Project`, so projects still run one at a time and a queued building holds no materials. Its cost joins `project_demand`, which is how production and gatherers learn about it.
+
+Main Storage is protected by `main_room_for`, `haul_room_for` and `player_room_for`, in increasing order of strictness about what may take the last of the room. When storage is tight, `update_projects` claims what's there and the builder starts carrying, which is the only way a full store can make room for what's missing.
+
+`best_carry` in `behavior.rs` compares the carrying jobs a hauler could take by units moved per tile walked. It's a single comparison at the moment a job is chosen, not a route planner. `logistics.scored_carrying` in `defs.toml` turns it off, which is how its effect is measured.
+
+Crossings change terrain, which is saved with the world. The front end redraws the map when a new one finishes. See [V0.9_SETTLEMENT_PROJECTS.md](V0.9_SETTLEMENT_PROJECTS.md).
+
+## Roads (v0.10)
+
+A road is a building whose `paves` list becomes `Terrain::Road` when it's finished, so paying for one goes through the same plan, demand and builder as anything else. `Grid` keeps `road_pct`, which stays 0 until the first road is laid. While it's 0, `find_path` is the original breadth-first search, so worlds without roads repeat exactly. After that it uses `quickest_path`, a Dijkstra search with ties settled by discovery order.
+
+`Mover.stride` is the length of the current step, so roads can shorten it and the front end can still interpolate. `DistanceField` still counts tiles: job choices are about distance, and only walking knows about speed. See [V0.10_PLANK_ROADS.md](V0.10_PLANK_ROADS.md).
+
+## Recipes that use finished goods (v0.11)
+
+`chosen_only` recipes stay out of `best_recipe`, and out of anything that guesses what a player or spirit wants from what's lying around. They run only when the player picks one or an order asks for one. Any new code that scans recipes by input needs the same check. A good can now be an output and an input at one bench, so `used_at_bench` stops haulers taking away what the bench is about to use. See [V0.11_FITTED_PANELS.md](V0.11_FITTED_PANELS.md).
+
+## Staying on open ground (v0.13)
+
+`free_the_stranded` runs every `stranded_check_seconds`. `Grid::mainland` finds the largest connected open area, and anyone off it is moved to the nearest tile of it. Only the position changes, so tasks, bags and reservations carry on. See [V0.13_STRANDED_RESCUE.md](V0.13_STRANDED_RESCUE.md).

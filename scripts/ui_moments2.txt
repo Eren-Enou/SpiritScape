@@ -1,0 +1,10 @@
+# UI test of spirits doing small things:
+#   cargo run --release -- --scenario quiet_hour --save-dir target/ui_saves38 --script scripts/ui_moments2.txt --capture target/ui_moments2
+1.5 press 8x
+77.0 press 1x
+77.5 shot 01_a_moment
+78.0 key O
+78.5 press Next spirit
+78.9 expect just to see
+79.0 shot 02_their_story
+79.5 exit

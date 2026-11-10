@@ -24,15 +24,15 @@ impl World {
         let tpm = self.defs.ticks_per_second * 60;
         if role.has_job(JobKind::Gather) {
             let best = self
-                .defs
-                .tree_tiers(skill)
+                .tiers_in_world(skill)
                 .into_iter()
                 .rfind(|k| self.defs.tree(*k).level_required <= level);
             return match best {
                 Some(k) => {
                     let def = self.defs.tree(k);
+                    let good = self.defs.resource(def.resource).name.to_lowercase();
                     let rate = format!(
-                        "Cuts about {} logs/min from {} while chopping",
+                        "Cuts about {} {good}/min from {} while working",
                         tpm / def.chop_ticks_at(level).max(1),
                         def.name
                     );
@@ -42,11 +42,10 @@ impl World {
             };
         }
         if role.has_job(JobKind::Craft) {
-            let best = self
-                .defs
-                .recipe_tiers(skill)
-                .into_iter()
-                .rfind(|r| self.defs.recipe(*r).level_required <= level);
+            let best = self.defs.recipe_tiers(skill).into_iter().rfind(|r| {
+                let d = self.defs.recipe(*r);
+                !d.chosen_only && d.level_required <= level
+            });
             return match best {
                 Some(r) => {
                     let def = self.defs.recipe(r);
@@ -76,16 +75,18 @@ impl World {
         }
         let level = table.level_for_xp(have);
         let mut tiers: Vec<(String, u32)> = self
-            .defs
-            .tree_tiers(skill)
+            .tiers_in_world(skill)
             .into_iter()
             .map(|k| self.defs.tree(k))
+            .filter(|d| !d.spirits_avoid)
             .map(|d| (d.name.clone(), d.level_required))
             .chain(
                 self.defs
                     .recipe_tiers(skill)
                     .into_iter()
                     .map(|r| self.defs.recipe(r))
+                    // Optional recipes aren't worth an option of their own.
+                    .filter(|d| !d.chosen_only)
                     .map(|d| (d.name.clone(), d.level_required)),
             )
             .filter(|(_, required)| *required > 1)
@@ -178,7 +179,7 @@ impl World {
         let d = self.defs.tree(kind);
         with_reason(
             format!(
-                "{}: in {}. {} {} a tree, {} XP each.",
+                "{}: in {}. {} {} each, {} XP apiece.",
                 d.name,
                 self.tree_sites(kind),
                 d.logs,
@@ -232,8 +233,14 @@ impl World {
         let state = if regained { "again" } else { "now" };
         let mut parts = vec![opening];
         if !trees.is_empty() {
+            // An Oak is a tree. A Clay Bank isn't.
+            let noun = if self.defs.skill(skill).id == "woodcutting" {
+                " trees"
+            } else {
+                "s"
+            };
             parts.push(format!(
-                "{} trees are {state} available.",
+                "{}{noun} are {state} available.",
                 self.tree_names(trees)
             ));
         }

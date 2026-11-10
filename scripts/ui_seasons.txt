@@ -1,0 +1,5 @@
+# UI test that a real game shows the season:
+#   cargo run --release -- --new-game --save-dir target/ui_saves27 --script scripts/ui_seasons.txt --capture target/ui_seasons
+1.5 expect Spring
+1.6 shot 01_spring
+1.8 exit

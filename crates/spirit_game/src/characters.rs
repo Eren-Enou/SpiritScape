@@ -67,7 +67,8 @@ impl Plugin for CharactersPlugin {
             Update,
             (
                 build_anim_graph,
-                spawn_characters,
+                // After the world is rebuilt, or the first frame spawns everyone twice.
+                spawn_characters.after(crate::world_view::rebuild_on_restart),
                 setup_rigs,
                 sync_characters,
             )
@@ -170,11 +171,26 @@ fn spawn_characters(
     visuals: Res<Visuals>,
     assets: Res<AssetServer>,
     mut spawned: ResMut<Spawned>,
-    existing: Query<&Character>,
+    existing: Query<(Entity, &Character)>,
+    labels: Query<(Entity, &WorldLabel)>,
 ) {
     // The world view resets `spawned` on restart; the player is respawned then too.
     let w = &sim.world;
-    if spawned.spirits == 0 && !existing.iter().any(|c| c.who == Who::Player) {
+    // Everyone has gone home.
+    if w.spirits.len() < spawned.spirits {
+        for (entity, c) in &existing {
+            if c.who != Who::Player {
+                commands.entity(entity).despawn();
+            }
+        }
+        for (entity, label) in &labels {
+            if matches!(label, WorldLabel::Spirit(_)) {
+                commands.entity(entity).despawn();
+            }
+        }
+        spawned.spirits = w.spirits.len();
+    }
+    if spawned.spirits == 0 && !existing.iter().any(|(_, c)| c.who == Who::Player) {
         spawn_character(
             &mut commands,
             &assets,
@@ -186,9 +202,10 @@ fn spawn_characters(
     }
     for s in &w.spirits[spawned.spirits..] {
         let role = w.defs.role(s.role);
-        let Some(model_def) = visuals.characters.roles.get(&role.id) else {
-            continue;
-        };
+        // A spirit with no model of its own still has to be seen, or it works
+        // on unnoticed with no name over its head.
+        let model_def = visuals.characters.roles.get(&role.id);
+        let model_def = model_def.unwrap_or(&visuals.characters.player);
         let [r, g, b] = role.color;
         spawn_character(
             &mut commands,
@@ -321,6 +338,10 @@ fn sync_characters(
         let actor = match c.who {
             Who::Player => &w.player.actor,
             Who::Spirit(id) => match w.spirits.get(id) {
+                Some(s) if s.aboard => {
+                    tf.translation.y = -100.0;
+                    continue;
+                }
                 Some(s) => &s.actor,
                 None => continue,
             },

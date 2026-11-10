@@ -1,6 +1,7 @@
 //! Tile map, map parsing and breadth-first grid pathfinding.
 
-use std::collections::{BTreeMap, VecDeque};
+use std::cmp::Reverse;
+use std::collections::{BTreeMap, BinaryHeap, VecDeque};
 
 pub const BUILTIN_MAP: &str = include_str!("../../../data/maps/forest.txt");
 
@@ -58,11 +59,13 @@ pub enum Terrain {
     Water,
     Rock,
     Bridge,
+    /// Plank road: quicker to walk on, and nothing can be built on it.
+    Road,
 }
 
 impl Terrain {
     pub fn walkable(self) -> bool {
-        matches!(self, Terrain::Grass | Terrain::Bridge)
+        matches!(self, Terrain::Grass | Terrain::Bridge | Terrain::Road)
     }
 
     pub fn buildable(self) -> bool {
@@ -156,6 +159,14 @@ pub struct Grid {
     terrain: Vec<Terrain>,
     /// Tiles occupied by trees or buildings.
     occupied: Vec<bool>,
+    /// How long a road tile takes to cross, as a percentage of any other tile.
+    /// 0 until the first road is laid, and paths are plain shortest paths
+    /// until then.
+    #[serde(default)]
+    road_pct: u32,
+    /// Water frozen hard enough to walk on, as [x0, y0, x1, y1].
+    #[serde(default)]
+    frozen: Option<[i32; 4]>,
 }
 
 impl Grid {
@@ -165,6 +176,8 @@ impl Grid {
             height: layout.height,
             terrain: layout.terrain.clone(),
             occupied: vec![false; layout.terrain.len()],
+            road_pct: 0,
+            frozen: None,
         }
     }
 
@@ -191,6 +204,110 @@ impl Grid {
         }
     }
 
+    /// Freezes this stretch of water, or thaws whatever was frozen.
+    pub fn freeze(&mut self, area: Option<[i32; 4]>) {
+        self.frozen = area;
+    }
+
+    pub fn frozen_area(&self) -> Option<[i32; 4]> {
+        self.frozen
+    }
+
+    /// Water that will bear someone's weight, for now. Only the player will
+    /// try it, so this isn't walkable as far as anyone else is concerned.
+    pub fn is_ice(&self, p: TilePos) -> bool {
+        self.frozen.is_some_and(|[x0, y0, x1, y1]| {
+            (x0..=x1).contains(&p.x)
+                && (y0..=y1).contains(&p.y)
+                && self.terrain(p) == Some(Terrain::Water)
+        })
+    }
+
+    /// The way across for someone who'll walk on ice. Only worth asking when
+    /// there's no other way: nobody walks on it who doesn't have to.
+    pub fn path_over_ice(
+        &self,
+        from: TilePos,
+        goal: impl Fn(TilePos) -> bool,
+    ) -> Option<Vec<TilePos>> {
+        if self.frozen.is_none() || !self.in_bounds(from) {
+            return None;
+        }
+        let mut prev: Vec<Option<TilePos>> = vec![None; self.terrain.len()];
+        let mut seen = vec![false; self.terrain.len()];
+        let mut queue = VecDeque::from([from]);
+        seen[self.idx(from)] = true;
+        while let Some(p) = queue.pop_front() {
+            if goal(p) {
+                let mut path = Vec::new();
+                let mut at = p;
+                while at != from {
+                    path.push(at);
+                    at = prev[self.idx(at)]?;
+                }
+                path.reverse();
+                return Some(path);
+            }
+            for n in p.neighbors4() {
+                let open = self.is_walkable(n) || self.is_ice(n);
+                if !open || seen[self.idx(n)] {
+                    continue;
+                }
+                seen[self.idx(n)] = true;
+                prev[self.idx(n)] = Some(p);
+                queue.push_back(n);
+            }
+        }
+        None
+    }
+
+    /// Turns a tile into a walkable crossing.
+    pub fn open_crossing(&mut self, p: TilePos) {
+        if self.in_bounds(p) {
+            let i = self.idx(p);
+            self.terrain[i] = Terrain::Bridge;
+            self.occupied[i] = false;
+        }
+    }
+
+    /// Lays road on open ground. Water, rock and bridges stay as they are, and
+    /// anything standing on a tile stays too, so a road runs around it.
+    pub fn pave(&mut self, p: TilePos, road_pct: u32) {
+        if !self.in_bounds(p) {
+            return;
+        }
+        let i = self.idx(p);
+        if self.terrain[i] == Terrain::Grass && !self.occupied[i] {
+            self.terrain[i] = Terrain::Road;
+            self.road_pct = road_pct;
+        }
+    }
+
+    /// Ticks to enter `p` for a walker who takes `ticks` on open ground.
+    pub fn step_ticks(&self, p: TilePos, ticks: u32) -> u32 {
+        if self.terrain(p) == Some(Terrain::Road) {
+            ((ticks * self.road_pct + 50) / 100).max(1)
+        } else {
+            ticks
+        }
+    }
+
+    /// This grid on a larger map, for older saves. Everything already on the
+    /// old map stays exactly where it was.
+    pub fn grown(&self, layout: &MapLayout) -> Grid {
+        let mut bigger = Grid::new(layout);
+        for y in 0..self.height.min(bigger.height) {
+            for x in 0..self.width.min(bigger.width) {
+                let p = TilePos::new(x, y);
+                let (from, to) = (self.idx(p), bigger.idx(p));
+                bigger.terrain[to] = self.terrain[from];
+                bigger.occupied[to] = self.occupied[from];
+            }
+        }
+        bigger.road_pct = self.road_pct;
+        bigger
+    }
+
     pub fn is_walkable(&self, p: TilePos) -> bool {
         self.in_bounds(p) && self.terrain[self.idx(p)].walkable() && !self.occupied[self.idx(p)]
     }
@@ -201,6 +318,55 @@ impl Grid {
 
     pub fn walkable_neighbors(&self, p: TilePos) -> impl Iterator<Item = TilePos> + '_ {
         p.neighbors4().into_iter().filter(|n| self.is_walkable(*n))
+    }
+
+    /// The largest stretch of connected open ground, by tile. Ties go to
+    /// whichever comes first on the map.
+    pub fn mainland(&self) -> Vec<bool> {
+        let mut seen = vec![false; self.terrain.len()];
+        let mut best: Vec<usize> = Vec::new();
+        for y in 0..self.height {
+            for x in 0..self.width {
+                let start = TilePos::new(x, y);
+                if seen[self.idx(start)] || !self.is_walkable(start) {
+                    continue;
+                }
+                seen[self.idx(start)] = true;
+                let mut region = vec![self.idx(start)];
+                let mut queue = VecDeque::from([start]);
+                while let Some(p) = queue.pop_front() {
+                    for n in self.walkable_neighbors(p).collect::<Vec<_>>() {
+                        let i = self.idx(n);
+                        if !seen[i] {
+                            seen[i] = true;
+                            region.push(i);
+                            queue.push_back(n);
+                        }
+                    }
+                }
+                if region.len() > best.len() {
+                    best = region;
+                }
+            }
+        }
+        let mut land = vec![false; self.terrain.len()];
+        for i in best {
+            land[i] = true;
+        }
+        land
+    }
+
+    /// Whether `p` is on that ground.
+    pub fn on_land(&self, land: &[bool], p: TilePos) -> bool {
+        self.in_bounds(p) && land[self.idx(p)]
+    }
+
+    /// The tile of that ground closest to `p` in a straight line.
+    pub fn nearest_land(&self, land: &[bool], p: TilePos) -> Option<TilePos> {
+        (0..self.height)
+            .flat_map(|y| (0..self.width).map(move |x| TilePos::new(x, y)))
+            .filter(|t| land[self.idx(*t)])
+            .min_by_key(|t| (t.manhattan(p), t.y, t.x))
     }
 
     /// Multi-source BFS over walkable tiles. Sources are always expanded,
@@ -263,6 +429,9 @@ impl Grid {
         if goal(from) {
             return Some(Vec::new());
         }
+        if self.road_pct > 0 {
+            return self.quickest_path(from, goal);
+        }
         let mut prev: Vec<Option<TilePos>> = vec![None; self.terrain.len()];
         let mut seen = vec![false; self.terrain.len()];
         let mut queue = VecDeque::new();
@@ -292,6 +461,56 @@ impl Grid {
                     return Some(path);
                 }
                 queue.push_back(n);
+            }
+        }
+        None
+    }
+
+    /// The quickest route once roads exist, which can be longer in tiles than
+    /// the shortest one. Ties go to whichever was found first, so it repeats.
+    fn quickest_path(&self, from: TilePos, goal: impl Fn(TilePos) -> bool) -> Option<Vec<TilePos>> {
+        if !self.in_bounds(from) {
+            return None;
+        }
+        let mut best = vec![u32::MAX; self.terrain.len()];
+        let mut prev: Vec<Option<TilePos>> = vec![None; self.terrain.len()];
+        let mut open = BinaryHeap::new();
+        let mut found = 0u32;
+        best[self.idx(from)] = 0;
+        open.push(Reverse((0u32, found, from)));
+        while let Some(Reverse((cost, _, p))) = open.pop() {
+            if cost > best[self.idx(p)] {
+                continue;
+            }
+            if p != from && goal(p) {
+                let mut path = vec![p];
+                let mut cur = p;
+                while let Some(pp) = prev[self.idx(cur)] {
+                    if pp == from {
+                        break;
+                    }
+                    path.push(pp);
+                    cur = pp;
+                }
+                path.reverse();
+                return Some(path);
+            }
+            for n in p.neighbors4() {
+                if !self.is_walkable(n) {
+                    continue;
+                }
+                let step = if self.terrain[self.idx(n)] == Terrain::Road {
+                    self.road_pct
+                } else {
+                    100
+                };
+                let i = self.idx(n);
+                if cost + step < best[i] {
+                    best[i] = cost + step;
+                    prev[i] = Some(p);
+                    found += 1;
+                    open.push(Reverse((cost + step, found, n)));
+                }
             }
         }
         None

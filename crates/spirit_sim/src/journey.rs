@@ -98,9 +98,10 @@ impl World {
 
     /// A player-ordered building has been finished.
     fn improved(&self) -> bool {
-        self.projects
-            .iter()
-            .any(|p| !p.is_active() && self.defs.building(p.kind).capacity_bonus > 0)
+        self.projects.iter().any(|p| {
+            p.state == crate::entities::ProjectState::Complete
+                && self.defs.building(p.kind).capacity_bonus > 0
+        })
     }
 
     /// Some skill has been sacrificed and is back at its best.
@@ -326,6 +327,14 @@ impl World {
                         table.xp_for_level(h.highest_level),
                         format!("{name} XP"),
                     )),
+                }
+            }
+            Phase::Settled if self.next_ambition().is_some() => {
+                let a = self.next_ambition()?;
+                Guidance {
+                    title: a.title,
+                    hint: a.hint,
+                    progress: a.progress,
                 }
             }
             Phase::Settled => {

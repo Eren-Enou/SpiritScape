@@ -59,6 +59,478 @@ first_spirit_level = 3
 # Woodworking level to reach before the guidance suggests a Woodworking Spirit.
 woodworking_level = 5
 
+# Long-term goals, in the order they're suggested. They reward nothing and
+# block nothing. Each is met when every condition it gives is met.
+[[ambitions]]
+id = "outpost"
+title = "Set up at Old Growth"
+hint = "Plan an Outpost Storage in Projects (B), so a site far from home has somewhere to keep what it gathers."
+built = ["outpost_storage"]
+
+[[ambitions]]
+id = "ironwood"
+title = "Cut Ironwood"
+hint = "Ironwood needs Woodcutting level 10, and it's the only source of Hardwood Logs."
+skill = "woodcutting"
+level = 10
+
+[[ambitions]]
+id = "beams"
+title = "Make Structural Beams"
+hint = "Beams need Woodworking level 10. A level 10 spirit will make them for good."
+skill = "woodworking"
+level = 10
+
+[[ambitions]]
+id = "first_road"
+title = "Lay your first road"
+hint = "Plan Grove Lane in Projects (B). Everyone walks a third faster on it."
+built = ["grove_lane"]
+
+[[ambitions]]
+id = "crossing"
+title = "Open the Hollow Grove"
+hint = "Plan the Forest Crossing in Projects (B). It opens six more Ironwood trees."
+built = ["forest_crossing"]
+
+[[ambitions]]
+id = "panels"
+title = "Make 20 Fitted Panels"
+hint = "At Woodworking 7, choose Fitted Panels at your bench in the Training tab (T). They use up spare planks."
+made = "panels"
+amount = 20
+
+[[ambitions]]
+id = "quarry"
+title = "Open the quarry"
+hint = "Stone Outcrops are south of home. Reach Quarrying level 5, or make a Quarrying Spirit from the Soul tab (R)."
+skill = "quarrying"
+level = 5
+
+[[ambitions]]
+id = "causeway"
+title = "Bridge the river in stone"
+hint = "Plan the Stone Causeway in Projects (B). You'll need Stone coming in."
+built = ["stone_causeway"]
+
+[[ambitions]]
+id = "all_roads"
+title = "Join the settlement by road"
+hint = "Lay Grove Lane, the North Road, the Old Growth Road and the Forest Road."
+built = ["grove_lane", "north_road", "old_growth_road", "forest_road"]
+
+[[ambitions]]
+id = "warehouse"
+title = "Build a Panelled Warehouse"
+hint = "Plan one in Projects (B). It holds twice what a Storehouse does."
+built = ["panelled_warehouse"]
+
+[[ambitions]]
+id = "caravans"
+title = "Send 5 Trade Caravans"
+hint = "Plan a Trade Caravan in Projects (B) whenever goods are piling up."
+caravans = 5
+
+[[ambitions]]
+id = "nursery"
+title = "Grow Ironwood near home"
+hint = "A Trade Caravan brings back saplings. Then plan an Ironwood Nursery in Projects (B)."
+built = ["ironwood_nursery"]
+
+[[ambitions]]
+id = "keystones"
+title = "Cut 10 Keystones"
+hint = "A third Trade Caravan brings mason's tools. Keystones need Masonry level 8, Dressed Stone and beams."
+built = ["mason_yard"]
+made = "keystones"
+amount = 10
+
+[[ambitions]]
+id = "hearth"
+title = "Light the Hearth of Spirits"
+hint = "Three stages in Projects (B): Foundations, Walls, and the Hearth itself. It takes all three trades."
+built = ["hearth_foundations", "hearth_walls", "hearth_of_spirits"]
+
+[[ambitions]]
+id = "markers"
+title = "Read the old stones"
+hint = "Someone was here before you. Seven stones are out there, one beyond the ravine and one across the south river."
+markers = 7
+
+[[ambitions]]
+id = "far_shore"
+title = "Light a Still Lantern"
+hint = "Cross the south river and cut Stillwood yourself. It needs Woodcutting 12, and no spirit will help."
+built = ["south_crossing", "still_lantern"]
+
+[[ambitions]]
+id = "master_wood"
+title = "Master Woodworking"
+hint = "Reach Woodworking level 20. It counts even if you give the XP to a spirit later."
+skill = "woodworking"
+level = 20
+
+[[ambitions]]
+id = "master_axe"
+title = "Master Woodcutting"
+hint = "Reach Woodcutting level 20."
+skill = "woodcutting"
+level = 20
+
+# What a spirit made by Soul Separation can be like. It's fixed when the spirit
+# awakens, and only spirits you make have one. Keep these in order: saves refer
+# to them by position, so new ones go at the end.
+[[traits]]
+id = "steady"
+name = "Steady"
+text = "It works at one pace and doesn't complain."
+
+[[traits]]
+id = "broad_backed"
+name = "Broad-backed"
+text = "It carries three more than others of its kind."
+carry = 3
+
+[[traits]]
+id = "quiet"
+name = "Quiet"
+text = "You rarely notice it, until you notice how much it has done."
+
+[[traits]]
+id = "curious"
+name = "Curious"
+text = "It stops to look at things, and it always seems pleased about them."
+
+[[traits]]
+id = "sturdy"
+name = "Sturdy"
+text = "It carries two more than others of its kind."
+carry = 2
+
+# Milestones in a spirit's working life. They change nothing it does. The title
+# of its latest deed goes after its name. Saves refer to these by position too.
+[[deeds]]
+id = "first_hundred_trips"
+measure = "trips"
+amount = 100
+title = "Well-Travelled"
+text = "It has made a hundred trips."
+
+[[deeds]]
+id = "thousand_trips"
+measure = "trips"
+amount = 1000
+title = "Road-Worn"
+text = "It has made a thousand trips."
+
+[[deeds]]
+id = "hundred_gathered"
+measure = "gathered"
+amount = 100
+title = "Handy"
+text = "It has gathered its first hundred."
+
+[[deeds]]
+id = "thousand_gathered"
+measure = "gathered"
+amount = 1000
+title = "Tireless"
+text = "It has gathered a thousand."
+
+[[deeds]]
+id = "hundred_crafted"
+measure = "crafted"
+amount = 100
+title = "Practised"
+text = "It has made its first hundred."
+
+[[deeds]]
+id = "thousand_crafted"
+measure = "crafted"
+amount = 1000
+title = "Master Hand"
+text = "It has made a thousand."
+
+# Old stones left by someone who was here before you. Walking up to one reads
+# it. They can be found in any order, so each has to stand on its own.
+[[markers]]
+id = "first"
+at = [2, 5]
+title = "The Worn Stone"
+text = "We came for the trees. I could cut more than anyone, so I gave the first of it away and made a helper. It was the best day."
+
+[[markers]]
+id = "river"
+at = [18, 25]
+title = "The River Stone"
+text = "Ten helpers now. I don't remember how to sharpen an axe. They do it for me. It doesn't seem to matter."
+
+[[markers]]
+id = "forest"
+at = [26, 12]
+title = "The Leaning Stone"
+text = "Someone asked me what I used to be good at. I went to answer, and found I had given it all away."
+
+[[markers]]
+id = "oldgrowth"
+at = [45, 7]
+title = "The Mossed Stone"
+text = "The helpers never stop. They cut and carry and build, and they don't look up. I wonder if any of them remembers being me."
+
+[[markers]]
+id = "south"
+at = [42, 24]
+title = "The Split Stone"
+text = "There is one thing left to give. I think if I give it, the work will go on without anyone to watch it. I think that's what I wanted."
+
+[[markers]]
+id = "shore"
+at = [31, 35]
+title = "The Shore Stone"
+text = "They won't cross. I've watched them stop at the water and turn round. I come here when I want to be sure what's left of me is mine."
+
+[[markers]]
+id = "hollow"
+at = [56, 9]
+title = "The Last Stone"
+text = "No name on this one. The chisel marks are very neat, the way a helper would make them. We built no hearth. Nobody was left who thought of it."
+
+# The year, for real playthroughs only. Scenarios stay in a season-less world,
+# so what they measure doesn't move. `growth` is how many ticks of regrowth a
+# seasonal tree gets each tick: 2 is twice as fast, and 0 stops it.
+[[seasons]]
+id = "spring"
+name = "Spring"
+minutes = 30
+growth = 2
+text = "Spring. Everything that was cut grows back twice as fast."
+
+[[seasons]]
+id = "summer"
+name = "Summer"
+minutes = 30
+growth = 1
+text = "Summer. Long days, and the woods as they usually are."
+
+[[seasons]]
+id = "autumn"
+name = "Autumn"
+minutes = 30
+growth = 1
+text = "Autumn. Winter is coming: anything you want cut, cut it now."
+
+[[seasons]]
+id = "winter"
+name = "Winter"
+minutes = 30
+growth = 0
+text = "Winter. The woods have stopped growing. The quarry doesn't care, and neither does a bench."
+
+# People who pass through a real game, in order, each once. Every offer costs
+# something, and none should be simply good: turning one down has to make sense.
+[[visitors]]
+id = "pedlar"
+name = "A pedlar"
+after_minutes = 25
+text = "\"Long road, thin axe handles. I'd pay well for good wood, if you've any to spare.\""
+thanks = "The pedlar loads up and leaves you a sack of cut timber, more than you expected."
+wants = [{ resource = "logs", amount = 40 }]
+gives = [{ resource = "planks", amount = 15 }]
+
+[[visitors]]
+id = "surveyor"
+name = "A surveyor"
+after_minutes = 70
+needs_built = "outpost_storage"
+text = "\"Fine country. I'm mapping the river. I could use planks for my stakes, and I'll leave you what I've quarried.\""
+thanks = "The surveyor leaves a neat stack of stone at Main Storage."
+wants = [{ resource = "planks", amount = 40 }]
+gives = [{ resource = "stone", amount = 30 }]
+
+[[visitors]]
+id = "shipwright"
+name = "A shipwright"
+after_minutes = 130
+needs_built = "forest_crossing"
+text = "\"That's Ironwood past your ravine. I'd give a lot for beams like those. I've panels from a yard that closed.\""
+thanks = "The shipwright counts the beams twice, and leaves you the panels."
+wants = [{ resource = "beams", amount = 20 }]
+gives = [{ resource = "panels", amount = 40 }]
+
+[[visitors]]
+id = "mason"
+name = "An old mason"
+after_minutes = 200
+needs_built = "mason_yard"
+text = "\"Someone here knows stone. I can't lift it any more, but I can still cut a keystone. Bring me what I need.\""
+thanks = "The old mason works through the night, and is gone by morning."
+wants = [{ resource = "dressed_stone", amount = 20 }, { resource = "beams", amount = 10 }]
+gives = [{ resource = "keystones", amount = 8 }]
+
+[[visitors]]
+id = "pilgrim"
+name = "A pilgrim"
+after_minutes = 260
+needs_built = "hearth_foundations"
+text = "\"I walked a long way to see the stones. Nobody has ever started one of these. Could you spare what I need to get home?\""
+thanks = "The pilgrim thanks you and doesn't look back. There's a small carved keystone on the step."
+wants = [{ resource = "panels", amount = 30 }]
+gives = [{ resource = "keystones", amount = 1 }]
+
+# Teaching each system when it first matters, in real games only. `opens` keeps
+# a tab or skill off the screen until the tip has been said. See tips.rs for
+# what `when` can say.
+[[tips]]
+id = "soul"
+when = "phase:first_spirit"
+opens = "soul"
+text = "The Soul tab (R) has opened. Soul Separation trades your XP for a spirit that works for good."
+
+[[tips]]
+id = "progress"
+when = "phase:first_spirit"
+opens = "progress"
+text = "The Progress tab (J) has opened. It keeps your long-term goals, and what you've found."
+
+[[tips]]
+id = "spirits"
+when = "phase:first_craft"
+opens = "spirits"
+text = "The Spirits tab (O) has opened. You can give each spirit instructions, and read its story."
+
+[[tips]]
+id = "gathering"
+when = "phase:first_craft"
+opens = "gathering"
+text = "The Gathering tab (G) has opened. It shows what each site gives, and why spirits are waiting."
+
+[[tips]]
+id = "woodworking"
+when = "phase:first_craft"
+opens = "woodworking"
+text = "Woodworking is your second skill. Take logs from Main Storage and click the Workshop."
+
+[[tips]]
+id = "production"
+when = "phase:automation"
+opens = "production"
+text = "The Production tab (P) has opened. It shows what's being made, and what's holding it up."
+
+[[tips]]
+id = "projects"
+when = "phase:improvement"
+opens = "projects"
+text = "The Projects tab (B) has opened. Plan buildings there, and your spirits make what they need."
+
+[[tips]]
+id = "training"
+when = "phase:return"
+opens = "training"
+text = "The Training tab (T) has opened. Spirits can carry for you while you train, and you can choose what to make."
+
+[[tips]]
+id = "outpost"
+when = "level:woodcutting:10"
+opens = "outpost"
+text = "The Outpost tab (U) has opened. Ironwood is a long way from home, and a site out there can work on its own."
+
+[[tips]]
+id = "quarrying"
+when = "phase:settled"
+opens = "quarrying"
+text = "There's stone south of home, past the Workshop. Quarrying is a skill of its own, and it starts from nothing."
+
+[[tips]]
+id = "masonry"
+when = "caravans:3"
+opens = "masonry"
+text = "Masonry is your fourth skill: it joins stone to timber at a Mason's Yard."
+
+[[tips]]
+id = "first_winter"
+when = "season:winter"
+text = "The trees won't grow back until spring. It's a good time for the bench, the quarry or the plan."
+
+# These come back only if something earlier went the right way. `remembers`
+# names a visitor whose offer you took, and `refused` one you turned down.
+[[visitors]]
+id = "pedlar_returns"
+name = "The pedlar, again"
+after_minutes = 320
+remembers = "pedlar"
+text = "\"You dealt fair with me once. My daughter's marrying a joiner, and I've orders to fill, if you're still cutting.\""
+thanks = "The pedlar pays above the odds, and asks after your spirits by name."
+wants = [{ resource = "logs", amount = 120 }]
+gives = [{ resource = "planks", amount = 60 }]
+
+[[visitors]]
+id = "surveyor_son"
+name = "A surveyor's son"
+after_minutes = 380
+refused = "surveyor"
+text = "\"My father said you turned him down, and that he'd have done the same. I've brought what he'd have left you. I only need planks for the road home.\""
+thanks = "He stacks the stone neatly, the way his father would have."
+wants = [{ resource = "planks", amount = 20 }]
+gives = [{ resource = "stone", amount = 40 }]
+
+[[visitors]]
+id = "shipwright_keel"
+name = "The shipwright"
+after_minutes = 440
+remembers = "shipwright"
+needs_built = "south_crossing"
+text = "\"I've a keel to lay. I'd not ask if it weren't the last ship I'll build. Stone for the slip, and I'll send back what I can.\""
+thanks = "The shipwright stays to watch the spirits work for a while, and doesn't say why."
+wants = [{ resource = "dressed_stone", amount = 40 }]
+gives = [{ resource = "beams", amount = 30 }]
+
+# These come either way. `knows` names someone earlier, and what they say
+# depends on how that went.
+[[visitors]]
+id = "pilgrim_party"
+name = "A party of pilgrims"
+after_minutes = 540
+needs_built = "hearth_foundations"
+knows = "pilgrim"
+text = "\"People say someone's raising a hearth out here. We didn't believe it, so we came to look. We've brought stone, and we only want planks for shelter.\""
+text_took = "\"One of ours came home and said you'd helped when you didn't have to. We've carried stone all this way. We only want planks for shelter.\""
+text_refused = "\"One of ours walked home from here with nothing, and told us to come anyway. We've carried stone all this way. We only want planks for shelter.\""
+thanks = "The pilgrims stay three nights, and leave the stone stacked better than they found it."
+wants = [{ resource = "planks", amount = 80 }]
+gives = [{ resource = "dressed_stone", amount = 30 }]
+
+[[visitors]]
+id = "apprentice"
+name = "A mason's apprentice"
+after_minutes = 640
+needs_built = "mason_yard"
+knows = "mason"
+text = "\"I'm told there's a yard out here that knows stone. Nobody's let me near a real job yet. Would you try me?\""
+text_took = "\"The old mason died in the spring. The last thing they talked about was your yard, and that night's work. I'd like to do the same.\""
+text_refused = "\"My master came here once, and you sent them away. They said you were right to. I'd like to change your mind.\""
+thanks = "The apprentice works slowly, and checks each one twice."
+wants = [{ resource = "dressed_stone", amount = 12 }]
+gives = [{ resource = "keystones", amount = 2 }]
+
+[[visitors]]
+id = "wet_boots"
+name = "A stranger with wet boots"
+after_minutes = 760
+needs_built = "still_lantern"
+text = "\"You keep a light for the far shore. Nobody's done that in a long time. I want nothing for it. Well. A little stillwood, to take back where it came from.\""
+thanks = "The stranger walks south. For a while the lantern burns steadier, or you think it does."
+wants = [{ resource = "stillwood", amount = 10 }]
+gives = [{ resource = "keystones", amount = 3 }]
+
+[[visitors]]
+id = "valley_child"
+name = "A child from the valley"
+after_minutes = 300
+needs_built = "hearth_of_spirits"
+text = "\"They say there's a fire here that spirits made. Is it true? Can I see one? My cart's got a broken board, too, if you've a plank or two to spare.\""
+thanks = "The child watches a spirit work until it gets dark, and has to be called home twice."
+wants = [{ resource = "planks", amount = 5 }]
+
 [[resources]]
 id = "logs"
 name = "Logs"
@@ -74,6 +546,31 @@ name = "Hardwood Logs"
 [[resources]]
 id = "beams"
 name = "Structural Beams"
+
+# Planks made into something worth keeping: three take up the room of one.
+[[resources]]
+id = "panels"
+name = "Fitted Panels"
+
+# Cut from outcrops south of home. It's the second thing to gather, and the
+# only way to build across the river without going round by the bridge.
+[[resources]]
+id = "stone"
+name = "Stone"
+
+# Stone worked for building, and the piece that joins stone and timber.
+[[resources]]
+id = "dressed_stone"
+name = "Dressed Stone"
+
+[[resources]]
+id = "keystones"
+name = "Keystones"
+
+# Only the player can bring this home.
+[[resources]]
+id = "stillwood"
+name = "Stillwood"
 
 [[skills]]
 id = "woodcutting"
@@ -96,12 +593,19 @@ id = "construction"
 name = "Construction"
 trainable = false
 
+# The second gathering skill, separate from Woodcutting. Open from the start.
+[[skills]]
+id = "quarrying"
+name = "Quarrying"
+trainable = true
+
 # Woodcutting tiers. Both the player and spirits need `level_required` in
 # the tree's skill to cut it. Numbers are tuned for quick playtesting.
 
 [[tree_types]]
 id = "tree"
 name = "Tree"
+seasonal = true
 map_char = "t"
 resource = "logs"
 skill = "woodcutting"
@@ -116,6 +620,7 @@ min_chop_seconds = 1.0
 [[tree_types]]
 id = "oak"
 name = "Oak"
+seasonal = true
 map_char = "T"
 resource = "logs"
 skill = "woodcutting"
@@ -132,6 +637,7 @@ why = "Twice the XP of a Tree for each log, and more logs per tree. A spirit of 
 [[tree_types]]
 id = "ironwood"
 name = "Ironwood"
+seasonal = true
 map_char = "I"
 resource = "hardwood"
 skill = "woodcutting"
@@ -143,6 +649,46 @@ chop_seconds = 4.0
 chop_seconds_per_level = 0.1
 min_chop_seconds = 1.5
 why = "The only source of Hardwood Logs, which Structural Beams are made from."
+
+# The third trade, opened by a Trade Caravan. It's the first to join two chains.
+[[skills]]
+id = "masonry"
+name = "Masonry"
+trainable = true
+
+# Outcrops work like trees: they're worked down, then recover.
+[[tree_types]]
+id = "stone_outcrop"
+name = "Stone Outcrop"
+map_char = "q"
+resource = "stone"
+skill = "quarrying"
+level_required = 1
+logs = 4
+regrow_seconds = 90.0
+xp_per_log = 18
+chop_seconds = 3.5
+chop_seconds_per_level = 0.1
+min_chop_seconds = 1.2
+why = "The only source of Stone, which the Stone Causeway is built from."
+
+# Grows only on the Far Shore. Spirits won't touch it, or go near it: this is
+# the one thing in the game you can only do yourself.
+[[tree_types]]
+id = "stilltree"
+name = "Stilltree"
+map_char = "S"
+resource = "stillwood"
+skill = "woodcutting"
+level_required = 12
+spirits_avoid = true
+logs = 3
+regrow_seconds = 240.0
+xp_per_log = 90
+chop_seconds = 5.0
+chop_seconds_per_level = 0.1
+min_chop_seconds = 2.0
+why = "It grows on the Far Shore, and no spirit will cut it."
 
 # ---------------------------------------------------------------------------
 # Recipes: timed processing at a station building. The player and spirits use
@@ -194,11 +740,60 @@ min_craft_seconds = 3.0
 xp = 120
 why = "Further Workshops are built with these, so this is how production grows."
 
+# The first recipe that uses a finished good. Hand training makes far more
+# planks than anything needs, and this is what a skilled worker does with them.
+# It's only made when chosen: nobody loses planks they were keeping.
+[[recipes]]
+id = "fitted_panels"
+name = "Fitted Panels"
+skill = "woodworking"
+station = "workshop"
+level_required = 7
+chosen_only = true
+inputs = [{ resource = "planks", amount = 3 }]
+output = { resource = "panels", amount = 1 }
+craft_seconds = 5.0
+craft_seconds_per_level = 0.1
+min_craft_seconds = 2.5
+xp = 90
+why = "Spare planks become the best Woodworking XP you have, and take up a third of the room."
+
+[[recipes]]
+id = "dressed_stone"
+name = "Dressed Stone"
+skill = "masonry"
+station = "mason_yard"
+level_required = 1
+inputs = [{ resource = "stone", amount = 2 }]
+output = { resource = "dressed_stone", amount = 1 }
+craft_seconds = 4.0
+craft_seconds_per_level = 0.1
+min_craft_seconds = 1.8
+xp = 30
+
+# Needs both trades: stone from the quarry and beams from the bench.
+[[recipes]]
+id = "keystones"
+name = "Keystones"
+skill = "masonry"
+station = "mason_yard"
+level_required = 8
+inputs = [
+    { resource = "dressed_stone", amount = 2 },
+    { resource = "beams", amount = 1 },
+]
+output = { resource = "keystones", amount = 1 }
+craft_seconds = 8.0
+craft_seconds_per_level = 0.1
+min_craft_seconds = 4.0
+xp = 160
+why = "Stone and timber joined. Nothing the settlement has built so far needs one of these."
+
 [production]
 # What the settlement's main production order makes.
 output = "planks"
 # Further products with an order of their own.
-more_outputs = ["beams"]
+more_outputs = ["beams", "panels", "dressed_stone", "keystones", "charcoal", "bricks", "pitch"]
 # Most extra logs a production shortfall may ask gatherers for at once.
 upstream_cap = 40
 
@@ -231,6 +826,29 @@ regrow_pct = 100
 # Far enough from home to be worth running as a production site of its own.
 outpost = true
 
+# More Ironwood beyond the eastern ravine. Nothing reaches it until a Forest
+# Crossing is built. Spirits posted to Old Growth work here too.
+[[sites]]
+id = "hollow_grove"
+name = "Hollow Grove"
+area = [50, 0, 59, 10]
+regrow_pct = 100
+region = "old_growth"
+
+# Stone south of home, a short walk from Main Storage.
+[[sites]]
+id = "south_quarry"
+name = "South Quarry"
+area = [2, 21, 12, 27]
+regrow_pct = 100
+
+# South of the river. Spirits won't work here.
+[[sites]]
+id = "far_shore"
+name = "The Far Shore"
+area = [0, 30, 47, 39]
+regrow_pct = 100
+
 # When a long walk is worth making. These stop spirits crossing the map for a
 # handful of materials, and from drifting between far-apart benches.
 [logistics]
@@ -239,7 +857,37 @@ long_trip_tiles = 16
 long_trip_batches = 4
 # A carrier makes a long trip for at least this share of a full load, unless
 # that's more than is wanted.
-long_trip_load_pct = 50
+long_trip_load_pct = 100
+# Goods this close to a pickup can join the same trip home.
+batch_tiles = 6
+# Haulers choose between carrying jobs by load, distance and urgency.
+scored_carrying = true
+
+[construction]
+# Buildings that can wait on the plan at once.
+queue_limit = 4
+# A Workshop Annex works with a bench this many tiles away.
+annex_reach = 3
+# Room in Main Storage kept for raw materials. Without it, the hundreds of
+# planks made training Woodworking can fill the store, and then no logs can
+# come in for the buildings that would use them up.
+raw_room = 100
+# How long a road tile takes to cross, as a percentage of open ground. Spirits
+# and the player both take 0.3 seconds on grass, so this makes it 0.2.
+road_pct = 67
+# How long spirits gather at the Hearth when it's lit, in seconds.
+hearth_gathering_seconds = 180.0
+homecoming_gap_seconds = 2.5
+homecoming_limit_seconds = 600.0
+moment_seconds = 600.0
+moment_shown_seconds = 8.0
+ice_area = [0, 28, 47, 29]
+thaw_warning_seconds = 180.0
+# How long a visitor waits for an answer, in game minutes.
+visitor_patience_minutes = 10
+visitor_gap_minutes = 30
+# How often to look for anyone walled in, which older saves can contain.
+stranded_check_seconds = 10.0
 
 [gathering]
 # Window for measured throughput and time-use shares.
@@ -340,6 +988,36 @@ jobs = [
     { job = "craft", priority = 50, when = "production_wanted" },
 ]
 
+[[roles]]
+id = "quarrier"
+name = "Quarrying Spirit"
+skill = "quarrying"
+from_soul_separation = true
+move_seconds_per_tile = 0.3
+carry_capacity = 10
+deliver_to = "nearest"
+color = [0.70, 0.74, 0.80]
+jobs = [
+    { job = "deliver", priority = 100, when = "inventory_full" },
+    { job = "gather", priority = 50, when = "objective_unmet" },
+    { job = "deliver", priority = 20, when = "carrying_any" },
+]
+
+[[roles]]
+id = "mason"
+name = "Masonry Spirit"
+skill = "masonry"
+from_soul_separation = true
+move_seconds_per_tile = 0.3
+carry_capacity = 10
+deliver_to = "main"
+color = [0.80, 0.78, 0.70]
+jobs = [
+    { job = "deliver", priority = 100, when = "carrying_any" },
+    { job = "collect", priority = 60, when = "output_unattended" },
+    { job = "craft", priority = 50, when = "production_wanted" },
+]
+
 # ---------------------------------------------------------------------------
 # Buildings
 # ---------------------------------------------------------------------------
@@ -401,6 +1079,7 @@ color = [0.80, 0.60, 0.45]
 [[buildings]]
 id = "storehouse"
 name = "Storehouse"
+benefit = "More room in Main Storage."
 capacity = 0
 accepts_gatherer_deposits = false
 manual = true
@@ -448,6 +1127,7 @@ color = [0.70, 0.60, 0.45]
 [[buildings]]
 id = "outpost_storage"
 name = "Outpost Storage"
+home_site = "old_growth"
 capacity = 80
 accepts_gatherer_deposits = true
 manual = true
@@ -457,6 +1137,852 @@ build_seconds = 20.0
 build_seconds_per_level = 0.5
 min_build_seconds = 8.0
 color = [0.62, 0.52, 0.42]
+benefit = "Somewhere to keep what's gathered at a remote site."
+
+# Spans the ravine east of Old Growth. It's built from the near bank, and when
+# it's finished its tiles become walkable and the Hollow Grove can be reached.
+# It adds nothing but the way across: the grove has its own trees to regrow.
+[[buildings]]
+id = "forest_crossing"
+name = "Forest Crossing"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+access_site = [48, 4]
+opens = [[48, 4], [49, 4]]
+unlocks_site = "hollow_grove"
+requires = ["outpost_storage"]
+# In a real game, training Woodworking leaves hundreds of planks. These are the
+# things worth spending them on, so they cost more there.
+scales_goods = true
+cost = [
+    { resource = "logs", amount = 30 },
+    { resource = "planks", amount = 40 },
+    { resource = "beams", amount = 10 },
+]
+build_seconds = 40.0
+build_seconds_per_level = 0.5
+min_build_seconds = 15.0
+color = [0.55, 0.42, 0.30]
+benefit = "A way across the ravine to the Hollow Grove: six more Ironwood trees to gather from."
+
+# A lean-to against a bench with room for one more worker. Beside a busy bench
+# it lets you train without taking a spirit's place. It works wherever you put
+# it near a bench; it doesn't make anyone faster.
+[[buildings]]
+id = "workshop_annex"
+name = "Workshop Annex"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 3
+slot_bonus = 1
+requires = ["workshop"]
+scales_goods = true
+cost = [
+    { resource = "logs", amount = 10 },
+    { resource = "planks", amount = 30 },
+    { resource = "beams", amount = 8 },
+]
+build_seconds = 20.0
+build_seconds_per_level = 0.5
+min_build_seconds = 8.0
+color = [0.72, 0.58, 0.42]
+benefit = "One more place at your bench, so you can train there without moving a spirit."
+
+# Plank roads: the settlement's way of turning surplus planks into time. Each
+# is a fixed route, laid in one go when it's finished, and everyone who walks
+# on it goes faster. The work starts at the near end, or at the first clear
+# tile if something's been built there. Anything standing on the route stays,
+# and the road runs around it.
+[[buildings]]
+id = "grove_lane"
+name = "Grove Lane"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+paves = [[6, 14], [6, 13], [16, 13]]
+scales_goods = true
+cost = [{ resource = "planks", amount = 30 }]
+build_seconds = 20.0
+build_seconds_per_level = 0.5
+min_build_seconds = 8.0
+color = [0.60, 0.45, 0.30]
+benefit = "A plank road from Main Storage past the Starting Grove. Everyone on it walks a third faster."
+
+[[buildings]]
+id = "north_road"
+name = "North Road"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+paves = [[17, 13], [17, 3], [20, 3]]
+requires = ["grove_lane"]
+scales_goods = true
+cost = [{ resource = "planks", amount = 35 }]
+build_seconds = 25.0
+build_seconds_per_level = 0.5
+min_build_seconds = 10.0
+color = [0.60, 0.45, 0.30]
+benefit = "Carries the road on to the bridge, the long stretch of every trip east."
+
+[[buildings]]
+id = "old_growth_road"
+name = "Old Growth Road"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+paves = [[23, 3], [23, 2], [39, 2], [39, 4], [47, 4]]
+requires = ["north_road"]
+scales_goods = true
+cost = [{ resource = "planks", amount = 65 }]
+build_seconds = 30.0
+build_seconds_per_level = 0.5
+min_build_seconds = 12.0
+color = [0.60, 0.45, 0.30]
+benefit = "From the bridge through Old Growth to the ravine, so haulers get home sooner."
+
+[[buildings]]
+id = "forest_road"
+name = "Forest Road"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+paves = [[24, 4], [24, 14], [37, 14]]
+requires = ["north_road"]
+scales_goods = true
+cost = [{ resource = "planks", amount = 60 }]
+build_seconds = 30.0
+build_seconds_per_level = 0.5
+min_build_seconds = 12.0
+color = [0.60, 0.45, 0.30]
+benefit = "From the bridge south into the Distant Forest, where the Oak is."
+
+# Built with what surplus planks become.
+[[buildings]]
+id = "panelled_warehouse"
+name = "Panelled Warehouse"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 6
+capacity_bonus = 300
+scales_goods = true
+cost = [
+    { resource = "panels", amount = 15 },
+    { resource = "beams", amount = 5 },
+]
+build_seconds = 30.0
+build_seconds_per_level = 0.5
+min_build_seconds = 12.0
+color = [0.72, 0.60, 0.44]
+benefit = "Twice the room of a Storehouse in Main Storage."
+
+[[buildings]]
+id = "carrying_frames"
+name = "Carrying Frames"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+carry_bonus = 5
+scales_goods = true
+cost = [
+    { resource = "panels", amount = 10 },
+    { resource = "planks", amount = 10 },
+]
+build_seconds = 25.0
+build_seconds_per_level = 0.5
+min_build_seconds = 10.0
+color = [0.66, 0.54, 0.40]
+benefit = "Every spirit carries five more on each trip."
+
+# A second way over the river, far south of the bridge. It adds no trees, only
+# a shorter walk between home and the Distant Forest.
+[[buildings]]
+id = "stone_causeway"
+name = "Stone Causeway"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+access_site = [21, 20]
+opens = [[21, 20], [22, 20]]
+cost = [
+    { resource = "stone", amount = 60 },
+    { resource = "logs", amount = 20 },
+]
+build_seconds = 40.0
+build_seconds_per_level = 0.5
+min_build_seconds = 15.0
+color = [0.62, 0.62, 0.66]
+benefit = "A way over the river straight to the Distant Forest, without going round by the bridge."
+
+# The one thing that uses goods without end. It's loaded up beside Main
+# Storage like any project, then it leaves and the place is free again.
+[[buildings]]
+id = "trade_caravan"
+name = "Trade Caravan"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+repeatable = true
+scales_goods = true
+cost = [
+    { resource = "logs", amount = 200 },
+    { resource = "panels", amount = 20 },
+]
+build_seconds = 10.0
+build_seconds_per_level = 0.5
+min_build_seconds = 5.0
+color = [0.70, 0.52, 0.34]
+benefit = "Sends surplus logs and panels away to trade, which makes room and adds to your settlement's renown."
+
+# What caravans bring back. `needs_caravans` keeps a building off the plan
+# until that many have gone, and `caravan_find` is what the player is told.
+# `plants` adds real trees or outcrops to the map when it's finished.
+[[buildings]]
+id = "ironwood_nursery"
+name = "Ironwood Nursery"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+needs_caravans = 1
+caravan_find = "Ironwood saplings. Plan an Ironwood Nursery to grow them near home."
+plants = [
+    { tree = "ironwood", at = [8, 8] },
+    { tree = "ironwood", at = [15, 10] },
+    { tree = "ironwood", at = [16, 11] },
+]
+scales_goods = true
+cost = [
+    { resource = "logs", amount = 20 },
+    { resource = "planks", amount = 40 },
+]
+build_seconds = 25.0
+build_seconds_per_level = 0.5
+min_build_seconds = 10.0
+color = [0.45, 0.55, 0.35]
+benefit = "Three Ironwood trees in the Starting Grove, a short walk from home."
+
+[[buildings]]
+id = "quarry_extension"
+name = "Quarry Extension"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+needs_caravans = 2
+caravan_find = "A mason's survey of the South Quarry. Plan a Quarry Extension to open more of it."
+plants = [
+    { tree = "stone_outcrop", at = [7, 24] },
+    { tree = "stone_outcrop", at = [11, 26] },
+    { tree = "stone_outcrop", at = [6, 23] },
+]
+cost = [
+    { resource = "logs", amount = 30 },
+    { resource = "stone", amount = 20 },
+]
+build_seconds = 25.0
+build_seconds_per_level = 0.5
+min_build_seconds = 10.0
+color = [0.60, 0.60, 0.62]
+benefit = "Three more Stone Outcrops in the South Quarry."
+
+[[buildings]]
+id = "mason_yard"
+name = "Mason's Yard"
+capacity = 40
+input_buffer = 20
+training_buffer = 20
+extra_capacity = 40
+slots = 2
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+needs_caravans = 3
+caravan_find = "A set of mason's tools, and someone's notes on using them. Plan a Mason's Yard."
+scales_goods = true
+cost = [
+    { resource = "stone", amount = 30 },
+    { resource = "planks", amount = 30 },
+    { resource = "beams", amount = 6 },
+]
+build_seconds = 30.0
+build_seconds_per_level = 0.5
+min_build_seconds = 12.0
+color = [0.74, 0.72, 0.66]
+benefit = "A place to dress stone and train Masonry, the first trade that needs both wood and stone."
+
+# The end of the game: three stages that take everything the settlement can do.
+# Every spirit you've made came out of you. This is the place built for them.
+[[buildings]]
+id = "hearth_foundations"
+name = "Hearth Foundations"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+access_site = [12, 18]
+requires = ["mason_yard"]
+scales_goods = true
+cost = [
+    { resource = "stone", amount = 120 },
+    { resource = "dressed_stone", amount = 30 },
+    { resource = "beams", amount = 20 },
+]
+build_seconds = 60.0
+build_seconds_per_level = 0.5
+min_build_seconds = 30.0
+color = [0.62, 0.62, 0.66]
+benefit = "The first stage of the Hearth of Spirits: a place built for those who came out of you."
+
+[[buildings]]
+id = "hearth_walls"
+name = "Hearth Walls"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+access_site = [13, 18]
+requires = ["hearth_foundations"]
+scales_goods = true
+cost = [
+    { resource = "logs", amount = 200 },
+    { resource = "panels", amount = 40 },
+    { resource = "beams", amount = 30 },
+]
+build_seconds = 60.0
+build_seconds_per_level = 0.5
+min_build_seconds = 30.0
+color = [0.70, 0.56, 0.42]
+benefit = "The second stage of the Hearth of Spirits."
+
+[[buildings]]
+id = "hearth_of_spirits"
+name = "Hearth of Spirits"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+access_site = [12, 19]
+requires = ["hearth_walls"]
+ending = true
+scales_goods = true
+cost = [
+    { resource = "keystones", amount = 12 },
+    { resource = "panels", amount = 20 },
+    { resource = "dressed_stone", amount = 20 },
+]
+build_seconds = 90.0
+build_seconds_per_level = 0.5
+min_build_seconds = 45.0
+color = [0.95, 0.70, 0.35]
+benefit = "The last stage. Light it, and see what your settlement became."
+
+# The way south. It needs Keystones, so Masonry comes first.
+[[buildings]]
+id = "south_crossing"
+name = "South Crossing"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+access_site = [12, 28]
+opens = [[12, 28], [12, 29]]
+unlocks_site = "far_shore"
+requires = ["mason_yard"]
+scales_goods = true
+cost = [
+    { resource = "dressed_stone", amount = 20 },
+    { resource = "keystones", amount = 4 },
+    { resource = "beams", amount = 10 },
+]
+build_seconds = 50.0
+build_seconds_per_level = 0.5
+min_build_seconds = 20.0
+color = [0.60, 0.58, 0.54]
+benefit = "A way over the south river to the Far Shore, where the spirits won't follow you."
+
+# Made from what only you can bring back, for all of them.
+[[buildings]]
+id = "still_lantern"
+name = "Still Lantern"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+requires = ["south_crossing"]
+carry_bonus = 2
+ending_line = "A light from the Far Shore burns here too. You went where they wouldn't, and brought it back."
+cost = [
+    { resource = "stillwood", amount = 30 },
+    { resource = "dressed_stone", amount = 10 },
+]
+build_seconds = 30.0
+build_seconds_per_level = 0.5
+min_build_seconds = 12.0
+color = [0.80, 0.86, 0.95]
+benefit = "A light from the shore they won't walk on. Every spirit carries two more, and something in them eases."
+
+# Later things caravans bring back.
+[[buildings]]
+id = "oak_saplings"
+name = "Oak Saplings"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+needs_caravans = 4
+caravan_find = "A bundle of oak saplings, wrapped in damp cloth. Plan Oak Saplings in Projects (B)."
+plants = [
+    { tree = "oak", at = [13, 7] },
+    { tree = "oak", at = [9, 11] },
+    { tree = "oak", at = [15, 12] },
+]
+cost = [{ resource = "logs", amount = 40 }]
+build_seconds = 20.0
+build_seconds_per_level = 0.5
+min_build_seconds = 8.0
+color = [0.50, 0.60, 0.38]
+benefit = "Three Oaks in the Starting Grove, with no river to cross."
+
+[[buildings]]
+id = "long_racks"
+name = "Long Racks"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+needs_caravans = 5
+caravan_find = "Plans for long racks, from a yard that's closed. Plan Long Racks in Projects (B)."
+training_bonus = 60
+scales_goods = true
+cost = [
+    { resource = "planks", amount = 30 },
+    { resource = "panels", amount = 5 },
+]
+build_seconds = 20.0
+build_seconds_per_level = 0.5
+min_build_seconds = 8.0
+color = [0.70, 0.60, 0.45]
+benefit = "Room for 60 more of what you're training with at every bench."
+
+[[buildings]]
+id = "stone_cellar"
+name = "Stone Cellar"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+needs_caravans = 6
+caravan_find = "A mason's drawing of a cellar. Plan a Stone Cellar in Projects (B)."
+capacity_bonus = 800
+scales_goods = true
+cost = [
+    { resource = "dressed_stone", amount = 40 },
+    { resource = "beams", amount = 10 },
+]
+build_seconds = 40.0
+build_seconds_per_level = 0.5
+min_build_seconds = 16.0
+color = [0.60, 0.60, 0.62]
+benefit = "More room in Main Storage than anything else: 800."
+
+# The fourth trade: fire. Clay from the river, charcoal from logs, and bricks
+# from both. The seventh Trade Caravan opens it.
+[[resources]]
+id = "clay"
+name = "Clay"
+
+[[resources]]
+id = "charcoal"
+name = "Charcoal"
+
+[[resources]]
+id = "bricks"
+name = "Bricks"
+
+[[skills]]
+id = "kilnwork"
+name = "Kilnwork"
+trainable = true
+
+# Dug like stone, by the same hands, but it freezes in winter.
+[[tree_types]]
+id = "clay_bank"
+name = "Clay Bank"
+seasonal = true
+map_char = "c"
+resource = "clay"
+skill = "quarrying"
+level_required = 3
+logs = 6
+regrow_seconds = 150.0
+xp_per_log = 24
+chop_seconds = 3.0
+chop_seconds_per_level = 0.1
+min_chop_seconds = 1.0
+why = "The only source of Clay, which Bricks are fired from. It freezes in winter."
+
+[[recipes]]
+id = "charcoal"
+name = "Charcoal"
+skill = "kilnwork"
+station = "kiln"
+level_required = 1
+inputs = [{ resource = "logs", amount = 3 }]
+output = { resource = "charcoal", amount = 1 }
+craft_seconds = 5.0
+craft_seconds_per_level = 0.1
+min_craft_seconds = 2.0
+xp = 40
+why = "Three logs burned down to one. It's the fuel for everything else a kiln does."
+
+[[recipes]]
+id = "bricks"
+name = "Bricks"
+skill = "kilnwork"
+station = "kiln"
+level_required = 5
+inputs = [
+    { resource = "clay", amount = 2 },
+    { resource = "charcoal", amount = 1 },
+]
+output = { resource = "bricks", amount = 2 }
+craft_seconds = 7.0
+craft_seconds_per_level = 0.1
+min_craft_seconds = 3.0
+xp = 90
+why = "Clay from the river and charcoal from the woods. A chain three steps long."
+
+[[roles]]
+id = "kiln_worker"
+name = "Kiln Spirit"
+skill = "kilnwork"
+from_soul_separation = true
+move_seconds_per_tile = 0.3
+carry_capacity = 10
+deliver_to = "main"
+color = [0.85, 0.50, 0.32]
+jobs = [
+    { job = "deliver", priority = 100, when = "carrying_any" },
+    { job = "collect", priority = 60, when = "output_unattended" },
+    { job = "craft", priority = 50, when = "production_wanted" },
+]
+
+[[ambitions]]
+id = "bricks"
+title = "Fire 30 Bricks"
+hint = "A seventh Trade Caravan brings word of the river clay. Plan Clay Pits, then a Kiln. Bricks need Kilnwork level 5."
+built = ["clay_pits", "kiln"]
+made = "bricks"
+amount = 30
+
+[[tips]]
+id = "kilnwork"
+when = "caravans:7"
+opens = "kilnwork"
+text = "Kilnwork is your fifth skill: charcoal from logs, and Bricks from clay and charcoal, at a Kiln."
+
+[[visitors]]
+id = "bridge_builder"
+name = "A bridge-builder"
+after_minutes = 820
+needs_built = "kiln"
+text = "\"I could smell your kiln from the ford. I'm building a bridge for people who'll never thank me. I can pay in beams, if you've bricks to spare.\""
+thanks = "The bridge-builder counts the bricks, nods once, and is off before the cart has stopped creaking."
+wants = [{ resource = "bricks", amount = 30 }]
+gives = [{ resource = "beams", amount = 20 }]
+
+[[buildings]]
+id = "clay_pits"
+name = "Clay Pits"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+needs_caravans = 7
+caravan_find = "A lump of river clay, and a note: this came from your side of the water. Plan Clay Pits in Projects (B)."
+plants = [
+    { tree = "clay_bank", at = [6, 27] },
+    { tree = "clay_bank", at = [9, 27] },
+    { tree = "clay_bank", at = [15, 27] },
+    { tree = "clay_bank", at = [18, 27] },
+    { tree = "clay_bank", at = [19, 24] },
+    { tree = "clay_bank", at = [19, 21] },
+]
+cost = [{ resource = "planks", amount = 30 }]
+build_seconds = 20.0
+build_seconds_per_level = 0.5
+min_build_seconds = 8.0
+color = [0.66, 0.52, 0.40]
+benefit = "Six clay banks along the river. A Quarrying Spirit of level 3 or more can dig them."
+
+[[buildings]]
+id = "kiln"
+name = "Kiln"
+capacity = 40
+input_buffer = 20
+training_buffer = 20
+extra_capacity = 40
+slots = 2
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+requires = ["clay_pits"]
+scales_goods = true
+cost = [
+    { resource = "stone", amount = 40 },
+    { resource = "planks", amount = 20 },
+    { resource = "beams", amount = 6 },
+]
+build_seconds = 30.0
+build_seconds_per_level = 0.5
+min_build_seconds = 12.0
+color = [0.70, 0.40, 0.28]
+benefit = "A place to burn charcoal, fire Bricks and train Kilnwork."
+
+[[buildings]]
+id = "warm_walls"
+name = "Warm Walls"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+requires = ["kiln"]
+winter_growth = true
+scales_goods = true
+cost = [
+    { resource = "bricks", amount = 40 },
+    { resource = "charcoal", amount = 10 },
+]
+build_seconds = 30.0
+build_seconds_per_level = 0.5
+min_build_seconds = 12.0
+color = [0.74, 0.44, 0.34]
+benefit = "Brick walls with a flue through them. Trees and clay keep recovering in winter, at half speed."
+
+[[buildings]]
+id = "hearth_chimney"
+name = "Hearth Chimney"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+access_site = [11, 18]
+requires = ["kiln", "hearth_of_spirits"]
+ending_line = "They can see the smoke from the valley now, and some of them walk up to look."
+scales_goods = true
+cost = [
+    { resource = "bricks", amount = 60 },
+    { resource = "dressed_stone", amount = 20 },
+]
+build_seconds = 40.0
+build_seconds_per_level = 0.5
+min_build_seconds = 16.0
+color = [0.70, 0.42, 0.34]
+benefit = "Smoke the whole valley can see. It does nothing else, and it isn't meant to."
+
+# What keeps the water out of a boat. It needs a good deal of Kilnwork.
+[[resources]]
+id = "pitch"
+name = "Pitch"
+
+[[recipes]]
+id = "pitch"
+name = "Pitch"
+skill = "kilnwork"
+station = "kiln"
+level_required = 9
+inputs = [
+    { resource = "hardwood", amount = 2 },
+    { resource = "charcoal", amount = 1 },
+]
+output = { resource = "pitch", amount = 1 }
+craft_seconds = 9.0
+craft_seconds_per_level = 0.1
+min_craft_seconds = 4.0
+xp = 150
+why = "Hardwood burned slowly, with the air kept out. Nothing else keeps the water out of a hull."
+
+[[tips]]
+id = "still_boat"
+when = "built:still_lantern"
+text = "Stillwood floats. Something built of it might carry what won't cross on foot, with a Kiln's pitch to keep the water out."
+
+# The other way to end. See homecoming.rs.
+[[buildings]]
+id = "still_boat"
+name = "Still Boat"
+capacity = 0
+accepts_gatherer_deposits = false
+manual = true
+max_count = 1
+access_site = [13, 27]
+requires = ["still_lantern", "kiln"]
+calls_home = true
+ending_line = "There's a boat at the shore, and you haven't used it."
+cost = [
+    { resource = "stillwood", amount = 40 },
+    { resource = "pitch", amount = 20 },
+    { resource = "beams", amount = 20 },
+]
+build_seconds = 60.0
+build_seconds_per_level = 0.5
+min_build_seconds = 30.0
+color = [0.62, 0.72, 0.80]
+benefit = "They won't walk to the far shore, but they'd cross in this, if you called them. All you gave them would come back to you. They wouldn't."
+
+# Small things spirits do, for no reason. They change nothing. See moments.rs.
+[[moments]]
+id = "looks_up"
+text = "{name} looked up."
+
+[[moments]]
+id = "stops"
+text = "{name} stopped on the path for a moment, and then carried on."
+
+[[moments]]
+id = "flower"
+text = "{name} walked the long way round a flower."
+
+[[moments]]
+id = "called"
+text = "{name} stood still, as if someone had called."
+
+[[moments]]
+id = "beetle"
+trait = "curious"
+text = "{name} followed a beetle for a while."
+
+[[moments]]
+id = "under_stone"
+trait = "curious"
+text = "{name} turned over a stone to see what was under it, and put it back."
+
+[[moments]]
+id = "one_more"
+trait = "broad_backed"
+text = "{name} picked up one more than it needed to, just to see."
+
+[[moments]]
+id = "doubled"
+trait = "quiet"
+text = "You didn't notice {name} for an hour. The pile had doubled."
+
+[[moments]]
+id = "same_again"
+trait = "steady"
+text = "{name} did the same thing again, exactly the same, and seemed content."
+
+[[moments]]
+id = "rain"
+trait = "sturdy"
+text = "{name} walked straight through the rain, and didn't seem to notice there was any."
+
+[[moments]]
+id = "sharpen"
+skill = "woodcutting"
+gifted = true
+text = "{name} sharpened an axe the way you used to."
+
+[[moments]]
+id = "knock"
+skill = "woodcutting"
+gifted = true
+text = "{name} knocked twice on a tree before cutting it. You used to do that."
+
+[[moments]]
+id = "grain"
+skill = "woodworking"
+gifted = true
+text = "{name} ran a thumb along the grain. You've never shown it that. You only ever did it yourself."
+
+[[moments]]
+id = "listens"
+skill = "quarrying"
+gifted = true
+text = "{name} listened to the stone before splitting it."
+
+[[moments]]
+id = "quarter_turn"
+skill = "masonry"
+gifted = true
+text = "{name} set a stone, looked at it, and turned it a quarter."
+
+[[moments]]
+id = "kiln_door"
+skill = "kilnwork"
+gifted = true
+text = "{name} held a hand to the kiln door, and waited."
+
+[[moments]]
+id = "new_grass"
+season = "spring"
+text = "{name} went round a patch of new grass instead of over it."
+
+[[moments]]
+id = "shade"
+season = "summer"
+text = "{name} stood in the shade for a moment. Spirits don't get hot."
+
+[[moments]]
+id = "leaf"
+season = "autumn"
+text = "{name} caught a falling leaf, and looked at it for a long time."
+
+[[moments]]
+id = "footprints"
+season = "winter"
+text = "{name} left a line of small footprints, then went back to look at them."
+
+[[moments]]
+id = "snow"
+season = "winter"
+text = "{name} stood in the snow, doing nothing, on purpose."
+
+[[moments]]
+id = "water"
+shore = true
+text = "{name} stopped at the water, and turned round."
+
+[[moments]]
+id = "other_side"
+shore = true
+text = "{name} stood looking at the other side for a while."
+
+[[moments]]
+id = "passes"
+named = true
+text = "{name} stopped when you passed. You don't know why."
+
+[[moments]]
+id = "answers"
+named = true
+text = "{name} answers to that name now."
+
+[[moments]]
+id = "scratching"
+named = true
+text = "{name} was scratching something into a plank. It might be its name."
+
+[[tips]]
+id = "first_ice"
+when = "season:winter"
+text = "The south river has frozen over. You could walk to the far shore, though no spirit will follow you. It won't last."
+
+[[moments]]
+id = "ice_foot"
+season = "winter"
+shore = true
+text = "{name} put one foot on the ice, and took it back."
 
 [objective]
 # "Maintain <target> <resource> in the main settlement storage."

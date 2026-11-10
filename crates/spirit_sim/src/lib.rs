@@ -5,25 +5,32 @@
 //! state and submits [`world::Command`]s.
 
 pub mod advice;
+pub mod ambitions;
 pub mod autoplay;
 pub mod behavior;
 pub mod defs;
 pub mod entities;
 pub mod events;
 pub mod grid;
+pub mod homecoming;
 pub mod inventory;
 pub mod journey;
 pub mod metrics;
+pub mod moments;
 pub mod outpost;
 pub mod planner;
 pub mod production;
+pub mod projects;
 pub mod save;
 pub mod scenario;
 pub mod session;
 pub mod skills;
 pub mod soul;
+pub mod stories;
 pub mod tasks;
+pub mod tips;
 pub mod training;
+pub mod visitors;
 pub mod world;
 
 pub use defs::GameDefs;

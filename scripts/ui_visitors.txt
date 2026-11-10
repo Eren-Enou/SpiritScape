@@ -1,0 +1,6 @@
+# UI test that a new game has a quiet panel, with no empty visitor card:
+#   cargo run --release -- --new-game --save-dir target/ui_saves28 --script scripts/ui_visitors.txt --capture target/ui_visitors
+1.5 expect WHAT'S NEXT
+1.6 expect Woodcutting
+1.7 shot 01_quiet
+1.9 exit

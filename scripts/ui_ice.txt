@@ -1,0 +1,12 @@
+# UI test of the frozen river:
+#   cargo run --release -- --new-game --skip-minutes 95 --save-dir target/ui_saves39 --script scripts/ui_ice.txt --capture target/ui_ice
+1.0 expect Winter
+1.5 key C
+3.0 shot 01_frozen
+3.2 tile 12 31
+3.6 press 4x
+9.0 press 1x
+9.2 shot 02_on_the_far_shore
+10.5 key C
+11.5 shot 03_close
+12.0 exit

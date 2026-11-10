@@ -33,7 +33,7 @@
 62.2 shot 05_running
 62.3 press 1x
 62.6 press Save
-63.0 expect Game saved
+63.0 expect Scenario saved
 63.2 key F9
 63.8 expect Game loaded
 64.0 key U

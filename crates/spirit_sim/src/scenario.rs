@@ -53,10 +53,46 @@ pub enum ScenarioKind {
     RemoteProduction,
     /// Nothing built at Old Growth yet: the player sets the outpost up.
     OutpostEstablishment,
+    /// The crossing is built, with beams still made at home.
+    ExpandedCentral,
+    /// The crossing is built, with beams made at the outpost.
+    ExpandedRemote,
+    /// An outpost that can make what the crossing needs, but hasn't yet.
+    ForestAccess,
+    /// The last stage of the Hearth, ready to go.
+    LastStage,
+    /// A working yard, for trying Masonry.
+    MasonYard,
+    /// Goods piled up, with a caravan's worth to send away.
+    CaravanYard,
+    /// Six caravans home, and everything they found ready to plan.
+    LateFinds,
+    /// A Kiln with clay to fire.
+    KilnYard,
+    /// The Still Boat at the shore, ready.
+    LastBoat,
+    /// Nothing to do but watch.
+    QuietHour,
+    /// Everything built: every road, both crossings. The busiest map there is.
+    FullMap,
+    /// Main Storage completely full, with nothing to spend it on.
+    NoRoomLeft,
+    /// Stone to cut and a causeway to spend it on.
+    QuarryStart,
+    /// A builder shut in by racks, as older saves can have.
+    WalledIn,
+    /// A skilled player with planks to spare and things to make from them.
+    PanelWorkshop,
+    /// Main Storage clogged with planks and the roads still to be laid.
+    PlankSurplus,
+    /// A small plan to set going and leave alone.
+    ProjectQueue,
+    /// One hauler shared between home and the outpost.
+    SharedHauler,
 }
 
 impl ScenarioKind {
-    pub const ALL: [ScenarioKind; 18] = [
+    pub const ALL: [ScenarioKind; 36] = [
         ScenarioKind::NewGame,
         ScenarioKind::Demo,
         ScenarioKind::Regrind,
@@ -75,6 +111,24 @@ impl ScenarioKind {
         ScenarioKind::CentralProduction,
         ScenarioKind::RemoteProduction,
         ScenarioKind::OutpostEstablishment,
+        ScenarioKind::ExpandedCentral,
+        ScenarioKind::ExpandedRemote,
+        ScenarioKind::ForestAccess,
+        ScenarioKind::LastStage,
+        ScenarioKind::MasonYard,
+        ScenarioKind::CaravanYard,
+        ScenarioKind::LateFinds,
+        ScenarioKind::KilnYard,
+        ScenarioKind::LastBoat,
+        ScenarioKind::QuietHour,
+        ScenarioKind::FullMap,
+        ScenarioKind::NoRoomLeft,
+        ScenarioKind::QuarryStart,
+        ScenarioKind::WalledIn,
+        ScenarioKind::PanelWorkshop,
+        ScenarioKind::PlankSurplus,
+        ScenarioKind::ProjectQueue,
+        ScenarioKind::SharedHauler,
     ];
 
     pub fn key(self) -> &'static str {
@@ -97,6 +151,24 @@ impl ScenarioKind {
             ScenarioKind::CentralProduction => "central_production",
             ScenarioKind::RemoteProduction => "remote_production",
             ScenarioKind::OutpostEstablishment => "outpost_establishment",
+            ScenarioKind::ExpandedCentral => "expanded_central",
+            ScenarioKind::ExpandedRemote => "expanded_remote",
+            ScenarioKind::ForestAccess => "forest_access",
+            ScenarioKind::LastStage => "last_stage",
+            ScenarioKind::MasonYard => "mason_yard",
+            ScenarioKind::CaravanYard => "caravan_yard",
+            ScenarioKind::LateFinds => "late_finds",
+            ScenarioKind::KilnYard => "kiln_yard",
+            ScenarioKind::LastBoat => "last_boat",
+            ScenarioKind::QuietHour => "quiet_hour",
+            ScenarioKind::FullMap => "full_map",
+            ScenarioKind::NoRoomLeft => "no_room_left",
+            ScenarioKind::QuarryStart => "quarry_start",
+            ScenarioKind::WalledIn => "walled_in",
+            ScenarioKind::PanelWorkshop => "panel_workshop",
+            ScenarioKind::PlankSurplus => "plank_surplus",
+            ScenarioKind::ProjectQueue => "project_queue",
+            ScenarioKind::SharedHauler => "shared_hauler",
         }
     }
 
@@ -114,6 +186,9 @@ pub struct SpiritSeed {
     #[serde(default)]
     pub level: Option<u32>,
     pub spawn: String,
+    /// Made from the player's own XP, as a real one would be.
+    #[serde(default)]
+    pub gifted: bool,
     /// Starts with the instruction to gather the top tier first.
     #[serde(default)]
     pub prefer_advanced: bool,
@@ -168,6 +243,12 @@ pub struct ScenarioDef {
     /// Buildings already standing.
     #[serde(default)]
     pub prebuilt: Vec<PrebuiltSeed>,
+    /// Trade Caravans already sent.
+    #[serde(default)]
+    pub caravans: u32,
+    /// Spirits do small things, as they do in a real game.
+    #[serde(default)]
+    pub moments: bool,
 }
 
 /// A full-grown tree of `kind`.
@@ -249,6 +330,7 @@ impl World {
                         storage: Storage::new(def.storage_capacity()),
                         crafted: 0,
                         keep: BTreeMap::new(),
+                        extra_slots: 0,
                     });
                     grid.set_occupied(pos, true);
                 }
@@ -314,7 +396,27 @@ impl World {
                 order,
                 training: TrainingSupport::default(),
                 extra_orders: extra_orders(&defs_orders),
+                carry_bonus: 0,
+                ambitions_seen: None,
+                caravans: scenario.caravans,
+                ended_at: None,
+                markers_read: Vec::new(),
+                season_seen: None,
+                tips_seen: None,
+                visitor: None,
+                visitors_met: 0,
+                offers_taken: 0,
+                offers_accepted: Vec::new(),
+                offers_refused: Vec::new(),
+                visitors_seen: Vec::new(),
+                visitor_last: None,
+                standing: BTreeMap::new(),
+                homecoming: None,
+                moments: scenario.moments,
+                ice_warned: false,
                 bench_bonus: 0,
+                queue: Vec::new(),
+                next_queue_id: 0,
             },
             site_stats,
             output_stats: SiteStats::default(),
@@ -366,9 +468,19 @@ impl World {
                 storage: Storage::new(def.storage_capacity()),
                 crafted: 0,
                 keep,
+                extra_slots: 0,
             };
+            let opens = def.opens.clone();
+            let paves = def.paves.clone();
+            let road_pct = world.defs.construction.road_pct;
             world.buildings.push(building);
-            world.grid.set_occupied(pos, true);
+            world.grid.set_occupied(pos, paves.is_empty());
+            for [x, y] in opens {
+                world.grid.open_crossing(TilePos::new(x, y));
+            }
+            for [x, y] in paves {
+                world.grid.pave(TilePos::new(x, y), road_pct);
+            }
         }
         for seed in &scenario.spirits {
             let role = world
@@ -383,6 +495,9 @@ impl World {
                 .level
                 .map_or(seed.xp, |l| world.defs.xp_table.xp_for_level(l));
             let id = world.add_spirit(role, xp, pos);
+            if seed.gifted {
+                world.begin_story(id, xp);
+            }
             world.spirits[id].policy.prefer_advanced = seed.prefer_advanced;
             if let Some(key) = &seed.site {
                 let site = world

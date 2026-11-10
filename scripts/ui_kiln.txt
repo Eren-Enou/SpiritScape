@@ -1,0 +1,15 @@
+# UI test of the Kiln and keeping stock:
+#   cargo run --release -- --scenario kiln_yard --save-dir target/ui_saves35 --script scripts/ui_kiln.txt --capture target/ui_kiln
+1.5 key P
+1.8 scroll 1380 600 -30
+2.0 press Bricks +5
+2.2 press Bricks +5
+2.6 shot 01_ordered
+2.8 press 8x
+30.0 press 1x
+30.2 shot 02_fired
+30.4 key G
+30.8 press Stone +20
+31.2 expect Spirits will keep 20 Stone in stock
+31.4 shot 03_standing
+32.0 exit

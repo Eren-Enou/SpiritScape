@@ -4,8 +4,8 @@
 //! Almost everything here only reads. The exception is the storage notice,
 //! which tells the player once when room gets short.
 
-use crate::defs::{JobKind, SkillId};
-use crate::entities::Activity;
+use crate::defs::{BuildingKindId, JobKind, SkillId};
+use crate::entities::{Activity, BuildingState};
 use crate::metrics::{TimeUse, WaitKind};
 use crate::outpost::WorkerState;
 use crate::world::World;
@@ -26,19 +26,72 @@ pub struct SettlementGlance {
     pub attention: Option<String>,
 }
 
+/// One thing the storage message offers. The message and the guided reference
+/// player both read these, so it can't be told anything the player isn't.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StorageFix {
+    /// More planks, so spirits use up logs.
+    RaisePlankTarget,
+    /// Saw by hand: planks take up less room than logs.
+    SawLogs,
+    /// Stop making planks, and spend the ones there are.
+    LowerPlankTarget,
+    /// Make this at the bench, to use up planks.
+    MakeRecipe(crate::defs::RecipeId),
+    /// Plan a road.
+    PlanRoad(BuildingKindId),
+    /// Order more room from the Production tab.
+    OrderRoom(BuildingKindId),
+    /// Plan more room in the Projects tab.
+    PlanRoom(BuildingKindId),
+    /// Send away what's piling up.
+    SendCaravan(BuildingKindId),
+    /// The last resort: leave what's in the bag behind.
+    LeaveLoad,
+}
+
 impl World {
-    /// When Main Storage can't take another bagful: what's happening and what
-    /// the player can do about it with what they have.
-    pub fn storage_advice(&self) -> Option<String> {
+    /// Whether Main Storage can't take another bagful, or won't take what the
+    /// player is making because it's keeping room for raw materials.
+    fn storage_short(&self) -> bool {
+        self.main().storage.free() < self.defs.player.carry_capacity
+            || self.player_room_for(self.settlement.order.output) == 0
+    }
+
+    /// What the player can do about Main Storage being short of room, best
+    /// first. Empty while there's room.
+    pub fn storage_fixes(&self) -> Vec<StorageFix> {
         let main = &self.main().storage;
-        if main.free() >= self.defs.player.carry_capacity {
-            return None;
+        if !self.storage_short() {
+            return Vec::new();
         }
         let mut fixes = Vec::new();
-        if self.crafters().next().is_some() {
-            fixes.push("raise the plank target in Production (P) so spirits use the logs".into());
-        } else if self.station().is_some() {
-            fixes.push("saw logs at the Workshop: planks take up half the room".to_string());
+        let logs = main.get(self.defs.objective.resource);
+        let plank = self.settlement.order.output;
+        // Using up logs only helps if logs are what's filling the store.
+        if logs >= main.get(plank) {
+            if self.crafters().next().is_some() {
+                fixes.push(StorageFix::RaisePlankTarget);
+            } else if self.station().is_some() {
+                fixes.push(StorageFix::SawLogs);
+            }
+        } else {
+            fixes.push(StorageFix::LowerPlankTarget);
+            let panels = self
+                .recipe_options()
+                .into_iter()
+                .filter(|o| o.unlocked && !o.selected)
+                .find(|o| self.defs.recipe(o.id).inputs.iter().any(|i| i.0 == plank));
+            if let Some(o) = panels {
+                fixes.push(StorageFix::MakeRecipe(o.id));
+            }
+            let plannable = self.plannable();
+            let road = plannable
+                .iter()
+                .find(|k| !self.defs.building(**k).paves.is_empty());
+            if let Some(&road) = road {
+                fixes.push(StorageFix::PlanRoad(road));
+            }
         }
         let storehouse = self
             .defs
@@ -50,15 +103,92 @@ impl World {
             let built = self
                 .buildings
                 .iter()
-                .filter(|b| b.kind.index() == i)
+                .filter(|b| b.kind.index() == i && b.state != BuildingState::Removed)
                 .count() as u32;
             if def.max_count.is_none_or(|m| built < m) {
-                fixes.push(format!(
-                    "order a {} (+{} room) in Production (P)",
-                    def.name, def.capacity_bonus
-                ));
+                fixes.push(StorageFix::OrderRoom(BuildingKindId(i as u16)));
+            } else {
+                let bigger = self
+                    .plannable()
+                    .into_iter()
+                    .find(|k| self.defs.building(*k).capacity_bonus > 0);
+                if let Some(k) = bigger {
+                    fixes.push(StorageFix::PlanRoom(k));
+                }
             }
         }
+        let caravan = self.plannable().into_iter().find(|k| {
+            let d = self.defs.building(*k);
+            d.repeatable && d.cost.iter().all(|c| main.available(c.0) >= c.1)
+        });
+        if let Some(k) = caravan {
+            fixes.push(StorageFix::SendCaravan(k));
+        }
+        if self.load_is_stuck() {
+            fixes.push(StorageFix::LeaveLoad);
+        }
+        fixes
+    }
+
+    /// One fix in plain words.
+    fn fix_text(&self, fix: StorageFix) -> String {
+        match fix {
+            StorageFix::RaisePlankTarget => {
+                "raise the plank target in Production (P) so spirits use the logs".to_string()
+            }
+            StorageFix::SawLogs => {
+                "saw logs at the Workshop: planks take up half the room".to_string()
+            }
+            StorageFix::LowerPlankTarget => {
+                "lower the plank target in Production (P) and spend planks on building".to_string()
+            }
+            StorageFix::MakeRecipe(r) => {
+                let d = self.defs.recipe(r);
+                format!(
+                    "make {} at your bench: it uses up planks, for {} XP each",
+                    d.name, d.xp
+                )
+            }
+            StorageFix::PlanRoad(k) => format!(
+                "plan the {} in Projects (B): it uses planks, and everyone walks faster on it",
+                self.defs.building(k).name
+            ),
+            StorageFix::OrderRoom(k) => {
+                let d = self.defs.building(k);
+                format!(
+                    "order a {} (+{} room) in Production (P)",
+                    d.name, d.capacity_bonus
+                )
+            }
+            StorageFix::SendCaravan(k) => format!(
+                "send a {} from Projects (B), which takes goods away to trade",
+                self.defs.building(k).name
+            ),
+            StorageFix::LeaveLoad => {
+                "leave your load behind with the button under your bag, which loses it".to_string()
+            }
+            StorageFix::PlanRoom(k) => {
+                let d = self.defs.building(k);
+                format!(
+                    "plan a {} (+{} room) in Projects (B)",
+                    d.name, d.capacity_bonus
+                )
+            }
+        }
+    }
+
+    /// When Main Storage can't take another bagful: what's happening and what
+    /// the player can do about it with what they have.
+    pub fn storage_advice(&self) -> Option<String> {
+        let main = &self.main().storage;
+        if !self.storage_short() {
+            return None;
+        }
+        let fixes: Vec<String> = self
+            .storage_fixes()
+            .into_iter()
+            .map(|f| self.fix_text(f))
+            .collect();
         let tail = if fixes.is_empty() {
             String::new()
         } else {
@@ -76,7 +206,7 @@ impl World {
         let free = self.main().storage.free();
         let bag = self.defs.player.carry_capacity;
         if self.player.log.storage_warned {
-            if free >= bag * 2 {
+            if free >= bag * 2 && !self.storage_short() {
                 self.player.log.storage_warned = false;
             }
         } else if let Some(advice) = self.storage_advice() {
@@ -167,7 +297,7 @@ impl World {
         out += &row("Processing", t.crafting);
         out += &row("Moving", t.traveling);
         out += &row("Loading and unloading", t.handling);
-        out += &row("Waiting for trees", t.waiting_recovery);
+        out += &row("Waiting for regrowth", t.waiting_recovery);
         out += &row("Waiting for materials", t.waiting_input);
         out += &row("Stuck with a full bag", t.blocked_storage);
         out += &row("Idle", t.idle);

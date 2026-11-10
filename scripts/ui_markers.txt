@@ -1,0 +1,7 @@
+# UI test of finding an old stone:
+#   cargo run --release -- --scenario quarry_start --save-dir target/ui_saves26 --script scripts/ui_markers.txt --capture target/ui_markers
+1.5 key J
+2.0 expect THE OLD STONES
+2.1 expect Nothing found yet
+2.2 shot 01_none
+2.4 exit

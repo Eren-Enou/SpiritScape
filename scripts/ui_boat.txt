@@ -1,0 +1,19 @@
+# UI test of the second ending:
+#   cargo run --release -- --scenario last_boat --save-dir target/ui_saves36 --script scripts/ui_boat.txt --capture target/ui_boat
+1.5 key J
+2.0 shot 01_choice
+2.2 press Call them home
+2.6 expect All of them
+2.8 shot 02_are_you_sure
+3.0 press Not yet
+3.4 press Call them home
+3.8 press Yes, all of them
+4.2 expect You call them home
+4.4 shot 03_called
+4.6 press 8x
+30.0 press 1x
+30.2 shot 04_closing
+30.4 expect crossed the water
+30.6 key Enter
+31.0 shot 05_after
+31.4 exit

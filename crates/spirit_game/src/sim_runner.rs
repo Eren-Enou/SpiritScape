@@ -34,12 +34,18 @@ pub struct Sim {
     pub soul_armed: bool,
     /// Feedback from the last player command.
     pub message: String,
+    /// The name being typed for the selected spirit.
+    pub naming: Option<String>,
+    /// Asking whether to call the spirits home.
+    pub calling_home: bool,
     /// Bumped when the world is replaced so the renderer rebuilds its entities.
     pub generation: u32,
     /// Large on-screen notice and its remaining seconds.
     pub banner: Option<(String, f32)>,
     notices_seen: u64,
     waiting_notices: VecDeque<String>,
+    /// Finished crossings when the map was last drawn.
+    crossings_drawn: usize,
     /// The message being timed, and how long it has been up.
     message_shown: String,
     message_age: f32,
@@ -77,10 +83,13 @@ impl Sim {
             speed: Self::default_speed(scenario, &world),
             accumulator: 0.0,
             message: String::new(),
+            naming: None,
+            calling_home: false,
             generation: 0,
             banner: None,
             notices_seen: world.notices.total,
             waiting_notices: VecDeque::new(),
+            crossings_drawn: 0,
             message_shown: String::new(),
             message_age: 0.0,
             autosave_seconds: world.defs.autosave_seconds,
@@ -211,21 +220,34 @@ impl Sim {
 
     /// Goes back to the last manual save.
     pub fn load_manual(&mut self) {
-        let result = self.store.load(Slot::Manual);
+        let result = self.manual_store().load(Slot::Manual);
         self.use_save(result);
     }
 
     pub fn save_game(&mut self) {
-        self.message = match self
-            .store
-            .write(Slot::Manual, &self.world, self.scenario.key())
-        {
+        let store = self.manual_store();
+        self.message = match store.write(Slot::Manual, &self.world, self.scenario.key()) {
             Ok(()) => {
                 self.autosave_timer = 0.0;
-                "Game saved".into()
+                if self.is_journey() {
+                    "Game saved".into()
+                } else {
+                    "Scenario saved. Your own game's save is untouched.".into()
+                }
             }
             Err(e) => e.to_string(),
         };
+    }
+
+    /// Where Save and Load go. A scenario keeps its saves in a folder of its
+    /// own, so trying one can never overwrite the game you're playing.
+    fn manual_store(&self) -> SaveStore {
+        if self.is_journey() {
+            self.store.clone()
+        } else {
+            let dir = self.store.dir().join("scenarios").join(self.scenario.key());
+            SaveStore::new(dir)
+        }
     }
 
     fn write_autosave(&mut self) {
@@ -340,6 +362,7 @@ impl Plugin for SimRunnerPlugin {
             (
                 keyboard_controls,
                 advance_simulation,
+                redraw_changed_land,
                 show_notices,
                 expire_message,
                 autosave,
@@ -347,6 +370,24 @@ impl Plugin for SimRunnerPlugin {
                 .chain(),
         )
         .add_systems(Last, save_on_exit);
+    }
+}
+
+/// A finished crossing changes the land itself, so the map is drawn again.
+fn redraw_changed_land(mut sim: ResMut<Sim>) {
+    let w = &sim.world;
+    let open = w
+        .buildings
+        .iter()
+        .filter(|b| {
+            let def = w.defs.building(b.kind);
+            b.is_complete()
+                && !(def.opens.is_empty() && def.paves.is_empty() && def.plants.is_empty())
+        })
+        .count();
+    if open != sim.crossings_drawn {
+        sim.crossings_drawn = open;
+        sim.generation += 1;
     }
 }
 
@@ -448,5 +489,44 @@ fn keyboard_controls(keys: Res<ButtonInput<KeyCode>>, mut sim: ResMut<Sim>) {
     }
     if keys.just_pressed(KeyCode::F6) {
         sim.write_report();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_dir(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("spirit_{name}_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        dir
+    }
+
+    #[test]
+    fn a_scenario_never_saves_over_your_game() {
+        let dir = temp_dir("scenario_save");
+        let mut sim = Sim::new(ScenarioKind::KilnYard);
+        sim.store = SaveStore::new(&dir);
+        sim.save_game();
+        assert!(sim.message.contains("untouched"), "{}", sim.message);
+        assert!(!dir.join("world.save").exists());
+        assert!(
+            dir.join("scenarios")
+                .join("kiln_yard")
+                .join("world.save")
+                .exists()
+        );
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_real_game_still_saves_where_it_always_did() {
+        let dir = temp_dir("journey_save");
+        let mut sim = Sim::journey("normal").unwrap();
+        sim.store = SaveStore::new(&dir);
+        sim.save_game();
+        assert_eq!(sim.message, "Game saved");
+        assert!(dir.join("world.save").exists());
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

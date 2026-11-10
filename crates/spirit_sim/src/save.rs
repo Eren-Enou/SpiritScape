@@ -21,6 +21,13 @@
 //! migration: a job under way in one finishes as a single task and the player
 //! then stands idle, because older saves have no session to continue. Format
 //! 4 (v0.8) also only adds defaulted fields, plus definitions after the old ones.
+//! Format 5 (v0.9) makes the map bigger, so older saves go through `migrate_map`.
+//! Format 6 (v0.10) adds road terrain. It only adds defaulted fields, but older
+//! games can't read a road, so the number moves.
+//! Format 7 (v0.11) adds a product, so older saves get an order for it.
+//! Format 8 (v0.15) adds a site and outcrops to the map, so anything older goes
+//! through `migrate_map` again. What's already on the map isn't touched.
+//! Format 9 (v0.32) makes the map taller, for the Far Shore, the same way.
 
 use crate::defs::{GameDefs, ResourceId};
 use crate::entities::{Building, Player, Project, Spirit, Tree};
@@ -40,7 +47,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Bump when the format changes, and add a migration to `decode`.
-pub const SAVE_VERSION: u32 = 4;
+pub const SAVE_VERSION: u32 = 9;
 const MAGIC: &str = "SPIRITSCAPE-SAVE";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -296,12 +303,16 @@ pub fn decode(text: &str) -> Result<(World, SaveMeta), SaveError> {
         .fits(&DefIds::of(&defs))
         .map_err(SaveError::Incompatible)?;
     let map = MapLayout::parse(BUILTIN_MAP).map_err(SaveError::Incompatible)?;
+    if body.meta.version < 9 {
+        migrate_map(&defs, &map, &mut body.state)?;
+    }
     if (body.state.grid.width, body.state.grid.height) != (map.width, map.height) {
         return Err(SaveError::Incompatible("the map has changed".into()));
     }
     if body.meta.version < 2 {
-        migrate_v1(&defs, &map, &mut body.state);
+        migrate_v1(&defs, &mut body.state);
     }
+    add_missing_orders(&defs, &mut body.state);
     validate(&defs, &body.state).map_err(SaveError::Corrupt)?;
     let meta = body.meta;
     let world = World::from_state(defs, body.state);
@@ -309,22 +320,27 @@ pub fn decode(text: &str) -> Result<(World, SaveMeta), SaveError> {
     Ok((world, meta))
 }
 
-/// Format 1 (v0.5) to 2 (v0.6). New fields have serde defaults; this adds what
-/// a default can't: the world content and storage room v0.6 introduced. Nothing
-/// that existed is changed, and the new trees aren't resources until they're
-/// cut, so the ledger still balances.
-fn migrate_v1(defs: &GameDefs, map: &MapLayout, s: &mut WorldState) {
-    s.settlement.site_open.resize(defs.sites.len(), true);
-    s.site_stats.resize(defs.sites.len(), SiteStats::default());
-    if s.settlement.extra_orders.is_empty() {
-        s.settlement.extra_orders = extra_orders(&defs.production.more_outputs);
-    }
-    for b in &mut s.buildings {
-        let wanted = defs.building(b.kind).storage_capacity();
-        if defs.building(b.kind).is_station && b.storage.capacity < wanted {
-            b.storage.capacity = wanted;
+/// A product added since the save was made has an order like any other, with
+/// no target, so nothing changes until the player wants some.
+fn add_missing_orders(defs: &GameDefs, s: &mut WorldState) {
+    let orders = &mut s.settlement.extra_orders;
+    for fresh in extra_orders(&defs.production.more_outputs) {
+        if !orders.iter().any(|o| o.output == fresh.output) {
+            orders.push(fresh);
         }
     }
+}
+
+/// Any format before 5 to 5: moves the world onto the current map. Everything
+/// already there stays put. What's new is added around it, and trees aren't
+/// resources until they're cut, so the ledger still balances.
+fn migrate_map(defs: &GameDefs, map: &MapLayout, s: &mut WorldState) -> Result<(), SaveError> {
+    if s.grid.width > map.width || s.grid.height > map.height {
+        return Err(SaveError::Incompatible("the map has changed".into()));
+    }
+    s.grid = s.grid.grown(map);
+    s.settlement.site_open.resize(defs.sites.len(), true);
+    s.site_stats.resize(defs.sites.len(), SiteStats::default());
     for (&c, positions) in &map.markers {
         let Some(kind) = defs.tree_kind_for_char(c) else {
             continue;
@@ -336,6 +352,22 @@ fn migrate_v1(defs: &GameDefs, map: &MapLayout, s: &mut WorldState) {
                 s.trees.push(new_tree(defs, kind, pos, id));
                 s.grid.set_occupied(pos, true);
             }
+        }
+    }
+    Ok(())
+}
+
+/// Format 1 (v0.5) to 2 (v0.6). New fields have serde defaults; this adds what
+/// a default can't: the orders and storage room v0.6 introduced. Nothing that
+/// existed is changed.
+fn migrate_v1(defs: &GameDefs, s: &mut WorldState) {
+    if s.settlement.extra_orders.is_empty() {
+        s.settlement.extra_orders = extra_orders(&defs.production.more_outputs);
+    }
+    for b in &mut s.buildings {
+        let wanted = defs.building(b.kind).storage_capacity();
+        if defs.building(b.kind).is_station && b.storage.capacity < wanted {
+            b.storage.capacity = wanted;
         }
     }
 }
@@ -395,6 +427,10 @@ fn validate(defs: &GameDefs, s: &WorldState) -> Result<(), String> {
     for b in &s.buildings {
         let known = b.keep.keys().all(|r| r.index() < defs.resources.len());
         check(known, "local stock")?;
+    }
+    for q in &s.settlement.queue {
+        check(q.kind.index() < defs.buildings.len(), "planned building")?;
+        check(q.id < s.settlement.next_queue_id, "plan numbering")?;
     }
     if let Some(session) = &s.player.session {
         match session.kind {

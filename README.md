@@ -84,7 +84,8 @@ The last three are development aids.
 | `H` | Hide or show the UI panels |
 | `G` | Switch between the Settlement and Gathering tabs |
 | `P` | Switch to and from the Production tab |
-| `J` / `T` / `O` / `R` / `U` | Switch to and from the Progress / Training / Spirits / Soul / Outpost tab |
+| `M` | Turn sound off and on |
+| `J` / `T` / `O` / `R` / `U` / `B` | Switch to and from the Progress / Training / Spirits / Soul / Outpost / Projects tab |
 | `X` | Stop what you're doing |
 | `V` | Show or hide detail cards |
 | `F6` | Write a play report beside your saves |
@@ -144,6 +145,44 @@ Outposts have three more scenarios: `--scenario outpost_establishment`, `central
 
 ```bash
 cargo run -p spirit_sim --release --example outpost_report
+```
+
+Settlement projects add `--scenario forest_access`, `project_queue`, `expanded_central`, `expanded_remote` and `shared_hauler`. See [docs/V0.9_SETTLEMENT_PROJECTS.md](docs/V0.9_SETTLEMENT_PROJECTS.md).
+
+```bash
+cargo run -p spirit_sim --release --example expansion_report
+```
+
+Plank roads add `--scenario plank_surplus`. See [docs/V0.10_PLANK_ROADS.md](docs/V0.10_PLANK_ROADS.md).
+
+```bash
+cargo run -p spirit_sim --release --example road_report
+```
+
+Fitted Panels add `--scenario panel_workshop`. See [docs/V0.11_FITTED_PANELS.md](docs/V0.11_FITTED_PANELS.md).
+
+```bash
+cargo run -p spirit_sim --release --example panel_report
+```
+
+Quarrying adds `--scenario quarry_start`. See [docs/V0.15_QUARRYING.md](docs/V0.15_QUARRYING.md).
+
+```bash
+cargo run -p spirit_sim --release --example quarry_report
+```
+
+To try everything in about an hour, see [docs/PLAYTEST.md](docs/PLAYTEST.md).
+
+To check that a game stays fast over many hours, see [docs/V0.17_LONG_RUNS.md](docs/V0.17_LONG_RUNS.md).
+
+```bash
+cargo run -p spirit_sim --release --example long_run_report
+```
+
+To check that the game's own messages are enough, see [docs/V0.12_GUIDED_PLAYER.md](docs/V0.12_GUIDED_PLAYER.md).
+
+```bash
+cargo run -p spirit_sim --release --example guided_report
 ```
 
 ## Tests

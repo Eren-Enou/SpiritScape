@@ -144,6 +144,8 @@ pub struct TaskCtx<'a> {
     pub player_output_at_station: bool,
     /// The recipe the player chose. They make nothing else while it's set.
     pub player_recipe: Option<RecipeId>,
+    /// Main Storage, and how much of each thing the player may put in it.
+    pub player_room: Option<(BuildingId, BTreeMap<ResourceId, u32>)>,
 }
 
 /// How many more units spirits should harvest and craft this tick, so they
@@ -169,7 +171,7 @@ pub fn step(
         return StepResult::Done;
     };
     match task {
-        Task::Move { goal, label } => step_move(actor, goal, &label, ctx),
+        Task::Move { goal, label } => step_move(actor, who, goal, &label, ctx),
         Task::Chop { tree } => {
             let resource = ctx.defs.trees[ctx.trees[tree].kind.index()].resource;
             let budget = budgets.map(|b| b.gather.entry(resource).or_insert(0));
@@ -197,28 +199,44 @@ pub fn step(
     }
 }
 
-fn step_move(actor: &mut Actor, goal: Goal, label: &str, ctx: &mut TaskCtx) -> StepResult {
+fn step_move(
+    actor: &mut Actor,
+    who: Who,
+    goal: Goal,
+    label: &str,
+    ctx: &mut TaskCtx,
+) -> StepResult {
     let m = &mut actor.mover;
     if m.progress == 0 && goal.reached(m.pos) {
         m.path.clear();
         return StepResult::Done;
     }
     if m.path.is_empty() {
-        match ctx.grid.find_path(m.pos, |p| goal.reached(p)) {
+        let found = ctx.grid.find_path(m.pos, |p| goal.reached(p));
+        // Spirits stop at the water. Only the player goes out on the ice, and
+        // only if there's no way round.
+        let found = found.or_else(|| {
+            let bold = who == Who::Player;
+            bold.then(|| ctx.grid.path_over_ice(m.pos, |p| goal.reached(p)))
+                .flatten()
+        });
+        match found {
             None => return StepResult::Failed(format!("No path to {label}")),
             Some(p) if p.is_empty() => return StepResult::Done,
             Some(p) => m.path = p.into(),
         }
     }
     let next = *m.path.front().unwrap();
-    if !ctx.grid.is_walkable(next) {
+    let on_foot = who == Who::Player && ctx.grid.is_ice(next);
+    if !ctx.grid.is_walkable(next) && !on_foot {
         // Something was built in the way; re-plan the route next tick.
         m.path.clear();
         m.progress = 0;
         return StepResult::Continue;
     }
+    m.stride = ctx.grid.step_ticks(next, m.ticks_per_tile);
     m.progress += 1;
-    if m.progress >= m.ticks_per_tile {
+    if m.progress >= m.stride {
         m.pos = next;
         m.path.pop_front();
         m.progress = 0;
@@ -409,7 +427,7 @@ pub(crate) fn craft_room(
     let (out, out_n) = recipe.output;
     let output_limit = def.capacity.saturating_sub(def.input_buffer);
     let station_room = station.storage.free() >= out_n
-        && station.storage.get(out) + out_n <= output_limit.max(out_n);
+        && station.storage.available(out) + out_n <= output_limit.max(out_n);
     let bag_room = bag.free()
         + recipe
             .inputs
@@ -438,7 +456,12 @@ fn step_deposit(
         .map(|(r, n)| (*r, *n))
         .collect();
     let mut amount = 0;
+    let limits = match (&ctx.player_room, who) {
+        (Some((main, room)), Who::Player) if *main == building_id => Some(room),
+        _ => None,
+    };
     for (r, n) in carried {
+        let n = limits.map_or(n, |l| l.get(&r).copied().unwrap_or(n).min(n));
         let stored = b.storage.deposit(r, n);
         actor.inventory.remove(r, stored);
         amount += stored;
@@ -448,7 +471,14 @@ fn step_deposit(
         }
     }
     if amount == 0 && actor.inventory.total() > 0 {
-        return StepResult::Failed(format!("{} is full", b.name));
+        return StepResult::Failed(if b.storage.free() > 0 {
+            format!(
+                "{} is keeping its room for what's needed. Spend what you've made on building.",
+                b.name
+            )
+        } else {
+            format!("{} is full", b.name)
+        });
     }
     ctx.events.push(SimEvent::Deposited {
         who,

@@ -37,8 +37,41 @@ const WORKER_BUTTONS: usize = 3;
 const SOUL_OPTIONS: usize = 5;
 /// Recent milestones listed in the Progress tab.
 const RECENT_NOTICES: usize = 6;
+/// Planned buildings with buttons in the Projects tab.
+const PLAN_ROWS: usize = 4;
 /// Further orders with buttons in the Production tab.
-const EXTRA_ORDER_BUTTONS: usize = 1;
+const EXTRA_ORDER_BUTTONS: usize = 7;
+const EXTRA_ORDER_NAMES: [&str; EXTRA_ORDER_BUTTONS] = [
+    "Beams",
+    "Panels",
+    "Dressed Stone",
+    "Keystones",
+    "Charcoal",
+    "Bricks",
+    "Pitch",
+];
+const EXTRA_ORDER_LESS: [&str; EXTRA_ORDER_BUTTONS] = [
+    "Beams -5",
+    "Panels -5",
+    "Dressed -5",
+    "Keystones -5",
+    "Charcoal -5",
+    "Bricks -5",
+    "Pitch -5",
+];
+const EXTRA_ORDER_MORE: [&str; EXTRA_ORDER_BUTTONS] = [
+    "Beams +5",
+    "Panels +5",
+    "Dressed +5",
+    "Keystones +5",
+    "Charcoal +5",
+    "Bricks +5",
+    "Pitch +5",
+];
+/// Raw materials a player can ask to keep in stock.
+const STANDING_GOODS: [&str; 2] = ["stone", "clay"];
+const STANDING_LESS: [&str; 2] = ["Stone -20", "Clay -20"];
+const STANDING_MORE: [&str; 2] = ["Stone +20", "Clay +20"];
 
 /// Screen space covered by the UI: right-hand panel and bottom event log.
 pub const PANEL_WIDTH: f32 = 430.0;
@@ -95,6 +128,12 @@ enum UiAction {
     BuildCache,
     /// Adjust the nth further order's target.
     ExtraTarget(usize, i32),
+    /// Adjust how much of the nth raw material to keep in stock.
+    Standing(usize, i32),
+    /// Ask whether to call the spirits home, then answer.
+    CallHome,
+    CallHomeYes,
+    CallHomeNo,
     /// Put the nth further order first, or back level with the rest.
     ExtraPriority(usize),
     PlaceWorkshop,
@@ -111,6 +150,10 @@ enum UiAction {
     ToggleTrainingFirst,
     /// Stop what the player is doing.
     StopActivity,
+    LeaveLoad,
+    VisitorYes,
+    VisitorNo,
+    RenameSpirit,
     ToggleAutoGather,
     /// Step through the recipes the player can use.
     CycleRecipe,
@@ -128,6 +171,14 @@ enum UiAction {
     LocalStock(i32),
     /// Train at the outpost's bench.
     TrainHere,
+    /// Add a building to the plan, by its id.
+    Plan(&'static str),
+    /// Move the nth planned building up.
+    PlanUp(usize),
+    /// Take the nth planned building off the plan.
+    PlanCancel(usize),
+    /// Call off the current project.
+    PlanCancelActive,
     /// Show or hide the detail cards.
     ToggleDetails,
     /// Show or hide the development scenario buttons.
@@ -146,6 +197,7 @@ enum Tab {
     Spirits,
     Soul,
     Outpost,
+    Projects,
 }
 
 /// Show routine spirit events in the log too.
@@ -194,6 +246,13 @@ struct GoalRoot;
 /// A card body and what it shows.
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
 enum Card {
+    Boat,
+    Standing,
+    Visitor,
+    Markers,
+    Ending,
+    Ambitions,
+    SpiritStory,
     Header,
     Player,
     Soul,
@@ -224,6 +283,7 @@ enum Card {
     PlayReport,
     Outpost,
     ProjectNeeds,
+    Projects,
 }
 
 /// Clipping box that holds the event log lines.
@@ -476,6 +536,7 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                     c,
                     &[
                         ("Stop (X)", UiAction::StopActivity),
+                        ("Leave your load", UiAction::LeaveLoad),
                         ("", UiAction::ToggleAutoGather),
                         ("", UiAction::CycleRecipe),
                     ],
@@ -489,7 +550,19 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                     ..default()
                 },
             ))
-            .with_children(|g| card(g, "WHAT'S NEXT", |c| body(c, Card::Goal)));
+            .with_children(|g| {
+                card(g, "WHAT'S NEXT", |c| {
+                    body(c, Card::Goal);
+                    body(c, Card::Visitor);
+                    button_row(
+                        c,
+                        &[
+                            ("Take the offer", UiAction::VisitorYes),
+                            ("Turn it down", UiAction::VisitorNo),
+                        ],
+                    );
+                });
+            });
 
             p.spawn((
                 OverviewCard,
@@ -515,9 +588,58 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                     ("Spirits (O)", UiAction::ShowTab(Tab::Spirits)),
                     ("Soul (R)", UiAction::ShowTab(Tab::Soul)),
                     ("Outpost (U)", UiAction::ShowTab(Tab::Outpost)),
+                    ("Projects (B)", UiAction::ShowTab(Tab::Projects)),
                     ("", UiAction::ToggleDetails),
                 ],
             );
+
+            tab_panel(p, Tab::Projects, |p| {
+                card(p, "SETTLEMENT PLAN", |c| {
+                    body(c, Card::Projects);
+                    button_row(c, &[("", UiAction::PlanCancelActive)]);
+                    for i in 0..PLAN_ROWS {
+                        button_row(
+                            c,
+                            &[("", UiAction::PlanUp(i)), ("", UiAction::PlanCancel(i))],
+                        );
+                    }
+                });
+                card(p, "ADD TO THE PLAN", |c| {
+                    button_row(
+                        c,
+                        &[
+                            ("", UiAction::Plan("outpost_storage")),
+                            ("", UiAction::Plan("forest_crossing")),
+                            ("", UiAction::Plan("workshop_annex")),
+                            ("", UiAction::Plan("storehouse")),
+                            ("", UiAction::Plan("grove_lane")),
+                            ("", UiAction::Plan("north_road")),
+                            ("", UiAction::Plan("old_growth_road")),
+                            ("", UiAction::Plan("forest_road")),
+                            ("", UiAction::Plan("stone_causeway")),
+                            ("", UiAction::Plan("trade_caravan")),
+                            ("", UiAction::Plan("ironwood_nursery")),
+                            ("", UiAction::Plan("quarry_extension")),
+                            ("", UiAction::Plan("mason_yard")),
+                            ("", UiAction::Plan("oak_saplings")),
+                            ("", UiAction::Plan("long_racks")),
+                            ("", UiAction::Plan("stone_cellar")),
+                            ("", UiAction::Plan("clay_pits")),
+                            ("", UiAction::Plan("kiln")),
+                            ("", UiAction::Plan("warm_walls")),
+                            ("", UiAction::Plan("hearth_chimney")),
+                            ("", UiAction::Plan("still_boat")),
+                            ("", UiAction::Plan("south_crossing")),
+                            ("", UiAction::Plan("still_lantern")),
+                            ("", UiAction::Plan("hearth_foundations")),
+                            ("", UiAction::Plan("hearth_walls")),
+                            ("", UiAction::Plan("hearth_of_spirits")),
+                            ("", UiAction::Plan("panelled_warehouse")),
+                            ("", UiAction::Plan("carrying_frames")),
+                        ],
+                    );
+                });
+            });
 
             tab_panel(p, Tab::Outpost, |p| {
                 card(p, "OUTPOST", |c| {
@@ -585,6 +707,18 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
 
             tab_panel(p, Tab::Gathering, |p| {
                 card(p, "WHAT LIMITS OUTPUT", |c| body(c, Card::Bottleneck));
+                card(p, "KEEP IN STOCK", |c| {
+                    body(c, Card::Standing);
+                    for i in 0..STANDING_GOODS.len() {
+                        button_row(
+                            c,
+                            &[
+                                (STANDING_LESS[i], UiAction::Standing(i, -20)),
+                                (STANDING_MORE[i], UiAction::Standing(i, 20)),
+                            ],
+                        );
+                    }
+                });
                 for i in 0..site_count {
                     card(p, "", |c| {
                         body(c, Card::Site(i));
@@ -604,8 +738,8 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                         button_row(
                             c,
                             &[
-                                ("Beams -5", UiAction::ExtraTarget(i, -5)),
-                                ("Beams +5", UiAction::ExtraTarget(i, 5)),
+                                (EXTRA_ORDER_LESS[i], UiAction::ExtraTarget(i, -5)),
+                                (EXTRA_ORDER_MORE[i], UiAction::ExtraTarget(i, 5)),
                                 ("", UiAction::ExtraPriority(i)),
                             ],
                         );
@@ -639,6 +773,20 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
             });
 
             tab_panel(p, Tab::Progress, |p| {
+                card(p, "YOUR STORY", |c| {
+                    body(c, Card::Ending);
+                    body(c, Card::Boat);
+                    button_row(c, &[("Call them home", UiAction::CallHome)]);
+                    button_row(
+                        c,
+                        &[
+                            ("Yes, all of them", UiAction::CallHomeYes),
+                            ("Not yet", UiAction::CallHomeNo),
+                        ],
+                    );
+                });
+                card(p, "AMBITIONS", |c| body(c, Card::Ambitions));
+                card(p, "THE OLD STONES", |c| body(c, Card::Markers));
                 card(p, "YOUR SKILLS", |c| body(c, Card::Skills));
                 card(p, "YOUR WORKFORCE", |c| body(c, Card::Workforce));
                 card(p, "SETTLEMENT IMPROVEMENTS", |c| {
@@ -652,6 +800,10 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
             });
 
             tab_panel(p, Tab::Spirits, |p| {
+                card(p, "THEIR STORY", |c| {
+                    body(c, Card::SpiritStory);
+                    button_row(c, &[("Rename", UiAction::RenameSpirit)]);
+                });
                 card(p, "INSTRUCTIONS", |c| {
                     button_row(
                         c,
@@ -898,7 +1050,16 @@ fn show_tab(
             _ => Tab::Outpost,
         };
     }
-    let tall = matches!(*tab, Tab::Soul | Tab::Training | Tab::Outpost);
+    if keys.just_pressed(KeyCode::KeyB) {
+        *tab = match *tab {
+            Tab::Projects => Tab::Settlement,
+            _ => Tab::Projects,
+        };
+    }
+    let tall = matches!(
+        *tab,
+        Tab::Soul | Tab::Training | Tab::Outpost | Tab::Projects
+    );
     let display = if tall { Display::None } else { Display::Flex };
     for mut node in &mut overview {
         if node.display != display {
@@ -1044,6 +1205,39 @@ fn on_button(
     match action {
         UiAction::SaveGame => sim.save_game(),
         UiAction::StopActivity => sim.command(Command::PlayerStop),
+        UiAction::LeaveLoad => sim.command(Command::LeaveLoad),
+        UiAction::RenameSpirit => sim.naming = Some(String::new()),
+        UiAction::CallHome => sim.calling_home = true,
+        UiAction::CallHomeNo => sim.calling_home = false,
+        UiAction::CallHomeYes => {
+            sim.calling_home = false;
+            sim.command(Command::CallHome);
+        }
+        UiAction::VisitorYes => sim.command(Command::AnswerVisitor(true)),
+        UiAction::VisitorNo => sim.command(Command::AnswerVisitor(false)),
+        UiAction::Plan(id) => {
+            if let Some(kind) = sim.world.defs.building_kind_id(id) {
+                sim.command(Command::QueueBuilding { kind, site: None });
+            }
+        }
+        UiAction::PlanUp(i) => {
+            if let Some(q) = sim.world.settlement.queue.get(i) {
+                let id = q.id;
+                sim.command(Command::MoveQueued { id, up: true });
+            }
+        }
+        UiAction::PlanCancel(i) => {
+            if let Some(q) = sim.world.settlement.queue.get(i) {
+                let id = q.id;
+                sim.command(Command::CancelQueued(id));
+            }
+        }
+        UiAction::PlanCancelActive => {
+            if let Some(p) = sim.world.active_project() {
+                let id = p.id;
+                sim.command(Command::CancelProject(id));
+            }
+        }
         UiAction::CycleBench => {
             let ids: Vec<usize> = sim.world.stations().map(|b| b.id).collect();
             let now = sim.world.training_bench().map(|b| b.id);
@@ -1125,6 +1319,14 @@ fn on_button(
         UiAction::ToggleDetails => details.0 = !details.0,
         UiAction::ToggleScenarios => scenario_buttons.0 = !scenario_buttons.0,
         UiAction::WriteReport => sim.write_report(),
+        UiAction::Standing(i, d) => {
+            if let Some(resource) = sim.world.defs.resource_id(STANDING_GOODS[i]) {
+                let settlement = &sim.world.settlement;
+                let now = settlement.standing.get(&resource).copied().unwrap_or(0);
+                let target = (now as i32 + d).max(0) as u32;
+                sim.command(Command::SetStandingStock { resource, target });
+            }
+        }
         UiAction::ExtraTarget(i, d) => {
             if let Some(o) = sim.world.settlement.extra_orders.get(i) {
                 let output = o.output;
@@ -1353,6 +1555,8 @@ fn update_buttons(
     let selected_gathers = selected_role.is_some_and(|r| r.has_job(JobKind::Gather));
     let selected_hauls = selected_role.is_some_and(|r| r.has_job(JobKind::Haul));
     let outpost = w.outpost_sites().first().map(|s| w.outpost_report(*s));
+    let plannable = w.plannable();
+    let plans = w.plan_views();
     let selected_crafts = selected_role.is_some_and(|r| r.has_job(JobKind::Craft));
     let cache_built = w
         .training_cache_kind()
@@ -1364,6 +1568,20 @@ fn update_buttons(
             // A playthrough isn't a sandbox: nothing here throws it away.
             UiAction::Load(_) => !sim.is_journey() && scenario_buttons.0,
             UiAction::Restart | UiAction::ToggleScenarios => !sim.is_journey(),
+            UiAction::ShowTab(t) => tab_key(*t).is_none_or(|id| w.is_open(id)),
+            UiAction::LeaveLoad => w.load_is_stuck(),
+            UiAction::RenameSpirit => !w.spirits.is_empty() && sim.naming.is_none(),
+            UiAction::CallHome => w.can_call_home() && !sim.calling_home,
+            UiAction::CallHomeYes | UiAction::CallHomeNo => w.can_call_home() && sim.calling_home,
+            UiAction::VisitorYes => w.visitor().is_some_and(|v| v.can_accept),
+            UiAction::VisitorNo => w.visitor().is_some(),
+            UiAction::Standing(i, _) => can_dig(w, STANDING_GOODS[*i]),
+            // Orders for a bench that hasn't been built are just clutter.
+            UiAction::ExtraTarget(i, _) | UiAction::ExtraPriority(i) => w
+                .settlement
+                .extra_orders
+                .get(*i)
+                .is_some_and(|o| !w.stations_for(o.output).is_empty()),
             UiAction::StopActivity => {
                 w.player.session.is_some() || !w.player.actor.queue.is_empty()
             }
@@ -1375,6 +1593,13 @@ fn update_buttons(
             UiAction::CycleSite => selected_gathers || selected_hauls,
             UiAction::ToggleAdvanced => selected_gathers,
             UiAction::CycleBench => w.stations().count() > 1,
+            UiAction::Plan(id) => w
+                .defs
+                .building_kind_id(id)
+                .is_some_and(|k| plannable.contains(&k)),
+            UiAction::PlanUp(i) => *i > 0 && *i < w.settlement.queue.len(),
+            UiAction::PlanCancel(i) => *i < w.settlement.queue.len(),
+            UiAction::PlanCancelActive => plans.iter().any(|v| v.project.is_some() && v.can_cancel),
             UiAction::PlaceStore => outpost.as_ref().is_some_and(|o| o.store.is_none()),
             UiAction::ToggleOutpost => outpost.is_some(),
             UiAction::TrainHere => outpost.as_ref().is_some_and(|o| o.workshop.is_some()),
@@ -1466,7 +1691,7 @@ fn update_buttons(
                 format!("Production: {}", if on { "ON" } else { "OFF" })
             }
             UiAction::ToggleWorker(n) => match w.crafters().nth(*n) {
-                Some(s) if s.assigned => format!("{}: on planks", s.name),
+                Some(s) if s.assigned => format!("{}: on production", s.name),
                 Some(s) => format!("{}: unassigned", s.name),
                 None => continue,
             },
@@ -1511,8 +1736,15 @@ fn update_buttons(
                 None => continue,
             },
             UiAction::ExtraPriority(i) => match w.settlement.extra_orders.get(*i) {
-                Some(o) if o.priority > 0 => "Beams: first".into(),
-                Some(_) => "Beams: normal priority".into(),
+                Some(o) => {
+                    let name = EXTRA_ORDER_NAMES[*i];
+                    let when = if o.priority > 0 {
+                        "first"
+                    } else {
+                        "normal priority"
+                    };
+                    format!("{name}: {when}")
+                }
                 None => continue,
             },
             UiAction::PlaceWorkshop => {
@@ -1555,6 +1787,23 @@ fn update_buttons(
                     None => format!("{verb}: anywhere"),
                 }
             }
+            UiAction::Plan(id) => match w.defs.building_kind_id(id) {
+                Some(kind) => {
+                    let def = w.defs.building(kind);
+                    let cost = def.cost.iter().copied().collect();
+                    format!("Plan {}: {}", def.name, w.defs.describe_amounts(&cost))
+                }
+                None => continue,
+            },
+            UiAction::PlanUp(i) => match w.settlement.queue.get(*i) {
+                Some(q) => format!("Move up: {}", w.defs.building(q.kind).name),
+                None => continue,
+            },
+            UiAction::PlanCancel(i) => match w.settlement.queue.get(*i) {
+                Some(q) => format!("Cancel: {}", w.defs.building(q.kind).name),
+                None => continue,
+            },
+            UiAction::PlanCancelActive => "Call off the current project".into(),
             UiAction::CycleBench => match w.training_bench() {
                 Some(b) => {
                     let place = w.defs.site_at(b.pos.x, b.pos.y);
@@ -1608,7 +1857,7 @@ fn update_buttons(
             }
             UiAction::ToggleAutoGather => {
                 let on = w.player.auto_gather;
-                format!("Next tree: {}", if on { "AUTO" } else { "I'LL CLICK" })
+                format!("Next target: {}", if on { "AUTO" } else { "I'LL CLICK" })
             }
             UiAction::CycleRecipe => match w.player.recipe {
                 Some(r) => format!("Making: {}", w.defs.recipe(r).name),
@@ -1645,11 +1894,18 @@ fn update_cards(
             Card::Planner => planner_lines(&sim.world),
             Card::Site(i) => site_lines(&sim.world, *i),
             Card::Bottleneck => bottleneck_lines(&sim.world),
+            Card::Standing => standing_lines(&sim.world),
+            Card::Boat => boat_lines(&sim),
             Card::TimeUse => time_use_lines(&sim.world),
             Card::Production => production_lines(&sim.world),
             Card::ProductionLimit => production_limit_lines(&sim.world),
             Card::ChainTime => chain_time_lines(&sim.world),
             Card::Goal => goal_lines(&sim.world),
+            Card::Visitor => visitor_lines(&sim.world),
+            Card::Markers => marker_lines(&sim.world),
+            Card::Ending => ending_lines(&sim.world),
+            Card::Ambitions => ambition_lines(&sim.world),
+            Card::SpiritStory => story_lines(&sim),
             Card::Menu => menu_lines(&sim),
             Card::Skills => skills_lines(&sim.world),
             Card::Workforce => workforce_lines(&sim.world),
@@ -1667,6 +1923,7 @@ fn update_cards(
             Card::PlayReport => report_lines(&sim.world),
             Card::Outpost => outpost_lines(&sim.world),
             Card::ProjectNeeds => need_lines(&sim.world),
+            Card::Projects => plan_lines(&sim.world),
         };
         if rendered.changed(&lines) {
             cards::rebuild(&mut commands, entity, &lines);
@@ -1698,11 +1955,32 @@ fn header_lines(sim: &Sim) -> Vec<Line> {
         ScenarioKind::CentralProduction => "Central production",
         ScenarioKind::RemoteProduction => "Remote production",
         ScenarioKind::OutpostEstablishment => "Outpost",
+        ScenarioKind::ExpandedCentral => "Expanded, central",
+        ScenarioKind::ExpandedRemote => "Expanded, remote",
+        ScenarioKind::ForestAccess => "Forest access",
+        ScenarioKind::LastStage => "Last stage",
+        ScenarioKind::MasonYard => "Mason's Yard",
+        ScenarioKind::CaravanYard => "Caravan yard",
+        ScenarioKind::LateFinds => "Late finds",
+        ScenarioKind::KilnYard => "Kiln yard",
+        ScenarioKind::LastBoat => "The last boat",
+        ScenarioKind::QuietHour => "A quiet hour",
+        ScenarioKind::FullMap => "Full map",
+        ScenarioKind::NoRoomLeft => "No room left",
+        ScenarioKind::QuarryStart => "Quarry",
+        ScenarioKind::WalledIn => "Walled in",
+        ScenarioKind::PanelWorkshop => "Panel workshop",
+        ScenarioKind::PlankSurplus => "Plank surplus",
+        ScenarioKind::ProjectQueue => "Project plan",
+        ScenarioKind::SharedHauler => "Shared hauler",
     };
     let speed = if sim.paused {
         colored("PAUSED", WARN)
     } else {
-        muted(format!("speed {}x", sim.speed))
+        match sim.world.season() {
+            Some(s) => muted(format!("{}  speed {}x", s.name, sim.speed)),
+            None => muted(format!("speed {}x", sim.speed)),
+        }
     };
     vec![
         vec![
@@ -1731,7 +2009,7 @@ fn level_progress(w: &World, xp: u64) -> (f32, Option<u64>) {
 /// What a skill unlocks, as chips: green when the player has it, grey with
 /// its level otherwise.
 fn unlock_chips(w: &World, skill: SkillId, level: u32) -> Vec<Item> {
-    let tiers = w.defs.tree_tiers(skill).into_iter().map(|k| {
+    let tiers = w.tiers_in_world(skill).into_iter().map(|k| {
         let d = w.defs.tree(k);
         (d.name.clone(), d.level_required)
     });
@@ -1787,9 +2065,26 @@ fn player_lines(sim: &Sim) -> Vec<Line> {
     let w = &sim.world;
     let mut lines = Vec::new();
     for skill in soul_skills(w) {
-        lines.extend(skill_lines(w, skill));
+        if w.is_open(&w.defs.skill(skill).id) {
+            lines.extend(skill_lines(w, skill));
+        }
     }
     lines
+}
+
+/// The name a tab goes by in the game's data. Settlement is always there.
+fn tab_key(tab: Tab) -> Option<&'static str> {
+    match tab {
+        Tab::Settlement => None,
+        Tab::Gathering => Some("gathering"),
+        Tab::Production => Some("production"),
+        Tab::Progress => Some("progress"),
+        Tab::Training => Some("training"),
+        Tab::Spirits => Some("spirits"),
+        Tab::Soul => Some("soul"),
+        Tab::Outpost => Some("outpost"),
+        Tab::Projects => Some("projects"),
+    }
 }
 
 /// The player is working at a bench.
@@ -1853,7 +2148,7 @@ fn glance_lines(w: &World) -> Vec<Line> {
     let main = &w.main().storage;
     let mut lines = Vec::new();
     if w.spirits.is_empty() {
-        lines.push(vec![muted("No spirits yet.")]);
+        lines.push(vec![muted(no_spirits(w))]);
     } else {
         lines.push(vec![
             Item::Dot(Status::Chopping.color()),
@@ -1866,6 +2161,18 @@ fn glance_lines(w: &World) -> Vec<Line> {
             muted(format!("{} done", g.idle - g.unassigned)),
             Item::Dot(MUTED),
             muted(format!("{} free", g.unassigned)),
+        ]);
+    }
+    if let Some(v) = w
+        .plan_views()
+        .first()
+        .filter(|v| v.project.is_some() || v.queued.is_some())
+    {
+        lines.push(vec![
+            text("Building"),
+            colored(v.name.clone(), INFO),
+            Item::Spacer,
+            muted(v.stage.label()),
         ]);
     }
     lines.push(vec![
@@ -1902,7 +2209,7 @@ fn recipe_lines(w: &World) -> Vec<Line> {
         ))]);
     }
     if let Some(b) = w.station() {
-        let slots = w.defs.building(b.kind).slots;
+        let slots = w.slots_of(b);
         lines.push(vec![muted(format!(
             "{}: {} of {slots} places in use",
             b.name,
@@ -1985,6 +2292,53 @@ fn outpost_lines(w: &World) -> Vec<Line> {
     lines
 }
 
+fn plan_lines(w: &World) -> Vec<Line> {
+    use spirit_sim::projects::PlanStage;
+    let views = w.plan_views();
+    if views.is_empty() {
+        return vec![vec![muted(
+            "Nothing planned. Add something below and carry on with your own training.",
+        )]];
+    }
+    let mut lines = Vec::new();
+    for v in views {
+        let color = match v.stage {
+            PlanStage::Blocked => BAD,
+            PlanStage::Queued => MUTED,
+            PlanStage::Finished => GOOD,
+            _ => INFO,
+        };
+        lines.push(vec![
+            big(v.name, TEXT),
+            Item::Spacer,
+            chip(v.stage.label(), color),
+        ]);
+        if v.stage == PlanStage::Finished {
+            lines.push(vec![muted(v.benefit)]);
+            continue;
+        }
+        lines.push(vec![muted(format!("Needs {}", v.cost))]);
+        if !v.benefit.is_empty() {
+            lines.push(vec![muted(v.benefit)]);
+        }
+        for n in v.needs.iter().filter(|n| n.have < n.need) {
+            lines.push(vec![colored(
+                format!("Short of {} {}: {}", n.need - n.have, n.name, n.status),
+                WARN,
+            )]);
+        }
+        if !v.workers.is_empty() {
+            lines.push(vec![muted(format!("Builder: {}", v.workers.join(", ")))]);
+        }
+        if v.stage == PlanStage::Blocked
+            && let Some(r) = v.reason
+        {
+            lines.push(vec![colored(r, BAD)]);
+        }
+    }
+    lines
+}
+
 fn need_lines(w: &World) -> Vec<Line> {
     let needs = w.project_needs();
     if needs.is_empty() {
@@ -2035,6 +2389,12 @@ fn soul_lines(sim: &Sim) -> Vec<Line> {
     if let Some(e) = &p.error {
         lines.push(vec![colored(format!("Can't separate: {e}"), BAD)]);
         return lines;
+    }
+    if let Some(t) = w.next_trait() {
+        lines.push(vec![muted(format!(
+            "The next spirit will be {}: {}",
+            t.name, t.text
+        ))]);
     }
     let tree = |k: &spirit_sim::defs::TreeKindId| w.defs.tree(*k).name.clone();
     let recipe = |r: &spirit_sim::defs::RecipeId| w.defs.recipe(*r).name.clone();
@@ -2112,7 +2472,9 @@ fn soul_lines(sim: &Sim) -> Vec<Line> {
 
 fn order_lines(w: &World) -> Vec<Line> {
     let mut lines = Vec::new();
-    for o in w.order_reports() {
+    // Orders for a bench that hasn't been built are just clutter.
+    let reports = w.order_reports().into_iter();
+    for o in reports.filter(|o| !w.stations_for(o.output).is_empty()) {
         let met = o.in_main >= o.goal;
         lines.push(vec![
             text(o.name.clone()),
@@ -2163,7 +2525,7 @@ fn station_lines(w: &World) -> Vec<Line> {
 fn spirit_order_lines(sim: &Sim) -> Vec<Line> {
     let w = &sim.world;
     let Some(s) = w.spirits.get(sim.selected_spirit) else {
-        return vec![vec![muted("No spirits yet.")]];
+        return vec![vec![muted(no_spirits(w))]];
     };
     let (status, word) = spirit_status(s);
     let mut lines = vec![
@@ -2202,6 +2564,149 @@ fn goal_lines(w: &World) -> Vec<Line> {
     lines
 }
 
+/// Who's here, if anyone.
+/// Whether there are no spirits yet, or none any more.
+fn no_spirits(w: &World) -> &'static str {
+    if w.homecoming_finished() {
+        "They've all gone home."
+    } else {
+        "No spirits yet."
+    }
+}
+
+/// The choice at the shore, once there's a boat to make it with.
+fn boat_lines(sim: &Sim) -> Vec<Line> {
+    let w = &sim.world;
+    if w.settlement.homecoming.is_some() {
+        if w.homecoming_finished() {
+            return Vec::new();
+        }
+        let (aboard, all) = w.aboard();
+        return vec![vec![text(format!("{aboard} of {all} aboard."))]];
+    }
+    if !w.can_call_home() {
+        return Vec::new();
+    }
+    if !sim.calling_home {
+        return vec![vec![muted(
+            "The Still Boat is at the shore. They'd cross in it, if you called them.",
+        )]];
+    }
+    let names: Vec<String> = w.spirits.iter().map(|s| w.spirit_title(s)).collect();
+    vec![
+        vec![text(format!("All of them: {}.", names.join(", ")))],
+        vec![muted(
+            "All you gave them comes back to you. They don't, and you can't undo this.",
+        )],
+    ]
+}
+
+/// Whether there's anywhere on the map to get this raw material.
+fn can_dig(w: &World, id: &str) -> bool {
+    let found = w.defs.resource_id(id);
+    w.trees
+        .iter()
+        .any(|t| Some(w.defs.tree(t.kind).resource) == found)
+}
+
+fn standing_lines(w: &World) -> Vec<Line> {
+    let mut lines = vec![vec![muted(
+        "Spirits that gather these keep them topped up, with nothing asking.".to_string(),
+    )]];
+    for id in STANDING_GOODS.iter().filter(|id| can_dig(w, id)) {
+        let Some(r) = w.defs.resource_id(id) else {
+            continue;
+        };
+        let target = w.settlement.standing.get(&r).copied().unwrap_or(0);
+        let have = w.main().storage.get(r);
+        let name = &w.defs.resource(r).name;
+        lines.push(vec![text(format!("{name}: {have} of {target}"))]);
+    }
+    lines
+}
+
+fn visitor_lines(w: &World) -> Vec<Line> {
+    let Some(v) = w.visitor() else {
+        return Vec::new();
+    };
+    let mut lines = vec![
+        vec![text(v.name)],
+        vec![muted(v.text)],
+        vec![text(v.offer)],
+        vec![muted(format!(
+            "They'll wait {} more minutes.",
+            v.minutes_left
+        ))],
+    ];
+    if !v.can_accept {
+        lines.push(vec![muted("Main Storage doesn't have what they want.")]);
+    }
+    lines
+}
+
+/// The old stones read so far.
+fn marker_lines(w: &World) -> Vec<Line> {
+    let read = w.markers_read();
+    if read.is_empty() {
+        return vec![vec![muted(
+            "Nothing found yet. Walk up to any tall stone you see.",
+        )]];
+    }
+    let mut lines = Vec::new();
+    for (title, words) in read {
+        lines.push(vec![text(title)]);
+        lines.push(vec![muted(words)]);
+    }
+    lines
+}
+
+/// How the game ended, or what it's working toward.
+fn ending_lines(w: &World) -> Vec<Line> {
+    match w.ending_story() {
+        Some(story) => story.into_iter().map(|l| vec![text(l)]).collect(),
+        None => vec![vec![muted(
+            "Somewhere ahead is the Hearth of Spirits. It will take all you can do.",
+        )]],
+    }
+}
+
+/// The selected spirit's life so far.
+fn story_lines(sim: &Sim) -> Vec<Line> {
+    let w = &sim.world;
+    let Some(s) = w.spirits.get(sim.selected_spirit) else {
+        return vec![vec![muted(no_spirits(w))]];
+    };
+    let mut lines = match &sim.naming {
+        Some(name) => vec![
+            vec![big(format!("{name}_"), GOLD)],
+            vec![muted(
+                "Type a name. Enter keeps it, Esc leaves it as it was.",
+            )],
+        ],
+        None => vec![vec![text(w.spirit_title(s))]],
+    };
+    lines.extend(w.spirit_story(s).into_iter().map(|l| vec![muted(l)]));
+    lines
+}
+
+/// The next few long-term goals, and how many are behind you.
+fn ambition_lines(w: &World) -> Vec<Line> {
+    let all = w.ambitions();
+    let done = all.iter().filter(|a| a.done).count();
+    let mut lines = vec![vec![muted(format!("{done} of {} done", all.len()))]];
+    for a in all.into_iter().filter(|a| !a.done).take(3) {
+        lines.push(vec![text(a.title)]);
+        lines.push(vec![muted(a.hint)]);
+        if let Some((have, want, label)) = a.progress {
+            lines.push(vec![
+                bar(have as f32 / want.max(1) as f32, XP, 180.0),
+                muted(format!("{} / {want} {label}", have.min(want))),
+            ]);
+        }
+    }
+    lines
+}
+
 fn menu_lines(sim: &Sim) -> Vec<Line> {
     let mut lines = vec![
         vec![big("SpiritScape", HEADING)],
@@ -2231,7 +2736,7 @@ fn menu_lines(sim: &Sim) -> Vec<Line> {
 
 /// The next thing a skill unlocks above `level`.
 fn next_unlock(w: &World, skill: SkillId, level: u32) -> Option<(String, u32)> {
-    let trees = w.defs.tree_tiers(skill).into_iter().map(|k| {
+    let trees = w.tiers_in_world(skill).into_iter().map(|k| {
         let d = w.defs.tree(k);
         (d.name.clone(), d.level_required)
     });
@@ -2281,7 +2786,7 @@ fn skills_lines(w: &World) -> Vec<Line> {
 
 fn workforce_lines(w: &World) -> Vec<Line> {
     if w.spirits.is_empty() {
-        return vec![vec![muted("No spirits yet.")]];
+        return vec![vec![muted(no_spirits(w))]];
     }
     let mut lines = Vec::new();
     for s in &w.spirits {
@@ -2291,7 +2796,7 @@ fn workforce_lines(w: &World) -> Vec<Line> {
             muted(format!("{role} Lv {}", s.level())),
             Item::Spacer,
         ];
-        let trees = w.defs.tree_tiers(s.skill()).into_iter();
+        let trees = w.tiers_in_world(s.skill()).into_iter();
         line.extend(
             trees
                 .map(|k| w.defs.tree(k))
@@ -2519,11 +3024,7 @@ fn planner_lines(w: &World) -> Vec<Line> {
             muted(format!("{walking}% (builds storage at {limit}%)")),
         ]);
     }
-    for p in w
-        .projects
-        .iter()
-        .filter(|p| p.state != ProjectState::Complete)
-    {
+    for p in w.projects.iter().filter(|p| p.is_active()) {
         let def = w.defs.building(p.kind);
         let (frac, state) = match p.state {
             ProjectState::AwaitingMaterials => (0.0, "awaiting materials".to_string()),
@@ -2539,7 +3040,7 @@ fn planner_lines(w: &World) -> Vec<Line> {
                 p.build_progress as f32 / p.build_required.max(1) as f32,
                 "building".into(),
             ),
-            ProjectState::Complete => (1.0, "complete".into()),
+            ProjectState::Complete | ProjectState::Cancelled => (1.0, "complete".into()),
         };
         let worker = p
             .assigned
@@ -2573,7 +3074,9 @@ fn site_lines(w: &World, i: usize) -> Vec<Line> {
         return vec![];
     };
     let frac = site.trees_grown as f32 / site.trees_total.max(1) as f32;
-    let access = if site.spirits_allowed {
+    let access = if let Some(name) = &site.locked_by {
+        chip(format!("needs a {name}"), WARN)
+    } else if site.spirits_allowed {
         chip("spirits allowed", GOOD)
     } else {
         chip("reserved for you", INFO)
@@ -2592,7 +3095,7 @@ fn site_lines(w: &World, i: usize) -> Vec<Line> {
             access,
         ],
         vec![
-            text("Trees   "),
+            text("Ready   "),
             bar(frac, availability_color(frac), 120.0),
             text(format!(
                 "{}/{} standing",
@@ -2600,7 +3103,7 @@ fn site_lines(w: &World, i: usize) -> Vec<Line> {
             )),
         ],
         vec![
-            text("Logs/min"),
+            text("Per min "),
             bar(rate.min(1.0), if rate > 1.0 { WARN } else { INFO }, 120.0),
             text(format!("{:.0}", site.measured_per_min)),
             muted(format!("(sustains ~{:.0})", site.sustainable_per_min)),
@@ -2637,7 +3140,7 @@ fn bottleneck_lines(w: &World) -> Vec<Line> {
         vec![big(r.bottleneck.label(), color)],
         vec![text(r.summary.clone())],
         vec![muted(format!(
-            "Gatherers could cut up to ~{:.0} logs/min if trees were always ready.",
+            "Gatherers could bring in up to ~{:.0} a minute if everything were always ready.",
             r.chop_capacity_per_min
         ))],
     ]
@@ -2657,7 +3160,7 @@ fn time_use_lines(w: &World) -> Vec<Line> {
         Item::Dot(other),
         muted("unload/build"),
         Item::Dot(wait),
-        muted("wait for trees"),
+        muted("wait for regrowth"),
         Item::Dot(idle),
         muted("idle"),
     ]];

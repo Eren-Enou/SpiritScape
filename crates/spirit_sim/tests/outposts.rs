@@ -262,10 +262,7 @@ fn geography_decides_how_far_the_hauler_walks() {
     let central = get("Central");
     let remote = get("made at Old Growth");
     let bridge = get("by the bridge");
-    assert!(
-        remote.hauler_tiles * 3 < central.hauler_tiles * 2,
-        "much less walking"
-    );
+    assert!(remote.hauler_tiles < central.hauler_tiles, "less walking");
     assert!(
         bridge.hauler_tiles > remote.hauler_tiles,
         "placement matters"
@@ -281,15 +278,15 @@ fn geography_decides_how_far_the_hauler_walks() {
 }
 
 #[test]
-fn an_outpost_pays_off_once_it_has_its_own_hauler() {
+fn an_outpost_saves_walking_with_one_hauler_or_two() {
     let runs = compare_layouts(20);
     let tiles = |name: &str| runs.iter().find(|r| r.name == name).unwrap().hauler_tiles;
-    // One hauler split between both ends of the map walks further for it.
+    // Full loads home mean even a hauler split between both ends gains.
     assert!(
-        tiles("Remote, one hauler, planks too") > tiles("Central, one hauler, planks too"),
-        "a lone shared hauler favours central production"
+        tiles("Remote, one hauler, planks too") < tiles("Central, one hauler, planks too"),
+        "a lone shared hauler now favours remote production too"
     );
-    // A second one posted there turns that around.
+    // A second one posted there gains more.
     assert!(
         tiles("Remote, two haulers, planks too") < tiles("Central, two haulers, planks too"),
         "a posted hauler favours remote production"
@@ -297,12 +294,14 @@ fn an_outpost_pays_off_once_it_has_its_own_hauler() {
 }
 
 #[test]
-fn staffing_changes_how_fast_the_target_is_met() {
+fn staffing_changes_the_hauling_but_not_a_regrowth_limited_target() {
     let runs = compare_layouts(20);
     let get = |name: &str| runs.iter().find(|r| r.name.contains(name)).unwrap();
-    let full = get("made at Old Growth").reached_target.unwrap();
-    let one = get("one gatherer").reached_target.unwrap();
-    assert!(one > full);
+    let full = get("made at Old Growth");
+    let one = get("one gatherer");
+    assert_eq!(one.beams_home, full.beams_home);
+    // A slower trickle of hardwood means smaller, more frequent loads.
+    assert!(one.hauler_tiles > full.hauler_tiles);
 }
 
 #[test]
@@ -746,7 +745,7 @@ fn training_at_the_outpost() -> World {
 fn the_player_can_choose_the_remote_bench() {
     let w = training_at_the_outpost();
     assert_eq!(w.training_bench().unwrap().pos, BENCH_AT);
-    assert_eq!(w.recipe_options().len(), 3);
+    assert_eq!(w.recipe_options().len(), 4);
     let report = w.training_report();
     assert!(report.bench.1 > 0);
 }

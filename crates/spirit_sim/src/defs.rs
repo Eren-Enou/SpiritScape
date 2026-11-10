@@ -108,6 +108,10 @@ pub struct TreeTypeDef {
     pub id: String,
     pub name: String,
     pub map_char: char,
+    /// Follows the seasons: grows faster in spring, and stops in winter.
+    pub seasonal: bool,
+    /// No spirit will cut this.
+    pub spirits_avoid: bool,
     pub resource: ResourceId,
     pub skill: SkillId,
     /// Minimum skill level to cut this tree. Applies to the player and spirits.
@@ -150,6 +154,8 @@ pub struct RecipeDef {
     pub xp: u64,
     /// Why this recipe matters, for the moment it's unlocked.
     pub why: String,
+    /// Made only when someone asks for it by name.
+    pub chosen_only: bool,
 }
 
 impl RecipeDef {
@@ -172,6 +178,44 @@ pub struct LogisticsRules {
     pub long_trip_batches: u32,
     /// Share of a carrier's load, in percent, worth a long trip.
     pub long_trip_load_pct: u32,
+    /// Goods this close to a pickup can join the same trip.
+    pub batch_tiles: u32,
+    /// Carriers weigh jobs by load and distance. Off, they take the job rules
+    /// strictly in order, which is how the difference is measured.
+    pub scored_carrying: bool,
+}
+
+/// Limits on the construction plan.
+#[derive(Clone, Debug)]
+pub struct ConstructionRules {
+    /// Buildings that can wait on the plan at once.
+    pub queue_limit: u32,
+    /// An annex works with a bench this many tiles away.
+    pub annex_reach: u32,
+    /// Room in Main Storage that surplus finished goods can't use.
+    pub raw_room: u32,
+    /// How long a road tile takes, as a percentage of open ground.
+    pub road_pct: u32,
+    /// How long a visitor waits for an answer.
+    pub visitor_patience_minutes: u64,
+    /// The least time between one visitor arriving and the next.
+    pub visitor_gap_minutes: u64,
+    /// How long spirits gather when the Hearth is lit.
+    pub hearth_gathering_ticks: u64,
+    /// Time between one spirit boarding and the next.
+    pub homecoming_gap_ticks: u64,
+    /// How long anyone gets to reach the boat.
+    pub homecoming_limit_ticks: u64,
+    /// Time between one spirit doing something small and the next.
+    pub moment_ticks: u64,
+    /// How long that stays on the map.
+    pub moment_shown_ticks: u64,
+    /// The water that freezes in winter, as [x0, y0, x1, y1].
+    pub ice_area: [i32; 4],
+    /// How long before spring the ice starts to warn the player.
+    pub thaw_warning_ticks: u64,
+    /// How often to check that nobody's been walled in.
+    pub stranded_check_ticks: u64,
 }
 
 /// Settlement production settings that aren't player-adjustable.
@@ -195,6 +239,8 @@ pub struct SiteDef {
     pub regrow_pct: u32,
     /// Can be run as a remote production site.
     pub outpost: bool,
+    /// The site this one is reached through. Spirits posted there work here too.
+    pub region: Option<SiteId>,
 }
 
 impl SiteDef {
@@ -275,6 +321,18 @@ pub struct BuildingDef {
     pub input_buffer: u32,
     /// Added to Main Storage's capacity when this building is completed.
     pub capacity_bonus: u32,
+    /// More that every spirit can carry once this stands.
+    pub carry_bonus: u32,
+    /// Leaves when it's finished, so it can be built again and again.
+    pub repeatable: bool,
+    /// Finishing this ends the story, though the game carries on.
+    pub ending: bool,
+    /// Trade Caravans that must have gone before this can be planned.
+    pub needs_caravans: u32,
+    /// What the caravan that opens this brings back, in words.
+    pub caravan_find: String,
+    /// Trees or outcrops added to the map when this is finished.
+    pub plants: Vec<(TreeKindId, [i32; 2])>,
     /// Built on the player's request.
     pub manual: bool,
     /// Room for materials set aside for the player's training at a station.
@@ -287,6 +345,28 @@ pub struct BuildingDef {
     pub slots: u32,
     /// Room added at stations for logs set aside for the player.
     pub training_bonus: u32,
+    /// Keeps seasonal things recovering through winter, at half speed.
+    pub winter_growth: bool,
+    /// What the closing story says if this stands.
+    pub ending_line: Option<String>,
+    /// Spirits can be called home to this.
+    pub calls_home: bool,
+    /// Where this must be built, when it's tied to one place.
+    pub access_site: Option<[i32; 2]>,
+    /// Tiles that become a crossing when this is finished.
+    pub opens: Vec<[i32; 2]>,
+    /// Tiles that become road when this is finished, in order from its start.
+    pub paves: Vec<[i32; 2]>,
+    /// The site that crossing reaches.
+    pub unlocks_site: Option<String>,
+    /// Buildings that must be finished first.
+    pub requires: Vec<String>,
+    /// Places added at the nearest bench.
+    pub slot_bonus: u32,
+    /// What changes when this is finished, in a sentence.
+    pub benefit: String,
+    /// The site it goes up in when the player doesn't choose a tile.
+    pub home_site: Option<String>,
 }
 
 impl BuildingDef {
@@ -339,6 +419,21 @@ pub struct JourneyRules {
 
 #[derive(Clone, Debug)]
 pub struct GameDefs {
+    /// Long-term goals, in the order they're suggested.
+    pub ambitions: Vec<crate::ambitions::AmbitionDef>,
+    /// What to say as each system first matters.
+    pub tips: Vec<crate::tips::TipDef>,
+    /// People who pass through, in the order they come.
+    pub visitors: Vec<crate::visitors::VisitorDef>,
+    /// The year, in order.
+    pub seasons: Vec<crate::stories::SeasonDef>,
+    /// Old stones to find around the map.
+    pub markers: Vec<crate::stories::MarkerDef>,
+    /// What spirits made by Soul Separation can be like.
+    pub traits: Vec<crate::stories::TraitDef>,
+    /// Milestones in a spirit's working life.
+    pub deeds: Vec<crate::stories::DeedDef>,
+    pub moments: Vec<crate::moments::MomentDef>,
     /// The progression profile these definitions were resolved with.
     pub profile: ProfileInfo,
     /// Every profile in the data file.
@@ -358,6 +453,7 @@ pub struct GameDefs {
     pub sites: Vec<SiteDef>,
     pub gathering: GatheringRules,
     pub logistics: LogisticsRules,
+    pub construction: ConstructionRules,
     pub player: PlayerRules,
     pub soul_min_xp: u64,
     pub roles: Vec<RoleDef>,
@@ -376,6 +472,22 @@ struct RawDefs {
     saves: RawSaves,
     progression: RawProgression,
     journey: JourneyRules,
+    #[serde(default)]
+    ambitions: Vec<crate::ambitions::AmbitionDef>,
+    #[serde(default)]
+    tips: Vec<crate::tips::TipDef>,
+    #[serde(default)]
+    visitors: Vec<crate::visitors::VisitorDef>,
+    #[serde(default)]
+    seasons: Vec<crate::stories::SeasonDef>,
+    #[serde(default)]
+    markers: Vec<crate::stories::MarkerDef>,
+    #[serde(default)]
+    traits: Vec<crate::stories::TraitDef>,
+    #[serde(default)]
+    deeds: Vec<crate::stories::DeedDef>,
+    #[serde(default)]
+    moments: Vec<crate::moments::MomentDef>,
     resources: Vec<ResourceDef>,
     skills: Vec<SkillDef>,
     tree_types: Vec<RawTreeType>,
@@ -386,6 +498,7 @@ struct RawDefs {
     sites: Vec<RawSite>,
     gathering: RawGathering,
     logistics: RawLogistics,
+    construction: RawConstruction,
     player: RawPlayer,
     roles: Vec<RawRole>,
     buildings: Vec<RawBuilding>,
@@ -428,6 +541,10 @@ struct RawTreeType {
     id: String,
     name: String,
     map_char: String,
+    #[serde(default)]
+    seasonal: bool,
+    #[serde(default)]
+    spirits_avoid: bool,
     resource: String,
     skill: String,
     #[serde(default = "one")]
@@ -459,6 +576,8 @@ struct RawRecipe {
     xp: u64,
     #[serde(default)]
     why: String,
+    #[serde(default)]
+    chosen_only: bool,
 }
 
 #[derive(Deserialize)]
@@ -474,6 +593,51 @@ struct RawLogistics {
     long_trip_tiles: u32,
     long_trip_batches: u32,
     long_trip_load_pct: u32,
+    batch_tiles: u32,
+    scored_carrying: bool,
+}
+
+#[derive(Deserialize)]
+struct RawPlant {
+    tree: String,
+    at: [i32; 2],
+}
+
+/// Every tile along a road's corners.
+fn road_tiles(corners: &[[i32; 2]]) -> Result<Vec<[i32; 2]>, String> {
+    let mut tiles: Vec<[i32; 2]> = corners.iter().take(1).copied().collect();
+    for pair in corners.windows(2) {
+        let ([ax, ay], [bx, by]) = (pair[0], pair[1]);
+        if ax != bx && ay != by {
+            return Err("a road's corners must line up".into());
+        }
+        let (dx, dy) = ((bx - ax).signum(), (by - ay).signum());
+        let (mut x, mut y) = (ax, ay);
+        while [x, y] != [bx, by] {
+            x += dx;
+            y += dy;
+            tiles.push([x, y]);
+        }
+    }
+    Ok(tiles)
+}
+
+#[derive(Deserialize)]
+struct RawConstruction {
+    queue_limit: u32,
+    annex_reach: u32,
+    raw_room: u32,
+    road_pct: u32,
+    visitor_gap_minutes: u64,
+    visitor_patience_minutes: u64,
+    hearth_gathering_seconds: f32,
+    homecoming_gap_seconds: f32,
+    homecoming_limit_seconds: f32,
+    moment_seconds: f32,
+    moment_shown_seconds: f32,
+    ice_area: [i32; 4],
+    thaw_warning_seconds: f32,
+    stranded_check_seconds: f32,
 }
 
 #[derive(Deserialize)]
@@ -485,6 +649,8 @@ struct RawSite {
     regrow_pct: u32,
     #[serde(default)]
     outpost: bool,
+    #[serde(default)]
+    region: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -574,6 +740,44 @@ struct RawBuilding {
     slots: u32,
     #[serde(default)]
     training_bonus: u32,
+    #[serde(default)]
+    winter_growth: bool,
+    #[serde(default)]
+    ending_line: Option<String>,
+    #[serde(default)]
+    calls_home: bool,
+    #[serde(default)]
+    carry_bonus: u32,
+    #[serde(default)]
+    repeatable: bool,
+    #[serde(default)]
+    ending: bool,
+    #[serde(default)]
+    needs_caravans: u32,
+    #[serde(default)]
+    caravan_find: String,
+    #[serde(default)]
+    plants: Vec<RawPlant>,
+    #[serde(default)]
+    access_site: Option<[i32; 2]>,
+    #[serde(default)]
+    opens: Vec<[i32; 2]>,
+    /// Corners of a road, joined by straight lines.
+    #[serde(default)]
+    paves: Vec<[i32; 2]>,
+    #[serde(default)]
+    unlocks_site: Option<String>,
+    #[serde(default)]
+    requires: Vec<String>,
+    #[serde(default)]
+    slot_bonus: u32,
+    #[serde(default)]
+    benefit: String,
+    #[serde(default)]
+    home_site: Option<String>,
+    /// Finished goods in the cost follow the profile's improvement cost.
+    #[serde(default)]
+    scales_goods: bool,
 }
 
 #[derive(Deserialize)]
@@ -693,6 +897,8 @@ impl GameDefs {
         for t in raw.tree_types {
             trees.push(TreeTypeDef {
                 map_char: single_char(&t.map_char, &t.id)?,
+                seasonal: t.seasonal,
+                spirits_avoid: t.spirits_avoid,
                 resource: resource_id(&t.resource)?,
                 skill: skill_id(&t.skill)?,
                 level_required: t.level_required.max(1),
@@ -708,10 +914,16 @@ impl GameDefs {
             });
         }
 
+        let site_keys: Vec<String> = raw.sites.iter().map(|s| s.id.clone()).collect();
         let sites: Vec<SiteDef> = raw
             .sites
             .into_iter()
             .map(|s| SiteDef {
+                region: s
+                    .region
+                    .as_ref()
+                    .and_then(|r| site_keys.iter().position(|k| k == r))
+                    .map(|i| SiteId(i as u16)),
                 id: s.id,
                 name: s.name,
                 area: s.area,
@@ -726,6 +938,24 @@ impl GameDefs {
             long_trip_tiles: raw.logistics.long_trip_tiles.max(1),
             long_trip_batches: raw.logistics.long_trip_batches,
             long_trip_load_pct: raw.logistics.long_trip_load_pct.min(100),
+            batch_tiles: raw.logistics.batch_tiles,
+            scored_carrying: raw.logistics.scored_carrying,
+        };
+        let construction = ConstructionRules {
+            queue_limit: raw.construction.queue_limit.max(1),
+            annex_reach: raw.construction.annex_reach,
+            raw_room: raw.construction.raw_room,
+            road_pct: raw.construction.road_pct.clamp(1, 100),
+            visitor_gap_minutes: raw.construction.visitor_gap_minutes,
+            visitor_patience_minutes: raw.construction.visitor_patience_minutes,
+            hearth_gathering_ticks: ticks(raw.construction.hearth_gathering_seconds),
+            homecoming_gap_ticks: ticks(raw.construction.homecoming_gap_seconds),
+            homecoming_limit_ticks: ticks(raw.construction.homecoming_limit_seconds),
+            moment_ticks: ticks(raw.construction.moment_seconds),
+            moment_shown_ticks: ticks(raw.construction.moment_shown_seconds),
+            ice_area: raw.construction.ice_area,
+            thaw_warning_ticks: ticks(raw.construction.thaw_warning_seconds),
+            stranded_check_ticks: ticks(raw.construction.stranded_check_seconds).max(1),
         };
 
         let mut roles = Vec::new();
@@ -760,6 +990,12 @@ impl GameDefs {
             };
             let mut cost = Vec::new();
             for c in &b.cost {
+                let made = raw.recipes.iter().any(|r| r.output.resource == c.resource);
+                let pct = if b.scales_goods && made {
+                    chosen.improvement_cost_pct
+                } else {
+                    pct
+                };
                 cost.push((resource_id(&c.resource)?, c.amount * pct / 100));
             }
             buildings.push(BuildingDef {
@@ -781,15 +1017,47 @@ impl GameDefs {
                 is_station: false,
                 input_buffer: b.input_buffer,
                 capacity_bonus: b.capacity_bonus,
+                carry_bonus: b.carry_bonus,
+                repeatable: b.repeatable,
+                ending: b.ending,
+                needs_caravans: b.needs_caravans,
+                caravan_find: b.caravan_find,
+                plants: b
+                    .plants
+                    .iter()
+                    .map(|p| {
+                        let at = trees.iter().position(|t| t.id == p.tree);
+                        at.map(|i| (TreeKindId(i as u16), p.at))
+                            .ok_or_else(|| format!("{:?} plants unknown {:?}", b.id, p.tree))
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
                 manual: b.manual,
                 training_buffer: b.training_buffer,
                 training_cache: b.training_cache,
                 extra_capacity: b.extra_capacity,
                 slots: b.slots.max(1),
                 training_bonus: b.training_bonus,
+                winter_growth: b.winter_growth,
+                ending_line: b.ending_line,
+                calls_home: b.calls_home,
+                access_site: b.access_site,
+                opens: b.opens,
+                paves: road_tiles(&b.paves).map_err(|e| format!("{:?}: {e}", b.id))?,
+                unlocks_site: b.unlocks_site,
+                requires: b.requires,
+                slot_bonus: b.slot_bonus,
+                benefit: b.benefit,
+                home_site: b.home_site,
                 id: b.id,
                 name: b.name,
             });
+        }
+        for b in &buildings {
+            for need in &b.requires {
+                if !buildings.iter().any(|x| x.id == *need) {
+                    return Err(format!("{:?} requires unknown building {need:?}", b.id));
+                }
+            }
         }
         if buildings.iter().filter(|b| b.is_main).count() != 1 {
             return Err("exactly one building must have is_main = true".into());
@@ -820,6 +1088,7 @@ impl GameDefs {
                 min_craft_ticks: ticks(r.min_craft_seconds) as u32,
                 xp: r.xp,
                 why: r.why,
+                chosen_only: r.chosen_only,
                 id: r.id,
                 name: r.name,
             });
@@ -853,7 +1122,24 @@ impl GameDefs {
             reject_cooldown_ticks: ticks(p.reject_cooldown_seconds),
         };
 
+        for a in &raw.ambitions {
+            let known_building = |b: &String| buildings.iter().any(|d| d.id == *b);
+            let known_skill = a.skill.iter().all(|s| skills.iter().any(|d| d.id == *s));
+            let known_resource = a.made.iter().all(|r| resources.iter().any(|d| d.id == *r));
+            if !a.built.iter().all(known_building) || !known_skill || !known_resource {
+                return Err(format!("ambition {:?} refers to something unknown", a.id));
+            }
+        }
+
         Ok(GameDefs {
+            ambitions: raw.ambitions,
+            tips: raw.tips,
+            visitors: raw.visitors,
+            seasons: raw.seasons,
+            markers: raw.markers,
+            traits: raw.traits,
+            deeds: raw.deeds,
+            moments: raw.moments,
             profile: ProfileInfo {
                 id: chosen.id,
                 title: chosen.title,
@@ -882,6 +1168,7 @@ impl GameDefs {
             sites,
             gathering,
             logistics,
+            construction,
             roles,
             buildings,
             objective,
@@ -971,7 +1258,9 @@ impl GameDefs {
     ) -> Option<RecipeId> {
         self.station_recipes(station).into_iter().rev().find(|&r| {
             let def = self.recipe(r);
-            level >= def.level_required && def.inputs.iter().all(|&(res, n)| have(res) >= n)
+            !def.chosen_only
+                && level >= def.level_required
+                && def.inputs.iter().all(|&(res, n)| have(res) >= n)
         })
     }
 

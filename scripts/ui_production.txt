@@ -41,7 +41,7 @@
 13.0 scroll 1380 400 40
 13.3 press 1x
 13.5 press Save
-13.8 expect Game saved
+13.8 expect Scenario saved
 13.9 key F9
 14.5 expect Game loaded
 14.6 key O

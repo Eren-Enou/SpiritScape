@@ -202,13 +202,16 @@ fn spawn_hover_tip(mut commands: Commands) {
     ));
 }
 
-fn rebuild_on_restart(
+#[allow(clippy::too_many_arguments)]
+pub fn rebuild_on_restart(
     mut commands: Commands,
     sim: Res<Sim>,
     visuals: Res<Visuals>,
     assets: Res<AssetServer>,
     mut spawned: ResMut<Spawned>,
     existing: Query<Entity, With<WorldEntity>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     if spawned.generation == Some(sim.generation) {
         return;
@@ -224,6 +227,11 @@ fn rebuild_on_restart(
     let w = &sim.world;
     let t = &visuals.terrain;
     let is_water = |p: TilePos| matches!(w.grid.terrain(p), Some(Terrain::Water | Terrain::Bridge));
+    let plank = meshes.add(Cuboid::new(0.98, 0.05, 0.29));
+    let plank_colors = [
+        materials.add(Color::srgb(0.55, 0.40, 0.25)),
+        materials.add(Color::srgb(0.48, 0.34, 0.21)),
+    ];
 
     for y in 0..w.grid.height {
         for x in 0..w.grid.width {
@@ -250,6 +258,31 @@ fn rebuild_on_restart(
                                 .with_rotation(Quat::from_rotation_y((h % 360) as f32))
                                 .with_scale(Vec3::splat(0.8)),
                         );
+                    }
+                }
+                Terrain::Road => {
+                    spawn(&t.grass, Transform::from_translation(at));
+                    // Planks run across the way the road goes.
+                    let along_x = matches!(
+                        w.grid.terrain(TilePos::new(x + 1, y)),
+                        Some(Terrain::Road | Terrain::Bridge)
+                    ) || matches!(
+                        w.grid.terrain(TilePos::new(x - 1, y)),
+                        Some(Terrain::Road | Terrain::Bridge)
+                    );
+                    let turn = if along_x {
+                        Quat::from_rotation_y(std::f32::consts::FRAC_PI_2)
+                    } else {
+                        Quat::IDENTITY
+                    };
+                    for i in 0..3u32 {
+                        let shift = turn * Vec3::new(0.0, 0.03, (i as f32 - 1.0) * 0.32);
+                        commands.spawn((
+                            WorldEntity,
+                            Mesh3d(plank.clone()),
+                            MeshMaterial3d(plank_colors[((h >> i) & 1) as usize].clone()),
+                            Transform::from_translation(at + shift).with_rotation(turn),
+                        ));
                     }
                 }
                 Terrain::Rock => {
@@ -288,6 +321,24 @@ fn rebuild_on_restart(
                 }
             }
         }
+    }
+
+    // Plain rocks are everywhere, so these have to stand out from far off.
+    let stone = meshes.add(Cuboid::new(0.34, 1.7, 0.34));
+    let glow = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.86, 0.84, 0.72),
+        emissive: LinearRgba::rgb(0.55, 0.50, 0.28),
+        ..default()
+    });
+    for m in &w.defs.markers {
+        let at = tile_world(m.at[0] as f32, m.at[1] as f32);
+        commands.spawn((
+            WorldEntity,
+            Mesh3d(stone.clone()),
+            MeshMaterial3d(glow.clone()),
+            Transform::from_translation(at + Vec3::Y * 0.85)
+                .with_rotation(Quat::from_rotation_z(0.08)),
+        ));
     }
 
     for i in 0..w.defs.sites.len() {
@@ -484,6 +535,7 @@ fn sync_buildings(
         // While being built, the structure rises out of the ground.
         let (show, height) = match b.state {
             BuildingState::Complete => (true, 1.0),
+            BuildingState::Removed => (false, 1.0),
             BuildingState::UnderConstruction { project } => {
                 let p = &w.projects[project];
                 let progress = p.build_progress as f32 / p.build_required.max(1) as f32;
@@ -498,7 +550,10 @@ fn sync_buildings(
         });
     }
     for (bs, mut vis) in &mut sites {
-        let site = !w.buildings[bs.0].is_complete();
+        let site = matches!(
+            w.buildings[bs.0].state,
+            BuildingState::UnderConstruction { .. }
+        );
         vis.set_if_neq(if site {
             Visibility::Inherited
         } else {
@@ -509,6 +564,7 @@ fn sync_buildings(
         let b = &w.buildings[sp.0];
         let amount = match b.state {
             BuildingState::Complete => b.storage.get(w.defs.objective.resource),
+            BuildingState::Removed => 0,
             BuildingState::UnderConstruction { project } => {
                 w.projects[project].delivered.values().sum()
             }
@@ -566,7 +622,7 @@ fn update_site_banners(
         .collect();
     for (t, mut text) in &mut titles {
         let (grown, total) = counts[t.0];
-        let content = format!("{}  {grown}/{total} trees", w.defs.sites[t.0].name);
+        let content = format!("{}  {grown}/{total} ready", w.defs.sites[t.0].name);
         if text.0 != content {
             text.0 = content;
         }
@@ -588,12 +644,18 @@ fn update_site_banners(
         let (content, c) = if !w.settlement.site_open[n.0] {
             ("Reserved for you - no spirits".to_string(), INFO)
         } else if waiting > 0 {
-            (
-                format!("{waiting} spirit(s) waiting for trees to regrow"),
-                WARN,
-            )
+            (format!("{waiting} spirit(s) waiting for regrowth"), WARN)
         } else {
-            ("Spirits allowed".to_string(), MUTED)
+            let shunned = w
+                .trees
+                .iter()
+                .filter(|tree| tree.site == Some(SiteId(n.0 as u16)))
+                .all(|tree| w.defs.tree(tree.kind).spirits_avoid);
+            if shunned {
+                ("No spirit will work here".to_string(), MUTED)
+            } else {
+                ("Spirits allowed".to_string(), MUTED)
+            }
         };
         if text.0 != content {
             text.0 = content;
@@ -636,16 +698,25 @@ fn update_labels(
                 )
             }
             WorldLabel::Spirit(id) => {
-                let s = &w.spirits[id];
+                let Some(s) = w.spirits.get(id).filter(|s| !s.aboard) else {
+                    vis.set_if_neq(Visibility::Hidden);
+                    continue;
+                };
                 let (x, y) = s.actor.mover.visual_pos();
                 let (status, word) = spirit_status(s);
                 let content = format!("{} Lv{} - {word}", s.name, s.level());
-                (3, tile_world(x, y), 1.05, Some((content, status.color())))
+                let shown = match w.spirit_moment(s) {
+                    Some(moment) => (moment, Color::srgb(1.0, 0.95, 0.8)),
+                    None => (content, status.color()),
+                };
+                (3, tile_world(x, y), 1.05, Some(shown))
             }
             WorldLabel::Building(id) => {
                 let b = &w.buildings[id];
                 let def = w.defs.building(b.kind);
                 let content = match b.state {
+                    BuildingState::Removed => String::new(),
+                    BuildingState::Complete if !def.paves.is_empty() => String::new(),
                     BuildingState::Complete if def.capacity == 0 => b.name.clone(),
                     BuildingState::Complete if b.storage.total() == 0 => {
                         format!("{}: empty", b.name)
@@ -755,8 +826,9 @@ fn update_hover_tip(
                 ),
                 _ => {
                     let skill = &w.defs.skill(def.skill).name;
+                    let good = w.defs.resource(def.resource).name.to_lowercase();
                     let mut s = format!(
-                        "{} - needs {skill} Lv {}\n{}/{} logs, {} XP each",
+                        "{} - needs {skill} Lv {}\n{}/{} {good}, {} XP each",
                         def.name,
                         def.level_required,
                         t.logs_left(),
@@ -877,13 +949,13 @@ fn draw_overlays(sim: Res<Sim>, mut gizmos: Gizmos) {
         }
     };
     draw_path(&w.player.actor.mover, Color::srgba(1.0, 1.0, 1.0, 0.7));
-    for s in &w.spirits {
+    for s in w.spirits.iter().filter(|s| !s.aboard) {
         let c = w.defs.role(s.role).color;
         draw_path(&s.actor.mover, Color::srgba(c[0], c[1], c[2], 0.8));
     }
     // Status ring under each spirit, matching its label colour.
     let flat = Quat::from_rotation_x(std::f32::consts::FRAC_PI_2);
-    for s in &w.spirits {
+    for s in w.spirits.iter().filter(|s| !s.aboard) {
         let (x, y) = s.actor.mover.visual_pos();
         let color = spirit_status(s).0.color();
         let at = tile_world(x, y) + Vec3::Y * 0.05;

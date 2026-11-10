@@ -1,0 +1,25 @@
+# UI test of choosing Fitted Panels and spending them:
+#   cargo run --release -- --scenario panel_workshop --save-dir target/ui_saves11 --script scripts/ui_panels.txt --capture target/ui_panels
+1.5 key T
+2.0 expect Fitted Panels
+2.1 press Fitted Panels*
+2.5 expect Fitted Panels
+2.6 shot 01_chosen
+2.8 key B
+3.2 expect Plan Panelled Warehouse
+3.3 expect Plan Carrying Frames
+3.4 press Plan Carrying Frames*
+3.8 expect Carrying Frames added to the plan
+3.9 expect Every spirit carries five more
+4.0 shot 02_planned
+4.2 key P
+4.6 expect Panels +5
+4.7 shot 03_orders
+4.9 key B
+5.1 press 8x
+40.0 expect Finished
+40.1 press 1x
+40.3 shot 04_built
+40.5 press Save
+40.9 expect Scenario saved
+41.0 exit

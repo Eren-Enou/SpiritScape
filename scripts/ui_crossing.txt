@@ -1,0 +1,25 @@
+# UI test of planning and opening the Forest Crossing:
+#   cargo run --release -- --scenario forest_access --save-dir target/ui_saves9 --script scripts/ui_crossing.txt --capture target/ui_crossing
+1.5 key G
+2.0 expect Hollow Grove
+2.1 expect needs a Forest Crossing
+2.2 shot 01_locked
+2.3 key G
+2.6 key B
+3.0 press Plan Forest Crossing*
+3.4 expect Forest Crossing added to the plan
+3.5 expect Gathering materials
+3.6 expect Short of
+3.7 shot 02_gathering
+3.8 key C
+4.0 press 8x
+70.0 expect Finished
+70.1 expect Forest Crossing
+70.2 shot 03_open
+70.3 press 1x
+70.5 key B
+70.9 key G
+71.3 expect Hollow Grove
+71.4 expect spirits allowed
+71.5 shot 04_grove_open
+71.7 exit
