@@ -232,6 +232,10 @@ them. The raw downloaded packs in `assets/` are ignored by git. Which model
 represents which game object is set in `data/visuals.toml`, so models can be
 swapped without touching code.
 
+`assets/models/own/` holds models made for this game by `tools/make_models.py`,
+and `assets/audio/` holds sounds made by `tools/make_sounds.py`. Neither needs
+anything but Python.
+
 ## Layout
 
 ```

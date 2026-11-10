@@ -11,7 +11,7 @@ git fetch origin
 ```
 
 ```bash
-git checkout v0.41-what-they-leave
+git checkout v0.42-own-models
 ```
 
 Then double-click **`play.bat`**. The first time, it builds the game, which takes several minutes. After that it starts straight away.
@@ -69,6 +69,7 @@ Double-click **`scenarios.bat`** and pick a number. Each one starts right where 
 | 9 | The Hearth | Plan the Hearth of Spirits, then press `J` | Did it feel like an ending? |
 | 10 | The Still Boat | Press `J`, and decide | Did you hesitate? Did the closing words feel earned? |
 | 11 | The whole map | Walk around | Does it look like one place? |
+| 12 | Brickyard | Look at the Kiln, Warm Walls, Hearth Chimney and Still Boat | Can you tell what each one is without reading its label? |
 
 ## Four decisions only you can make
 

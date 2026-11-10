@@ -74,3 +74,19 @@ fn the_visuals_file_reads_as_the_game_reads_it() {
         panic!("data/visuals.toml can't be read: {e}");
     }
 }
+
+#[test]
+fn the_games_own_models_are_in_use() {
+    let text = visuals();
+    for name in [
+        "kiln",
+        "still_boat",
+        "warm_wall",
+        "chimney",
+        "clay_bank",
+        "clay_dug",
+    ] {
+        let wanted = format!("models/own/{name}.glb");
+        assert!(text.contains(&wanted), "{wanted} isn't used");
+    }
+}

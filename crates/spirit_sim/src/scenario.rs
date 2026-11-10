@@ -73,6 +73,8 @@ pub enum ScenarioKind {
     LastBoat,
     /// Nothing to do but watch.
     QuietHour,
+    /// Everything fire can make, side by side.
+    Brickyard,
     /// Everything built: every road, both crossings. The busiest map there is.
     FullMap,
     /// Main Storage completely full, with nothing to spend it on.
@@ -92,7 +94,7 @@ pub enum ScenarioKind {
 }
 
 impl ScenarioKind {
-    pub const ALL: [ScenarioKind; 36] = [
+    pub const ALL: [ScenarioKind; 37] = [
         ScenarioKind::NewGame,
         ScenarioKind::Demo,
         ScenarioKind::Regrind,
@@ -121,6 +123,7 @@ impl ScenarioKind {
         ScenarioKind::KilnYard,
         ScenarioKind::LastBoat,
         ScenarioKind::QuietHour,
+        ScenarioKind::Brickyard,
         ScenarioKind::FullMap,
         ScenarioKind::NoRoomLeft,
         ScenarioKind::QuarryStart,
@@ -161,6 +164,7 @@ impl ScenarioKind {
             ScenarioKind::KilnYard => "kiln_yard",
             ScenarioKind::LastBoat => "last_boat",
             ScenarioKind::QuietHour => "quiet_hour",
+            ScenarioKind::Brickyard => "brickyard",
             ScenarioKind::FullMap => "full_map",
             ScenarioKind::NoRoomLeft => "no_room_left",
             ScenarioKind::QuarryStart => "quarry_start",

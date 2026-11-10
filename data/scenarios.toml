@@ -458,6 +458,23 @@ spirits = [
     { role = "hauler", xp = 388, spawn = "H" },
 ]
 
+[brickyard]
+title = "Brickyard"
+description = "The Kiln, Warm Walls, a Hearth Chimney and the Still Boat, side by side. Plan Clay Pits in the Projects tab (B) for the clay."
+objective_target = 20
+auto_gather = true
+caravans = 7
+main_storage = { logs = 60, planks = 40 }
+prebuilt = [
+    { building = "kiln", at = [9, 15] },
+    { building = "warm_walls", at = [11, 15] },
+    { building = "hearth_chimney", at = [9, 13] },
+    { building = "still_boat", at = [12, 13] },
+]
+spirits = [
+    { role = "builder", xp = 388, spawn = "B" },
+]
+
 [full_map]
 title = "Full map"
 description = "Everything is built: every road and both crossings, with a remote bench running. Walk around, and see how it all fits together."

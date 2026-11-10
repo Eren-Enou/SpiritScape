@@ -21,6 +21,7 @@ echo   8  Winter                 Snow, and the frozen south river
 echo   9  The Hearth             The first ending
 echo  10  The Still Boat         The other ending
 echo  11  The whole map          Everything built
+echo  12  Brickyard              Everything fire can make, side by side
 echo.
 set /p CHOICE="Which one? "
 
@@ -36,6 +37,7 @@ if "%CHOICE%"=="8" set "ARGS=--new-game --skip-minutes 95"
 if "%CHOICE%"=="9" set "ARGS=--scenario last_stage"
 if "%CHOICE%"=="10" set "ARGS=--scenario last_boat"
 if "%CHOICE%"=="11" set "ARGS=--scenario full_map"
+if "%CHOICE%"=="12" set "ARGS=--scenario brickyard"
 if "%ARGS%"=="" (
   echo That isn't one of the numbers above.
   pause
