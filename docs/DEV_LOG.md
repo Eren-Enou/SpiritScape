@@ -2,6 +2,14 @@
 
 The handoff between development runs. Newest first.
 
+## v0.44 Left behind
+
+**Status:** on branch `v0.44-left-behind`, with its PR targeting `v0.43-notes`. Not merged.
+
+**Shipped:** four relics on the Far Shore for a person to find, a reference style that sends caravans as early as it can, and a reference player that no longer plans a building nobody can supply. First built as the unpublished v0.43.
+
+**Next:** port Settings.
+
 ## v0.43 Notes
 
 **Status:** on branch `v0.43-notes`, with its PR targeting `v0.42-own-models`. Not merged.

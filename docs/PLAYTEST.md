@@ -11,7 +11,7 @@ git fetch origin
 ```
 
 ```bash
-git checkout v0.43-notes
+git checkout v0.44-left-behind
 ```
 
 Then double-click **`play.bat`**. The first time, it builds the game, which takes several minutes. After that it starts straight away.
@@ -66,7 +66,7 @@ Double-click **`scenarios.bat`** and pick a number. Each one starts right where 
 | 5 | Trade Caravans | Plan one in Projects (`B`) and send it | Did what came back feel like a reward? |
 | 6 | The Kiln | Ask for Bricks | Is a chain this long interesting, or just waiting? |
 | 7 | A quiet hour | Watch for a while, then press `O` | Did a spirit's small moments make you feel anything? |
-| 8 | Winter | Walk south across the frozen river | Did you feel any risk? Did the warning come in time? |
+| 8 | Winter | Walk south across the frozen river, and keep going | Did you feel any risk? Did you find anything on the far side without being told where? |
 | 9 | The Hearth | Plan the Hearth of Spirits, then press `J` | Did it feel like an ending? |
 | 10 | The Still Boat | Press `J`, and decide | Did you hesitate? Did the closing words feel earned? |
 | 11 | The whole map | Walk around | Does it look like one place? |

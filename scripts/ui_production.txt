@@ -32,20 +32,20 @@
 8.2 expect Work at: Workshop
 8.3 press 8x
 12.0 key P
+12.2 press 1x
 12.5 expect WORKSHOPS
 12.6 shot 04_two_workshops
-12.65 press Place Workshop*
-12.75 expect Click a free tile
-12.8 tile 8 17
-12.95 expect Ordered a Workshop
-13.0 scroll 1380 400 40
-13.3 press 1x
-13.5 press Save
-13.8 expect Scenario saved
-13.9 key F9
-14.5 expect Game loaded
-14.6 key O
-14.9 expect Focus: Anything
-15.0 press Next spirit
-15.4 expect Focus: Settlement work
-15.5 exit
+12.7 press Place Workshop*
+13.1 expect Click a free tile
+13.2 tile 8 17
+13.6 expect Ordered a Workshop
+13.7 scroll 1380 400 40
+14.1 press Save
+14.4 expect Scenario saved
+14.5 key F9
+15.1 expect Game loaded
+15.2 key O
+15.5 expect Focus: Anything
+15.6 press Next spirit
+16.0 expect Focus: Settlement work
+16.1 exit

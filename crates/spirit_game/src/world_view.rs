@@ -341,6 +341,16 @@ pub fn rebuild_on_restart(
         ));
     }
 
+    // A small cairn marks each thing left on the far shore.
+    for r in &w.defs.relics {
+        let at = tile_world(r.at[0] as f32, r.at[1] as f32);
+        commands.spawn((
+            WorldEntity,
+            model(&assets, "models/own/cairn.glb"),
+            Transform::from_translation(at).with_scale(Vec3::splat(1.6)),
+        ));
+    }
+
     for i in 0..w.defs.sites.len() {
         spawn_site_banner(&mut commands, i);
     }

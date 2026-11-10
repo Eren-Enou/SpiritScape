@@ -418,6 +418,7 @@ impl World {
                 homecoming: None,
                 moments: scenario.moments,
                 ice_warned: false,
+                relics_found: Vec::new(),
                 bench_bonus: 0,
                 queue: Vec::new(),
                 next_queue_id: 0,

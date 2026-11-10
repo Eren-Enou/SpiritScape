@@ -218,6 +218,18 @@ def clay_dug():
     return m
 
 
+def cairn():
+    m = Model()
+    # A small careful stack, so a player can tell it from a rock.
+    grey = (0.60, 0.62, 0.64)
+    pale = (0.74, 0.75, 0.74)
+    m.tower((0, 0, 0), [(0, 0.26), (0.09, 0.25), (0.12, 0.17), (0.13, 0.0)], 7, grey, cap=False)
+    m.tower((0.02, 0.11, 0.01), [(0, 0.19), (0.08, 0.18), (0.10, 0.11), (0.11, 0.0)], 7, pale, cap=False)
+    m.tower((-0.01, 0.20, 0), [(0, 0.13), (0.07, 0.12), (0.09, 0.07), (0.10, 0.0)], 6, grey, cap=False)
+    m.tower((0.01, 0.28, 0.01), [(0, 0.08), (0.05, 0.08), (0.07, 0.04), (0.08, 0.0)], 6, pale, cap=False)
+    return m
+
+
 def write_glb(path, model):
     binary = bytearray()
     views, accessors, primitives, materials = [], [], [], []
@@ -267,7 +279,8 @@ def write_glb(path, model):
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     for name, build in [("kiln", kiln), ("still_boat", still_boat), ("warm_wall", warm_wall),
-                        ("chimney", chimney), ("clay_bank", clay_bank), ("clay_dug", clay_dug)]:
+                        ("chimney", chimney), ("clay_bank", clay_bank), ("clay_dug", clay_dug),
+                        ("cairn", cairn)]:
         path = OUT / f"{name}.glb"
         write_glb(path, build())
         print(f"{path}: {path.stat().st_size} bytes")
