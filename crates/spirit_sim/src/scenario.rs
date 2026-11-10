@@ -75,6 +75,8 @@ pub enum ScenarioKind {
     QuietHour,
     /// Everything fire can make, side by side.
     Brickyard,
+    /// The Hearth lit, and winter a minute away.
+    Midwinter,
     /// Everything built: every road, both crossings. The busiest map there is.
     FullMap,
     /// Main Storage completely full, with nothing to spend it on.
@@ -94,7 +96,7 @@ pub enum ScenarioKind {
 }
 
 impl ScenarioKind {
-    pub const ALL: [ScenarioKind; 37] = [
+    pub const ALL: [ScenarioKind; 38] = [
         ScenarioKind::NewGame,
         ScenarioKind::Demo,
         ScenarioKind::Regrind,
@@ -124,6 +126,7 @@ impl ScenarioKind {
         ScenarioKind::LastBoat,
         ScenarioKind::QuietHour,
         ScenarioKind::Brickyard,
+        ScenarioKind::Midwinter,
         ScenarioKind::FullMap,
         ScenarioKind::NoRoomLeft,
         ScenarioKind::QuarryStart,
@@ -165,6 +168,7 @@ impl ScenarioKind {
             ScenarioKind::LastBoat => "last_boat",
             ScenarioKind::QuietHour => "quiet_hour",
             ScenarioKind::Brickyard => "brickyard",
+            ScenarioKind::Midwinter => "midwinter",
             ScenarioKind::FullMap => "full_map",
             ScenarioKind::NoRoomLeft => "no_room_left",
             ScenarioKind::QuarryStart => "quarry_start",
@@ -253,6 +257,15 @@ pub struct ScenarioDef {
     /// Spirits do small things, as they do in a real game.
     #[serde(default)]
     pub moments: bool,
+    /// The year turns, as it does in a real game.
+    #[serde(default)]
+    pub seasons: bool,
+    /// How far into the year it starts, in minutes.
+    #[serde(default)]
+    pub start_minutes: u64,
+    /// The Hearth is already lit.
+    #[serde(default)]
+    pub hearth_lit: bool,
 }
 
 /// A full-grown tree of `kind`.
@@ -419,6 +432,8 @@ impl World {
                 moments: scenario.moments,
                 ice_warned: false,
                 relics_found: Vec::new(),
+                years: Vec::new(),
+                seasons: scenario.seasons,
                 bench_bonus: 0,
                 queue: Vec::new(),
                 next_queue_id: 0,
@@ -548,6 +563,12 @@ impl World {
                 .building_kind_id(key)
                 .ok_or_else(|| format!("unknown building {key:?}"))?;
             world.request_building(kind)?;
+        }
+        // Starting partway through the year, with the first minute already over.
+        let minute = world.defs.ticks_per_second as u64 * 60;
+        world.tick = scenario.start_minutes * minute;
+        if scenario.hearth_lit {
+            world.settlement.ended_at = Some(0);
         }
         Ok(world)
     }

@@ -475,6 +475,30 @@ spirits = [
     { role = "builder", xp = 388, spawn = "B" },
 ]
 
+[midwinter]
+title = "Midwinter"
+description = "The Hearth is lit, and it's the last minute of autumn. Stay and watch what they do."
+objective_target = 20
+auto_gather = true
+seasons = true
+start_minutes = 89
+hearth_lit = true
+moments = true
+player_xp = { woodcutting = 388 }
+main_storage = { logs = 60 }
+prebuilt = [
+    { building = "hearth_foundations", at = [9, 13] },
+    { building = "hearth_walls", at = [11, 13] },
+    { building = "hearth_of_spirits", at = [13, 13] },
+]
+spirits = [
+    { role = "woodcutter", xp = 388, spawn = "W", gifted = true },
+    { role = "woodcutter", xp = 388, spawn = "W", gifted = true },
+    { role = "quarrier", xp = 388, spawn = "W", gifted = true },
+    { role = "hauler", xp = 388, spawn = "H" },
+    { role = "builder", xp = 388, spawn = "B" },
+]
+
 [full_map]
 title = "Full map"
 description = "Everything is built: every road and both crossings, with a remote bench running. Walk around, and see how it all fits together."

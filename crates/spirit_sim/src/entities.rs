@@ -325,6 +325,9 @@ pub struct Spirit {
     /// Small things it has done, and when.
     #[serde(default)]
     pub moments: Vec<(u16, u64)>,
+    /// Who was with it, for the moments that had someone else in them.
+    #[serde(default)]
+    pub moment_others: BTreeMap<u16, String>,
 }
 
 impl Spirit {
@@ -367,6 +370,7 @@ impl Spirit {
             aboard: false,
             renamed: false,
             moments: Vec::new(),
+            moment_others: BTreeMap::new(),
         }
     }
 

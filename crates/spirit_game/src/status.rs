@@ -5,6 +5,7 @@ use bevy::prelude::*;
 use spirit_sim::entities::{Activity, Spirit};
 use spirit_sim::metrics::WaitKind;
 use spirit_sim::tasks::Task;
+use spirit_sim::world::World;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Status {
@@ -58,7 +59,27 @@ pub fn spirit_status(s: &Spirit) -> (Status, String) {
                 (Status::Blocked, "storage full".into())
             }
             (Activity::Blocked(_), _) => (Status::Blocked, "stuck".into()),
+            // Not idle: it's where they've chosen to be.
+            (Activity::Idle(what), _) if what == World::AT_THE_HEARTH => {
+                (Status::Idle, "at the Hearth".into())
+            }
             _ => (Status::Idle, "idle".into()),
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use spirit_sim::scenario::ScenarioKind;
+
+    #[test]
+    fn a_spirit_at_the_hearth_says_so() {
+        let mut w = World::from_scenario(ScenarioKind::Midwinter);
+        w.run_ticks(1200);
+        assert!(w.hearth_gathering());
+        let said: Vec<String> = w.spirits.iter().map(|s| spirit_status(s).1).collect();
+        assert!(said.iter().any(|t| t == "at the Hearth"), "{said:?}");
+        assert!(!said.iter().any(|t| t == "idle"), "{said:?}");
     }
 }
