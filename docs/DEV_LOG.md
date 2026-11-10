@@ -2,6 +2,18 @@
 
 The handoff between development runs. Newest first.
 
+## v0.50 One thing at a time
+
+**Status:** on branch `v0.50-one-thing`, with its PR targeting `v0.49-last-time`. Not merged.
+
+**Shipped:** in a real game, the Soul Separation panel and "Your skills" only name skills the player has met, Ambitions wait until the Projects tab opens, and "Settlement improvements" only lists a building in full once the player has met everything it's made of. The Soul Separation comparison says what each choice would lose ("lose Oak"), not just "lose". Scenarios still show everything.
+
+**Found by:** reading the first-minutes screenshots from `ui_journey.txt` as a new player would. The rest of the panel already introduced skills one at a time. These two places didn't.
+
+**Also fixed:** Oak Saplings, a caravan find, was listed under Settlement improvements from the first minute, and every building there without extra storage claimed to be "a drop-off point where you train".
+
+**Next:** the Settlement improvements card lists every building the player can order, so late in a game it gets long. Worth trimming. Then keep reading the first hour's screenshots for the same kind of thing.
+
 ## v0.49 Last time
 
 **Status:** on branch `v0.49-last-time`, with its PR targeting `v0.48-your-stone`. Not merged.

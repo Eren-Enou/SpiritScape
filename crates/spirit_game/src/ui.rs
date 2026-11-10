@@ -1574,6 +1574,13 @@ fn change_policy(
 }
 
 /// Skills the player can turn into a spirit.
+/// Whether the player has met this skill yet. In a real game, skills come one
+/// at a time, and a panel naming five of them in the first minute only says
+/// how much there is to learn.
+fn skill_met(w: &World, skill: SkillId) -> bool {
+    w.is_open(&w.defs.skill(skill).id)
+}
+
 fn soul_skills(w: &World) -> Vec<SkillId> {
     (0..w.defs.skills.len())
         .map(|i| SkillId(i as u16))
@@ -1619,6 +1626,7 @@ fn update_buttons(
         let show = match action {
             UiAction::ToggleWorker(n) => w.crafters().nth(*n).is_some(),
             UiAction::SoulOption(i) => *i < options.len(),
+            UiAction::SoulSkill(s) => *s == sim.soul_skill || skill_met(w, *s),
             // A playthrough isn't a sandbox: nothing here throws it away.
             UiAction::Load(_) => !sim.is_journey() && scenario_buttons.0,
             UiAction::Restart | UiAction::ToggleScenarios => !sim.is_journey(),
@@ -2495,7 +2503,18 @@ fn soul_lines(sim: &Sim) -> Vec<Line> {
                 )),
             ];
             if losing > 0 {
-                line.push(colored("lose", BAD));
+                let names: Vec<String> = o
+                    .preview
+                    .lost
+                    .iter()
+                    .map(tree)
+                    .chain(o.preview.lost_recipes.iter().map(recipe))
+                    .collect();
+                let more = match names.len() {
+                    0 | 1 => String::new(),
+                    n => format!(" +{}", n - 1),
+                };
+                line.push(colored(format!("lose {}{more}", names[0]), BAD));
             }
             lines.push(line);
         }
@@ -2797,6 +2816,13 @@ fn ambition_lines(w: &World) -> Vec<Line> {
     let all = w.ambitions();
     let done = all.iter().filter(|a| a.done).count();
     let mut lines = vec![vec![muted(format!("{done} of {} done", all.len()))]];
+    // They're about planning buildings, so they wait until you can.
+    if !w.is_open("projects") {
+        lines.push(vec![muted(
+            "Bigger things to aim for come into view once you can plan buildings.",
+        )]);
+        return lines;
+    }
     for a in all.into_iter().filter(|a| !a.done).take(3) {
         lines.push(vec![text(a.title)]);
         lines.push(vec![muted(a.hint)]);
@@ -2856,7 +2882,7 @@ fn next_unlock(w: &World, skill: SkillId, level: u32) -> Option<(String, u32)> {
 fn skills_lines(w: &World) -> Vec<Line> {
     let table = &w.defs.xp_table;
     let mut lines = Vec::new();
-    for skill in soul_skills(w) {
+    for skill in soul_skills(w).into_iter().filter(|s| skill_met(w, *s)) {
         let level = w.player.level(skill, table);
         let h = w.player.history(skill);
         let mut line = vec![
@@ -2918,6 +2944,15 @@ fn workforce_lines(w: &World) -> Vec<Line> {
     lines
 }
 
+/// Whether the player has come across this resource: gathered, made or held.
+fn resource_met(w: &World, r: spirit_sim::defs::ResourceId) -> bool {
+    let l = &w.ledger;
+    let any = |m: &std::collections::BTreeMap<spirit_sim::defs::ResourceId, u64>| {
+        m.get(&r).is_some_and(|n| *n > 0)
+    };
+    any(&l.seeded) || any(&l.harvested) || any(&l.crafted) || w.main().storage.available(r) > 0
+}
+
 fn improvement_lines(w: &World) -> Vec<Line> {
     let mut lines = vec![vec![
         text("Main Storage"),
@@ -2929,12 +2964,25 @@ fn improvement_lines(w: &World) -> Vec<Line> {
         )),
     ]];
     let main = &w.main().storage;
+    // Until you can plan buildings, only what's already standing: a list of
+    // shortages in Planks and Structural Beams means nothing in the first minute.
+    let planning = w.is_open("projects");
     for (i, def) in w.defs.buildings.iter().enumerate() {
         if !def.manual {
             continue;
         }
         let kind = BuildingKindId(i as u16);
         let count = w.buildings.iter().filter(|b| b.kind == kind).count() as u32;
+        // A caravan find stays a surprise until the caravans bring it.
+        if count == 0 && def.needs_caravans > w.settlement.caravans {
+            continue;
+        }
+        if !planning && !def.cost.iter().all(|(r, _)| resource_met(w, *r)) {
+            if count > 0 {
+                lines.push(vec![text(format!("{} ({count} built)", def.name))]);
+            }
+            continue;
+        }
         let cost: std::collections::BTreeMap<_, _> = def.cost.iter().copied().collect();
         let short: Vec<String> = def
             .cost
@@ -2954,15 +3002,30 @@ fn improvement_lines(w: &World) -> Vec<Line> {
             Item::Spacer,
             state,
         ]);
-        let effect = if def.capacity_bonus > 0 {
+        // What it's for, in the building's own words where it has them.
+        let effect = if !def.benefit.is_empty() {
+            def.benefit.clone()
+        } else if def.capacity_bonus > 0 {
             format!("+{} storage", def.capacity_bonus)
-        } else {
+        } else if def.training_cache {
             "a drop-off point where you train".to_string()
+        } else if def.training_bonus > 0 {
+            format!(
+                "room for {} more logs set aside for you",
+                def.training_bonus
+            )
+        } else if !def.plants.is_empty() {
+            format!("plants {} trees", def.plants.len())
+        } else {
+            String::new()
         };
-        lines.push(vec![muted(format!(
-            "     {}: {effect}",
-            w.defs.describe_amounts(&cost)
-        ))]);
+        let cost = w.defs.describe_amounts(&cost);
+        let what = if effect.is_empty() {
+            cost
+        } else {
+            format!("{cost}: {effect}")
+        };
+        lines.push(vec![muted(format!("     {what}"))]);
     }
     lines
 }
@@ -3498,5 +3561,106 @@ fn fit_log(
         } else {
             Visibility::Hidden
         });
+    }
+}
+
+#[cfg(test)]
+mod one_thing_at_a_time {
+    use super::*;
+
+    fn words(lines: &[Line]) -> String {
+        let mut out = Vec::new();
+        for item in lines.iter().flatten() {
+            match item {
+                Item::Text { text, .. } | Item::Chip { text, .. } => out.push(text.clone()),
+                _ => {}
+            }
+        }
+        out.join(" ")
+    }
+
+    #[test]
+    fn a_new_game_names_only_the_skill_you_have() {
+        let w = World::new_journey("normal").unwrap();
+        let skills = words(&skills_lines(&w));
+        assert!(skills.contains("Woodcutting"), "{skills}");
+        for other in ["Woodworking", "Quarrying", "Masonry", "Kilnwork"] {
+            assert!(!skills.contains(other), "{other} in: {skills}");
+        }
+        let met: Vec<_> = soul_skills(&w)
+            .into_iter()
+            .filter(|s| skill_met(&w, *s))
+            .collect();
+        assert_eq!(met.len(), 1);
+    }
+
+    #[test]
+    fn ambitions_wait_until_you_can_plan_buildings() {
+        let w = World::new_journey("normal").unwrap();
+        assert!(!w.is_open("projects"));
+        let said = words(&ambition_lines(&w));
+        assert!(
+            said.contains("of 19 done") || said.contains(" done"),
+            "{said}"
+        );
+        assert!(said.contains("come into view"), "{said}");
+        assert!(!said.contains("Outpost"), "{said}");
+        let improvements = words(&improvement_lines(&w));
+        assert!(
+            improvements.contains("Workshop (1 built)"),
+            "{improvements}"
+        );
+        assert!(
+            !improvements.contains("Training Cache"),
+            "no logs yet: {improvements}"
+        );
+        for unmet in ["Planks", "Structural Beams", "Storehouse"] {
+            assert!(!improvements.contains(unmet), "{unmet} in: {improvements}");
+        }
+        // Once you've cut a log, what's made only of logs can be listed.
+        let mut w = w;
+        let logs = w.defs.resource_id("logs").unwrap();
+        w.ledger.harvested.insert(logs, 1);
+        let improvements = words(&improvement_lines(&w));
+        assert!(improvements.contains("Training Cache"), "{improvements}");
+        for unmet in ["Planks", "Structural Beams", "Storehouse"] {
+            assert!(!improvements.contains(unmet), "{unmet} in: {improvements}");
+        }
+    }
+
+    #[test]
+    fn improvements_say_what_each_one_is_for() {
+        let w = World::from_scenario(spirit_sim::ScenarioKind::FullMap);
+        let said = words(&improvement_lines(&w));
+        let wrong = said.matches("a drop-off point where you train").count();
+        assert!(
+            wrong <= 1,
+            "{wrong} buildings claim to be the Training Cache: {said}"
+        );
+        let w = World::new_journey("normal").unwrap();
+        let mut w = w;
+        let logs = w.defs.resource_id("logs").unwrap();
+        w.ledger.harvested.insert(logs, 1);
+        let said = words(&improvement_lines(&w));
+        assert!(
+            !said.contains("Oak Saplings"),
+            "a caravan find, too soon: {said}"
+        );
+    }
+
+    #[test]
+    fn scenarios_still_show_everything() {
+        let w = World::from_scenario(spirit_sim::ScenarioKind::KilnYard);
+        let skills = words(&skills_lines(&w));
+        for name in [
+            "Woodcutting",
+            "Woodworking",
+            "Quarrying",
+            "Masonry",
+            "Kilnwork",
+        ] {
+            assert!(skills.contains(name), "{name} missing: {skills}");
+        }
+        assert!(!words(&ambition_lines(&w)).contains("come into view"));
     }
 }
