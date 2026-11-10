@@ -106,6 +106,7 @@ fn main() {
             let moments: Vec<usize> = w.spirits.iter().map(|s| s.moments.len()).collect();
             let total: usize = moments.iter().sum();
             println!("Small moments: {total}, by spirit {moments:?}.");
+            println!("Found on the far shore: {:?}", w.settlement.relics_found);
             if std::env::args().any(|a| a == "--timeline") {
                 let mut all: Vec<_> = r.firsts.iter().collect();
                 all.sort_by_key(|f| f.0);

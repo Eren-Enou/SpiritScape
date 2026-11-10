@@ -41,6 +41,18 @@ pub struct MarkerDef {
     pub text: String,
 }
 
+/// Something left on the far shore by whoever was here before.
+#[derive(Clone, Debug, Deserialize)]
+pub struct RelicDef {
+    pub id: String,
+    pub at: [i32; 2],
+    pub title: String,
+    pub text: String,
+    /// What the player picks up from it, if anything.
+    #[serde(default)]
+    pub teaches: Option<crate::visitors::Lesson>,
+}
+
 /// A milestone in a spirit's working life.
 #[derive(Clone, Debug, Deserialize)]
 pub struct DeedDef {
@@ -238,6 +250,43 @@ impl World {
         self.notices.push(self.tick, msg);
     }
 
+    /// Finds whatever the player has walked up to on the far shore.
+    pub(crate) fn update_relics(&mut self) {
+        let at = self.player.actor.pos();
+        let near = self.defs.relics.iter().find(|r| {
+            let p = TilePos::new(r.at[0], r.at[1]);
+            p.manhattan(at) <= 1 && !self.settlement.relics_found.contains(&r.id)
+        });
+        let Some(r) = near.cloned() else {
+            return;
+        };
+        self.settlement.relics_found.push(r.id);
+        let msg = format!("{}: {}", r.title, r.text);
+        self.events.push(self.tick, EventKind::Player, msg.clone());
+        self.notices.push(self.tick, msg);
+        let lesson = r.teaches.as_ref();
+        if let Some((skill, xp)) = lesson.and_then(|l| Some((self.defs.skill_id(&l.skill)?, l.xp)))
+        {
+            self.player_earned_xp(skill, xp);
+        }
+    }
+
+    /// What's been found over the water, as title and text.
+    pub fn relics_found(&self) -> Vec<(String, String)> {
+        let found = &self.settlement.relics_found;
+        let all = self.defs.relics.iter();
+        all.filter(|r| found.contains(&r.id))
+            .map(|r| (r.title.clone(), r.text.clone()))
+            .collect()
+    }
+
+    /// What the closing story says about what was left on the far shore.
+    pub(crate) fn relic_line(&self) -> Option<String> {
+        let total = self.defs.relics.len();
+        (total > 0 && self.settlement.relics_found.len() == total)
+            .then(|| "You found what they left on the far shore, and you carried it home.".into())
+    }
+
     /// The stones read so far, as title and text.
     pub fn markers_read(&self) -> Vec<(String, String)> {
         let read = &self.settlement.markers_read;
@@ -386,6 +435,7 @@ impl World {
         ));
         lines.extend(self.visitor_lines());
         lines.extend(self.building_lines(true));
+        lines.extend(self.relic_line());
         if self.settlement.markers_read.len() == self.defs.markers.len() {
             lines.push("Whoever cut those stones built no hearth. You did.".into());
         }

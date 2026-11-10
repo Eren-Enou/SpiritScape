@@ -129,6 +129,9 @@ pub struct Settlement {
     /// The player has been told the ice won't last, this winter.
     #[serde(default)]
     pub ice_warned: bool,
+    /// What's been found on the far shore.
+    #[serde(default)]
+    pub relics_found: Vec<String>,
     /// The season last announced.
     #[serde(default)]
     pub season_seen: Option<String>,
@@ -1209,6 +1212,7 @@ impl World {
         }
         if self.tick.is_multiple_of(5) {
             self.update_markers();
+            self.update_relics();
         }
     }
 

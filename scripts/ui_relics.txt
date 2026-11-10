@@ -1,0 +1,11 @@
+# UI test of walking over the ice to what was left on the far shore:
+#   cargo run --release -- --new-game --skip-minutes 95 --save-dir target/ui_saves43 --script scripts/ui_relics.txt --capture target/ui_relics
+1.5 key C
+3.0 tile 6 35
+3.3 press 8x
+8.0 press 1x
+8.2 expect An axe head
+8.4 shot 01_found
+8.6 key C
+9.6 shot 02_close
+10.0 exit

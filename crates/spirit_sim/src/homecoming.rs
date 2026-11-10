@@ -215,6 +215,7 @@ impl World {
         });
         lines.extend(self.visitor_lines());
         lines.extend(self.building_lines(false));
+        lines.extend(self.relic_line());
         if self.settlement.markers_read.len() == self.defs.markers.len() {
             lines.push(
                 "Whoever cut those stones gave it all away, and never came back for it. You did."

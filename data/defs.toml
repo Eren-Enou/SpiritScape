@@ -2055,6 +2055,32 @@ after_hours = 16
 named = true
 text = "{name} waited for you at the end of the road. You hadn't said you were coming."
 
+# What someone left on the far shore, where no spirit would go. See the stones.
+[[relics]]
+id = "axe_head"
+at = [6, 36]
+title = "An axe head"
+text = "Rusted through, with a name scratched off it. It was sharpened by someone who knew how, a long time before it was left here."
+teaches = { skill = "woodcutting", xp = 500 }
+
+[[relics]]
+id = "carving"
+at = [25, 33]
+title = "A carving"
+text = "A small figure cut from stillwood, and left unfinished. It might be a helper. It might be a person. Whoever made it had stopped being able to tell."
+
+[[relics]]
+id = "page"
+at = [40, 36]
+title = "A page"
+text = "Pinned under a stone, in a neat hand: I asked one of them what it wanted. It asked me what wanted meant."
+
+[[relics]]
+id = "cairn"
+at = [45, 31]
+title = "Four stones"
+text = "Stacked with care, with nothing under them. It's the only thing here that wasn't made to be useful."
+
 [objective]
 # "Maintain <target> <resource> in the main settlement storage."
 resource = "logs"

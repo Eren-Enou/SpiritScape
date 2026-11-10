@@ -26,6 +26,14 @@ impl World {
                 title: "Who has come through",
                 lines: self.notes_people(),
             },
+            NoteSection {
+                title: "What you found over the water",
+                lines: self
+                    .relics_found()
+                    .into_iter()
+                    .map(|(title, text)| format!("{title}: {text}"))
+                    .collect(),
+            },
         ];
         sections
             .into_iter()

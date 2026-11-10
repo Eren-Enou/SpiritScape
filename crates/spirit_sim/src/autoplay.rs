@@ -53,6 +53,9 @@ pub struct Style {
     /// Plays a world where winter never stops anything growing, to measure
     /// what winter costs. It isn't a way a person can play.
     pub no_winter: bool,
+    /// Sends a caravan whenever it can afford one, rather than when the store
+    /// is full, so the trades open hours sooner.
+    pub eager_caravans: bool,
 }
 
 /// Looks after what a style cares about. Once a game minute is often enough:
@@ -70,6 +73,26 @@ fn tend(w: &mut World, style: Style) {
     }
     if style.plans_for_winter || style.stocks_all_year {
         keep_logs_by(w, style.stocks_all_year);
+    }
+    if style.eager_caravans {
+        send_if_affordable(w);
+    }
+}
+
+/// Sends a caravan as soon as it can be paid for, while a goal still wants one.
+fn send_if_affordable(w: &mut World) {
+    let caravan = w
+        .plannable()
+        .into_iter()
+        .find(|k| w.defs.building(*k).repeatable);
+    let Some(kind) = caravan else {
+        return;
+    };
+    let main = &w.main().storage;
+    let paid = w.defs.building(kind).cost.iter();
+    let afford = paid.clone().all(|(r, n)| main.available(*r) >= *n);
+    if afford && w.active_project().is_none() && w.settlement.queue.is_empty() {
+        send_for_finds(w);
     }
 }
 
@@ -1399,6 +1422,17 @@ pub struct AllGoals {
     pub firsts: Vec<(u64, String)>,
 }
 
+/// Whether anybody can make what a building needs. A plan nobody can supply
+/// would sit at the front of the queue and hold up everything behind it.
+fn can_be_made(w: &World, kind: BuildingKindId) -> bool {
+    let cost = w.defs.building(kind).cost.iter();
+    cost.clone().all(|(r, n)| {
+        w.order_for(*r).is_none()
+            || w.recipe_for(*r).is_some()
+            || w.main().storage.available(*r) >= *n
+    })
+}
+
 /// Plans whatever can be paid for that a goal still needs.
 fn buy_for_goals(w: &mut World) {
     if w.active_project().is_some() || !w.settlement.queue.is_empty() {
@@ -1421,7 +1455,7 @@ fn buy_for_goals(w: &mut World) {
             .buildings
             .iter()
             .any(|b| b.kind == kind && b.is_complete());
-        if (built && !more_room) || !w.plannable().contains(&kind) {
+        if (built && !more_room) || !w.plannable().contains(&kind) || !can_be_made(w, kind) {
             continue;
         }
         // A plan creates its own demand, so it needn't be affordable yet.

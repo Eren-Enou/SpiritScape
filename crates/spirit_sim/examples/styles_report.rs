@@ -40,6 +40,13 @@ fn main() {
             },
         ),
         (
+            "Sends caravans early",
+            Style {
+                eager_caravans: true,
+                ..Style::default()
+            },
+        ),
+        (
             "No winter at all",
             Style {
                 no_winter: true,

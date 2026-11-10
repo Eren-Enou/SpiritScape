@@ -429,6 +429,7 @@ pub struct GameDefs {
     pub seasons: Vec<crate::stories::SeasonDef>,
     /// Old stones to find around the map.
     pub markers: Vec<crate::stories::MarkerDef>,
+    pub relics: Vec<crate::stories::RelicDef>,
     /// What spirits made by Soul Separation can be like.
     pub traits: Vec<crate::stories::TraitDef>,
     /// Milestones in a spirit's working life.
@@ -482,6 +483,8 @@ struct RawDefs {
     seasons: Vec<crate::stories::SeasonDef>,
     #[serde(default)]
     markers: Vec<crate::stories::MarkerDef>,
+    #[serde(default)]
+    relics: Vec<crate::stories::RelicDef>,
     #[serde(default)]
     traits: Vec<crate::stories::TraitDef>,
     #[serde(default)]
@@ -1137,6 +1140,7 @@ impl GameDefs {
             visitors: raw.visitors,
             seasons: raw.seasons,
             markers: raw.markers,
+            relics: raw.relics,
             traits: raw.traits,
             deeds: raw.deeds,
             moments: raw.moments,
