@@ -75,10 +75,9 @@ crown_tint = [0.72, 0.82, 0.95]
 
 # Low and wide, the colour of the river bank.
 [trees.clay_bank]
-models = ["models/nature/stone_largeC.glb"]
-stump = "models/nature/stone_largeC.glb"
-scale = 0.6
-crown_tint = [0.72, 0.52, 0.40]
+models = ["models/own/clay_bank.glb"]
+stump = "models/own/clay_dug.glb"
+scale = 1.0
 
 [trees.ironwood]
 models = [
@@ -273,38 +272,19 @@ parts = [{ model = "models/town/poles.glb", rot = 0 }]
 [buildings.kiln]
 stockpile = "models/nature/log_stack.glb"
 site = [{ model = "models/town/planks.glb" }]
-parts = [
-    { model = "models/town/wall-wood.glb", rot = 0 },
-    { model = "models/town/wall-wood.glb", rot = 90 },
-    { model = "models/town/wall-wood.glb", rot = 180 },
-    { model = "models/town/roof-high-point.glb", y = 1.0 },
-]
-
+parts = [{ model = "models/own/kiln.glb" }]
 [buildings.warm_walls]
 stockpile = "models/nature/log_stack.glb"
 site = [{ model = "models/town/planks.glb" }]
-parts = [
-    { model = "models/town/wall-wood.glb", rot = 0 },
-    { model = "models/town/wall-wood.glb", rot = 90 },
-]
-
+parts = [{ model = "models/own/warm_wall.glb" }]
 [buildings.hearth_chimney]
 stockpile = "models/nature/log_stack.glb"
 site = [{ model = "models/town/planks.glb" }]
-parts = [
-    { model = "models/town/wall-wood.glb", rot = 0 },
-    { model = "models/town/wall-wood.glb", rot = 180 },
-    { model = "models/town/roof-high-point.glb", y = 1.0 },
-]
-
+parts = [{ model = "models/own/chimney.glb" }]
 [buildings.still_boat]
 stockpile = "models/nature/log_stack.glb"
 site = [{ model = "models/town/planks.glb" }]
-parts = [
-    { model = "models/nature/log_stackLarge.glb", rot = 90 },
-    { model = "models/town/lantern.glb", y = 0.4 },
-]
-
+parts = [{ model = "models/own/still_boat.glb", rot = 90 }]
 [buildings.workshop_annex]
 stockpile = "models/nature/log_stack.glb"
 site = [{ model = "models/town/planks.glb" }]

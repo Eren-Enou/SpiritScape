@@ -2,6 +2,14 @@
 
 The handoff between development runs. Newest first.
 
+## v0.42 Our own models
+
+**Status:** on branch `v0.42-own-models`, with its PR targeting `v0.41-what-they-leave`. Not merged.
+
+**Shipped:** generated models for the Kiln, Warm Walls, Hearth Chimney, Still Boat and clay banks, from `tools/make_models.py`, and a `brickyard` scenario that shows them side by side. First built as the unpublished v0.41.
+
+**Next:** port the notes tab.
+
 ## v0.41 What they leave
 
 **Status:** on branch `v0.41-what-they-leave`, with its PR targeting `v0.40-release-candidate`. Not merged.

@@ -1,0 +1,13 @@
+# UI test of the game's own models:
+#   cargo run --release -- --scenario brickyard --save-dir target/ui_saves41 --script scripts/ui_models.txt --capture target/ui_models
+1.5 shot 01_brickyard
+1.7 scroll 600 300 2
+2.5 shot 02_closer
+2.7 key B
+3.0 press Plan Clay Pits*
+3.4 expect Clay Pits added to the plan
+3.6 press 8x
+10.0 press 1x
+10.2 key C
+11.5 shot 03_clay_banks
+12.0 exit
