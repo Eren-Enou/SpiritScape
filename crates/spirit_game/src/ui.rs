@@ -1266,7 +1266,7 @@ fn on_button(
             sim.calling_home = false;
             sim.command(Command::CallHome);
         }
-        UiAction::CarveStone(i) => sim.command(Command::CarveStone(i)),
+        UiAction::CarveStone(i) => sim.carve_stone(i),
         UiAction::VisitorYes => sim.command(Command::AnswerVisitor(true)),
         UiAction::VisitorNo => sim.command(Command::AnswerVisitor(false)),
         UiAction::Plan(id) => {
@@ -2029,6 +2029,7 @@ fn header_lines(sim: &Sim) -> Vec<Line> {
         ScenarioKind::LastBoat => "The last boat",
         ScenarioKind::QuietHour => "A quiet hour",
         ScenarioKind::OldFriends => "Old friends",
+        ScenarioKind::LastTime => "Last time",
         ScenarioKind::Brickyard => "Brickyard",
         ScenarioKind::Midwinter => "Midwinter",
         ScenarioKind::FullMap => "Full map",

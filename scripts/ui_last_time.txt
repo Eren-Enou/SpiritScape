@@ -1,0 +1,10 @@
+# UI test of finding a stone carved in an earlier game:
+#   cargo run --release -- --scenario last_time --save-dir target/ui_saves49 --script scripts/ui_last_time.txt --capture target/ui_last_time
+1.5 shot 01_start
+1.7 tile 3 7
+9.0 expect You left this stone, last time
+9.2 shot 02_found
+9.5 key L
+10.0 expect What you left last time
+10.2 shot 03_notes
+10.8 exit

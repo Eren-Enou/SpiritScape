@@ -138,6 +138,9 @@ pub struct Settlement {
     /// The stone the player carved, once it's over.
     #[serde(default)]
     pub your_stone: Option<crate::your_stone::YourStone>,
+    /// Stones carved in earlier games, standing in this one.
+    #[serde(default)]
+    pub left_before: Vec<crate::your_stone::LeftStone>,
     /// The totals at the end of each year.
     #[serde(default)]
     pub years: Vec<crate::stories::YearEnd>,
@@ -1228,6 +1231,7 @@ impl World {
         if self.tick.is_multiple_of(5) {
             self.update_markers();
             self.update_relics();
+            self.update_left_before();
         }
     }
 

@@ -75,6 +75,8 @@ pub enum ScenarioKind {
     QuietHour,
     /// Two spirits who have kept each other company a long time.
     OldFriends,
+    /// A new map with a stone from an earlier game standing on it.
+    LastTime,
     /// Everything fire can make, side by side.
     Brickyard,
     /// The Hearth lit, and winter a minute away.
@@ -98,7 +100,7 @@ pub enum ScenarioKind {
 }
 
 impl ScenarioKind {
-    pub const ALL: [ScenarioKind; 39] = [
+    pub const ALL: [ScenarioKind; 40] = [
         ScenarioKind::NewGame,
         ScenarioKind::Demo,
         ScenarioKind::Regrind,
@@ -128,6 +130,7 @@ impl ScenarioKind {
         ScenarioKind::LastBoat,
         ScenarioKind::QuietHour,
         ScenarioKind::OldFriends,
+        ScenarioKind::LastTime,
         ScenarioKind::Brickyard,
         ScenarioKind::Midwinter,
         ScenarioKind::FullMap,
@@ -171,6 +174,7 @@ impl ScenarioKind {
             ScenarioKind::LastBoat => "last_boat",
             ScenarioKind::QuietHour => "quiet_hour",
             ScenarioKind::OldFriends => "old_friends",
+            ScenarioKind::LastTime => "last_time",
             ScenarioKind::Brickyard => "brickyard",
             ScenarioKind::Midwinter => "midwinter",
             ScenarioKind::FullMap => "full_map",
@@ -273,6 +277,9 @@ pub struct ScenarioDef {
     /// Spirits who already keep each other company, by their place in `spirits`.
     #[serde(default)]
     pub companions: Vec<[usize; 2]>,
+    /// Stones from earlier games, as a real game brings them from beside the saves.
+    #[serde(default)]
+    pub left_before: Vec<Vec<String>>,
 }
 
 /// A full-grown tree of `kind`.
@@ -441,6 +448,7 @@ impl World {
                 relics_found: Vec::new(),
                 shared_moments: Vec::new(),
                 your_stone: None,
+                left_before: Vec::new(),
                 years: Vec::new(),
                 seasons: scenario.seasons,
                 bench_bonus: 0,
@@ -579,6 +587,7 @@ impl World {
         if scenario.hearth_lit {
             world.settlement.ended_at = Some(0);
         }
+        world.leave_from_before(scenario.left_before.clone());
         for [a, b] in &scenario.companions {
             if !world.form_bond(*a, *b) {
                 return Err(format!("spirits {a} and {b} can't keep company"));

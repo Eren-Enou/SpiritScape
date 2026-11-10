@@ -24,6 +24,7 @@ mod script;
 mod settings;
 mod sim_runner;
 mod status;
+mod stones;
 mod ui;
 mod visuals;
 mod world_view;
@@ -62,6 +63,9 @@ fn main() -> AppExit {
         sim.store = SaveStore::new(dir);
     }
     sim.settings = settings::Settings::load(sim.store.dir());
+    if flag("--new-game") {
+        sim.recall_stones();
+    }
     if let Some(seconds) = value("--autosave").and_then(|v| v.parse().ok()) {
         sim.autosave_seconds = seconds;
     }

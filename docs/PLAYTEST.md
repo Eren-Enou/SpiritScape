@@ -11,7 +11,7 @@ git fetch origin
 ```
 
 ```bash
-git checkout v0.48-your-stone
+git checkout v0.49-last-time
 ```
 
 Then double-click **`play.bat`**. The first time, it builds the game, which takes several minutes. After that it starts straight away.
@@ -75,6 +75,7 @@ Double-click **`scenarios.bat`** and pick a number. Each one starts right where 
 | 12 | Brickyard | Look at the Kiln, Warm Walls, Hearth Chimney and Still Boat | Can you tell what each one is without reading its label? |
 | 13 | Midwinter | Watch for a minute as winter starts. Then press `J` and carve a stone of your own | Did the spirits going to the Hearth feel like something? Did choosing your stone's last line feel like yours? |
 | 14 | Old friends | Press `O` and read both their stories | Did knowing two of them keep company change how you see them? |
+| 15 | Last time | Walk up past the first old stone, top left | Did finding your own words there mean anything? |
 
 ## Four decisions only you can make
 

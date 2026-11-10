@@ -27,6 +27,16 @@ impl World {
                 lines: self.notes_people(),
             },
             NoteSection {
+                title: "What you left last time",
+                lines: self
+                    .settlement
+                    .left_before
+                    .iter()
+                    .filter(|s| s.found)
+                    .flat_map(|s| s.lines.clone())
+                    .collect(),
+            },
+            NoteSection {
                 title: "Your stone",
                 lines: self
                     .settlement

@@ -24,6 +24,7 @@ echo  11  The whole map          Everything built
 echo  12  Brickyard              Everything fire can make, side by side
 echo  13  Midwinter              The Hearth lit, and winter a minute away
 echo  14  Old friends            Two spirits who keep each other company
+echo  15  Last time              A stone you carved in an earlier game
 echo.
 set /p CHOICE="Which one? "
 
@@ -42,6 +43,7 @@ if "%CHOICE%"=="11" set "ARGS=--scenario full_map"
 if "%CHOICE%"=="12" set "ARGS=--scenario brickyard"
 if "%CHOICE%"=="13" set "ARGS=--scenario midwinter"
 if "%CHOICE%"=="14" set "ARGS=--scenario old_friends"
+if "%CHOICE%"=="15" set "ARGS=--scenario last_time"
 if "%ARGS%"=="" (
   echo That isn't one of the numbers above.
   pause
