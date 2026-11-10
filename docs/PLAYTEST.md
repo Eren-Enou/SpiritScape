@@ -11,7 +11,7 @@ git fetch origin
 ```
 
 ```bash
-git checkout v0.50-one-thing
+git checkout v0.51-what-its-for
 ```
 
 Then double-click **`play.bat`**. The first time, it builds the game, which takes several minutes. After that it starts straight away.
@@ -46,6 +46,7 @@ Write down your answers as you play:
 
 - [ ] Did the spirits seem to know what they were doing? Did you ever wonder why one was idle?
 - [ ] Was it clear what to build next, and why?
+- [ ] When you planned a building, did you know what it would do for you?
 - [ ] Could you read the panels at a glance, or did you have to study them?
 - [ ] Did you ever look something up in your notes (`L`)? Did you find it?
 - [ ] Did sounds and sparks help, or get in the way? (`M` turns sound off.)

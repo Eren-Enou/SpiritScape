@@ -264,6 +264,7 @@ struct GoalRoot;
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
 enum Card {
     Notes,
+    PlanPurposes,
     Boat,
     YourStone,
     Standing,
@@ -632,40 +633,13 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                     }
                 });
                 card(p, "ADD TO THE PLAN", |c| {
-                    button_row(
-                        c,
-                        &[
-                            ("", UiAction::Plan("outpost_storage")),
-                            ("", UiAction::Plan("forest_crossing")),
-                            ("", UiAction::Plan("workshop_annex")),
-                            ("", UiAction::Plan("storehouse")),
-                            ("", UiAction::Plan("grove_lane")),
-                            ("", UiAction::Plan("north_road")),
-                            ("", UiAction::Plan("old_growth_road")),
-                            ("", UiAction::Plan("forest_road")),
-                            ("", UiAction::Plan("stone_causeway")),
-                            ("", UiAction::Plan("trade_caravan")),
-                            ("", UiAction::Plan("ironwood_nursery")),
-                            ("", UiAction::Plan("quarry_extension")),
-                            ("", UiAction::Plan("mason_yard")),
-                            ("", UiAction::Plan("oak_saplings")),
-                            ("", UiAction::Plan("long_racks")),
-                            ("", UiAction::Plan("stone_cellar")),
-                            ("", UiAction::Plan("clay_pits")),
-                            ("", UiAction::Plan("kiln")),
-                            ("", UiAction::Plan("warm_walls")),
-                            ("", UiAction::Plan("hearth_chimney")),
-                            ("", UiAction::Plan("still_boat")),
-                            ("", UiAction::Plan("south_crossing")),
-                            ("", UiAction::Plan("still_lantern")),
-                            ("", UiAction::Plan("hearth_foundations")),
-                            ("", UiAction::Plan("hearth_walls")),
-                            ("", UiAction::Plan("hearth_of_spirits")),
-                            ("", UiAction::Plan("panelled_warehouse")),
-                            ("", UiAction::Plan("carrying_frames")),
-                        ],
-                    );
+                    let plans: Vec<(&str, UiAction)> = PLAN_ORDER
+                        .iter()
+                        .map(|id| ("", UiAction::Plan(id)))
+                        .collect();
+                    button_row(c, &plans);
                 });
+                card(p, "WHAT THEY'RE FOR", |c| body(c, Card::PlanPurposes));
             });
 
             tab_panel(p, Tab::Outpost, |p| {
@@ -820,9 +794,7 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                 card(p, "THE OLD STONES", |c| body(c, Card::Markers));
                 card(p, "YOUR SKILLS", |c| body(c, Card::Skills));
                 card(p, "YOUR WORKFORCE", |c| body(c, Card::Workforce));
-                card(p, "SETTLEMENT IMPROVEMENTS", |c| {
-                    body(c, Card::Improvements)
-                });
+                card(p, "WHAT YOU'VE BUILT", |c| body(c, Card::Improvements));
                 card(p, "RECENTLY", |c| body(c, Card::Recent));
                 detail_card(p, "PLAY REPORT", |c| {
                     body(c, Card::PlayReport);
@@ -1980,7 +1952,8 @@ fn update_cards(
             Card::Menu => menu_lines(&sim),
             Card::Skills => skills_lines(&sim.world),
             Card::Workforce => workforce_lines(&sim.world),
-            Card::Improvements => improvement_lines(&sim.world),
+            Card::Improvements => built_lines(&sim.world),
+            Card::PlanPurposes => plan_purpose_lines(&sim.world),
             Card::Recent => recent_lines(&sim.world),
             Card::TrainingStatus => training_lines(&sim.world),
             Card::PlayerTime => player_time_lines(&sim.world),
@@ -2944,16 +2917,61 @@ fn workforce_lines(w: &World) -> Vec<Line> {
     lines
 }
 
-/// Whether the player has come across this resource: gathered, made or held.
-fn resource_met(w: &World, r: spirit_sim::defs::ResourceId) -> bool {
-    let l = &w.ledger;
-    let any = |m: &std::collections::BTreeMap<spirit_sim::defs::ResourceId, u64>| {
-        m.get(&r).is_some_and(|n| *n > 0)
-    };
-    any(&l.seeded) || any(&l.harvested) || any(&l.crafted) || w.main().storage.available(r) > 0
+/// The order buildings are offered in the Projects tab.
+const PLAN_ORDER: [&str; 28] = [
+    "outpost_storage",
+    "forest_crossing",
+    "workshop_annex",
+    "storehouse",
+    "grove_lane",
+    "north_road",
+    "old_growth_road",
+    "forest_road",
+    "stone_causeway",
+    "trade_caravan",
+    "ironwood_nursery",
+    "quarry_extension",
+    "mason_yard",
+    "oak_saplings",
+    "long_racks",
+    "stone_cellar",
+    "clay_pits",
+    "kiln",
+    "warm_walls",
+    "hearth_chimney",
+    "still_boat",
+    "south_crossing",
+    "still_lantern",
+    "hearth_foundations",
+    "hearth_walls",
+    "hearth_of_spirits",
+    "panelled_warehouse",
+    "carrying_frames",
+];
+
+/// What a building is for, in its own words where it has them.
+fn building_purpose(def: &spirit_sim::defs::BuildingDef) -> String {
+    if !def.benefit.is_empty() {
+        def.benefit.clone()
+    } else if def.capacity_bonus > 0 {
+        format!("+{} storage", def.capacity_bonus)
+    } else if def.training_cache {
+        "A drop-off point where you train.".to_string()
+    } else if def.training_bonus > 0 {
+        format!(
+            "Room for {} more logs set aside for you.",
+            def.training_bonus
+        )
+    } else if !def.plants.is_empty() {
+        format!("Plants {} trees.", def.plants.len())
+    } else {
+        String::new()
+    }
 }
 
-fn improvement_lines(w: &World) -> Vec<Line> {
+/// What the player has built, and what each is for. What could be built is
+/// in the tab where it's ordered: Projects, Training or Production.
+fn built_lines(w: &World) -> Vec<Line> {
     let mut lines = vec![vec![
         text("Main Storage"),
         Item::Spacer,
@@ -2963,69 +2981,53 @@ fn improvement_lines(w: &World) -> Vec<Line> {
             w.main().storage.capacity
         )),
     ]];
-    let main = &w.main().storage;
-    // Until you can plan buildings, only what's already standing: a list of
-    // shortages in Planks and Structural Beams means nothing in the first minute.
-    let planning = w.is_open("projects");
     for (i, def) in w.defs.buildings.iter().enumerate() {
         if !def.manual {
             continue;
         }
         let kind = BuildingKindId(i as u16);
-        let count = w.buildings.iter().filter(|b| b.kind == kind).count() as u32;
-        // A caravan find stays a surprise until the caravans bring it.
-        if count == 0 && def.needs_caravans > w.settlement.caravans {
-            continue;
-        }
-        if !planning && !def.cost.iter().all(|(r, _)| resource_met(w, *r)) {
-            if count > 0 {
-                lines.push(vec![text(format!("{} ({count} built)", def.name))]);
-            }
-            continue;
-        }
-        let cost: std::collections::BTreeMap<_, _> = def.cost.iter().copied().collect();
-        let short: Vec<String> = def
-            .cost
+        let count = w
+            .buildings
             .iter()
-            .filter(|(r, n)| main.available(*r) < *n)
-            .map(|(r, n)| format!("{}/{n} {}", main.available(*r), w.defs.resource(*r).name))
-            .collect();
-        let state = if def.max_count.is_some_and(|m| count >= m) {
-            chip("all built", GOOD)
-        } else if short.is_empty() {
-            chip("materials ready", GOOD)
+            .filter(|b| b.kind == kind && b.is_complete())
+            .count();
+        if count == 0 {
+            continue;
+        }
+        let name = if count > 1 {
+            format!("{} ({count})", def.name)
         } else {
-            chip(format!("short: {}", short.join(", ")), WARN)
+            def.name.clone()
         };
-        lines.push(vec![
-            text(format!("{} ({count} built)", def.name)),
-            Item::Spacer,
-            state,
-        ]);
-        // What it's for, in the building's own words where it has them.
-        let effect = if !def.benefit.is_empty() {
-            def.benefit.clone()
-        } else if def.capacity_bonus > 0 {
-            format!("+{} storage", def.capacity_bonus)
-        } else if def.training_cache {
-            "a drop-off point where you train".to_string()
-        } else if def.training_bonus > 0 {
-            format!(
-                "room for {} more logs set aside for you",
-                def.training_bonus
-            )
-        } else if !def.plants.is_empty() {
-            format!("plants {} trees", def.plants.len())
-        } else {
-            String::new()
-        };
-        let cost = w.defs.describe_amounts(&cost);
-        let what = if effect.is_empty() {
-            cost
-        } else {
-            format!("{cost}: {effect}")
-        };
-        lines.push(vec![muted(format!("     {what}"))]);
+        lines.push(vec![text(name)]);
+        let purpose = building_purpose(def);
+        if !purpose.is_empty() {
+            lines.push(vec![muted(format!("     {purpose}"))]);
+        }
+    }
+    lines
+}
+
+/// What each building that could be planned now is for.
+fn plan_purpose_lines(w: &World) -> Vec<Line> {
+    let mut lines = Vec::new();
+    let mut plans = w.plannable();
+    // In the same order as the buttons above.
+    let place = |k: &BuildingKindId| {
+        let id = &w.defs.building(*k).id;
+        PLAN_ORDER
+            .iter()
+            .position(|p| p == id)
+            .unwrap_or(usize::MAX)
+    };
+    plans.sort_by_key(place);
+    for kind in plans {
+        let def = w.defs.building(kind);
+        lines.push(vec![text(def.name.clone())]);
+        lines.push(vec![muted(format!("     {}", building_purpose(def)))]);
+    }
+    if lines.is_empty() {
+        lines.push(vec![muted("Nothing can be planned right now.")]);
     }
     lines
 }
@@ -3605,43 +3607,36 @@ mod one_thing_at_a_time {
         );
         assert!(said.contains("come into view"), "{said}");
         assert!(!said.contains("Outpost"), "{said}");
-        let improvements = words(&improvement_lines(&w));
-        assert!(
-            improvements.contains("Workshop (1 built)"),
-            "{improvements}"
-        );
-        assert!(
-            !improvements.contains("Training Cache"),
-            "no logs yet: {improvements}"
-        );
-        for unmet in ["Planks", "Structural Beams", "Storehouse"] {
-            assert!(!improvements.contains(unmet), "{unmet} in: {improvements}");
-        }
-        // Once you've cut a log, what's made only of logs can be listed.
-        let mut w = w;
-        let logs = w.defs.resource_id("logs").unwrap();
-        w.ledger.harvested.insert(logs, 1);
-        let improvements = words(&improvement_lines(&w));
-        assert!(improvements.contains("Training Cache"), "{improvements}");
-        for unmet in ["Planks", "Structural Beams", "Storehouse"] {
-            assert!(!improvements.contains(unmet), "{unmet} in: {improvements}");
+        let built = words(&built_lines(&w));
+        assert!(built.contains("Workshop"), "{built}");
+        for unbuilt in ["Training Cache", "Storehouse", "Planks", "Structural Beams"] {
+            assert!(!built.contains(unbuilt), "{unbuilt} in: {built}");
         }
     }
 
     #[test]
-    fn improvements_say_what_each_one_is_for() {
+    fn what_is_built_says_what_each_one_is_for() {
         let w = World::from_scenario(spirit_sim::ScenarioKind::FullMap);
-        let said = words(&improvement_lines(&w));
-        let wrong = said.matches("a drop-off point where you train").count();
-        assert!(
-            wrong <= 1,
-            "{wrong} buildings claim to be the Training Cache: {said}"
-        );
+        let built = words(&built_lines(&w));
+        assert!(built.contains("Forest Crossing"), "{built}");
+        assert!(!built.contains("Storehouse"), "not built: {built}");
+        let wrong = built.matches("drop-off point").count();
+        assert_eq!(wrong, 0, "no Training Cache is built here: {built}");
+    }
+
+    #[test]
+    fn every_plan_says_what_it_is_for() {
+        let w = World::from_scenario(spirit_sim::ScenarioKind::ProjectQueue);
+        let plans = w.plannable();
+        assert!(plans.len() >= 3, "{plans:?}");
+        let said = words(&plan_purpose_lines(&w));
+        for kind in plans {
+            let def = w.defs.building(kind);
+            assert!(said.contains(&def.name), "{} missing", def.name);
+            assert!(said.contains(&def.benefit), "{} says nothing", def.name);
+        }
         let w = World::new_journey("normal").unwrap();
-        let mut w = w;
-        let logs = w.defs.resource_id("logs").unwrap();
-        w.ledger.harvested.insert(logs, 1);
-        let said = words(&improvement_lines(&w));
+        let said = words(&plan_purpose_lines(&w));
         assert!(
             !said.contains("Oak Saplings"),
             "a caravan find, too soon: {said}"

@@ -34,7 +34,7 @@
 15.4 key J
 15.9 expect YOUR WORKFORCE
 16.0 expect Invested in spirits
-16.1 expect Training Cache (0 built)
+16.1 expect WHAT YOU'VE BUILT
 16.2 shot 05_progress_tab
 16.4 key F9               # back to the save: the training area is gone again
 17.2 expect Game loaded
