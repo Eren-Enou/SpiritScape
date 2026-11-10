@@ -2,6 +2,14 @@
 
 The handoff between development runs. Newest first.
 
+## v0.41 What they leave
+
+**Status:** on branch `v0.41-what-they-leave`, with its PR targeting `v0.40-release-candidate`. Not merged.
+
+**Shipped:** lessons from visitors who teach you something, and closing lines for what you told them. First built as the unpublished v0.40, now ported onto the release candidate.
+
+**Next:** port the game's own models, then the notes tab.
+
 ## v0.40 Release candidate
 
 **Status:** on branch `v0.40-release-candidate`, with a pull request into `main`. Not merged.
@@ -326,6 +334,8 @@ The handoff between development runs. Newest first.
 - Should a full store really let you throw goods away? It's the only way Woodcutting 20 stays reachable, because nothing uses logs and panels without limit.
 
 ## Standing notes
+
+- UI scripts are time-based. Don't run two sets at once, or the check can fail for no real reason.
 
 - Nobody has played v0.7 through v0.11.
 - Run tests with `--no-fail-fast`. Without it, a failure in one test file hides the rest.

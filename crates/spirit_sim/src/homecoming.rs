@@ -199,7 +199,7 @@ impl World {
             ),
             format!("{count} {who} crossed the water, and {total} XP came back to you."),
         ];
-        for r in h.returned.iter().filter(|r| r.xp > 0).take(6) {
+        for r in h.returned.iter().filter(|r| r.xp > 0).take(4) {
             lines.push(format!(
                 "{}: {} {} XP, back where it began.",
                 r.name, r.xp, r.skill
@@ -213,6 +213,7 @@ impl World {
             "There's no hearth here. Nobody was left who thought of it. But there's you."
                 .to_string()
         });
+        lines.extend(self.visitor_lines());
         lines.extend(self.building_lines(false));
         if self.settlement.markers_read.len() == self.defs.markers.len() {
             lines.push(

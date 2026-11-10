@@ -374,7 +374,7 @@ impl World {
                 made.len()
             ),
         ];
-        for s in self.spirits.iter().filter(|s| !s.deeds.is_empty()).take(6) {
+        for s in self.spirits.iter().filter(|s| !s.deeds.is_empty()).take(4) {
             let last = s.deeds.last().map(|(d, _)| &self.defs.deeds[*d as usize]);
             if let Some(deed) = last {
                 lines.push(format!("{}: {}", self.spirit_title(s), deed.text));
@@ -384,6 +384,7 @@ impl World {
             "{} Trade Caravans went out, and the settlement knows your name.",
             self.settlement.caravans
         ));
+        lines.extend(self.visitor_lines());
         lines.extend(self.building_lines(true));
         if self.settlement.markers_read.len() == self.defs.markers.len() {
             lines.push("Whoever cut those stones built no hearth. You did.".into());

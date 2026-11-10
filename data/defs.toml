@@ -336,6 +336,7 @@ text = "\"Long road, thin axe handles. I'd pay well for good wood, if you've any
 thanks = "The pedlar loads up and leaves you a sack of cut timber, more than you expected."
 wants = [{ resource = "logs", amount = 40 }]
 gives = [{ resource = "planks", amount = 15 }]
+teaches = { skill = "woodcutting", xp = 150 }
 
 [[visitors]]
 id = "surveyor"
@@ -346,6 +347,9 @@ text = "\"Fine country. I'm mapping the river. I could use planks for my stakes,
 thanks = "The surveyor leaves a neat stack of stone at Main Storage."
 wants = [{ resource = "planks", amount = 40 }]
 gives = [{ resource = "stone", amount = 30 }]
+teaches = { skill = "quarrying", xp = 300 }
+ending_took = "The surveyor's map has this place on it now, spelled nearly right."
+ending_refused = "There's a map somewhere with a blank where you are."
 
 [[visitors]]
 id = "shipwright"
@@ -356,6 +360,7 @@ text = "\"That's Ironwood past your ravine. I'd give a lot for beams like those.
 thanks = "The shipwright counts the beams twice, and leaves you the panels."
 wants = [{ resource = "beams", amount = 20 }]
 gives = [{ resource = "panels", amount = 40 }]
+teaches = { skill = "woodworking", xp = 800 }
 
 [[visitors]]
 id = "mason"
@@ -366,6 +371,9 @@ text = "\"Someone here knows stone. I can't lift it any more, but I can still cu
 thanks = "The old mason works through the night, and is gone by morning."
 wants = [{ resource = "dressed_stone", amount = 20 }, { resource = "beams", amount = 10 }]
 gives = [{ resource = "keystones", amount = 8 }]
+teaches = { skill = "masonry", xp = 1500 }
+ending_took = "There's a keystone out there with the old mason's mark on it, and you paid for it."
+ending_refused = "The old mason never did cut that last keystone."
 
 [[visitors]]
 id = "pilgrim"
@@ -376,6 +384,8 @@ text = "\"I walked a long way to see the stones. Nobody has ever started one of 
 thanks = "The pilgrim thanks you and doesn't look back. There's a small carved keystone on the step."
 wants = [{ resource = "panels", amount = 30 }]
 gives = [{ resource = "keystones", amount = 1 }]
+ending_took = "The pilgrim got home."
+ending_refused = "You never did find out if the pilgrim got home."
 
 # Teaching each system when it first matters, in real games only. `opens` keeps
 # a tab or skill off the screen until the tip has been said. See tips.rs for
@@ -462,6 +472,8 @@ text = "\"You dealt fair with me once. My daughter's marrying a joiner, and I've
 thanks = "The pedlar pays above the odds, and asks after your spirits by name."
 wants = [{ resource = "logs", amount = 120 }]
 gives = [{ resource = "planks", amount = 60 }]
+teaches = { skill = "woodcutting", xp = 1200 }
+ending_took = "The pedlar's daughter married her joiner. There's a bench of yours at the wedding."
 
 [[visitors]]
 id = "surveyor_son"
@@ -472,6 +484,8 @@ text = "\"My father said you turned him down, and that he'd have done the same. 
 thanks = "He stacks the stone neatly, the way his father would have."
 wants = [{ resource = "planks", amount = 20 }]
 gives = [{ resource = "stone", amount = 40 }]
+teaches = { skill = "quarrying", xp = 600 }
+ending_took = "The surveyor's son finished the map, and left a corner of it blank for you."
 
 [[visitors]]
 id = "shipwright_keel"
@@ -483,6 +497,8 @@ text = "\"I've a keel to lay. I'd not ask if it weren't the last ship I'll build
 thanks = "The shipwright stays to watch the spirits work for a while, and doesn't say why."
 wants = [{ resource = "dressed_stone", amount = 40 }]
 gives = [{ resource = "beams", amount = 30 }]
+teaches = { skill = "woodworking", xp = 2500 }
+ending_took = "The last ship the shipwright ever built has your stone under it."
 
 # These come either way. `knows` names someone earlier, and what they say
 # depends on how that went.
@@ -511,6 +527,8 @@ text_refused = "\"My master came here once, and you sent them away. They said yo
 thanks = "The apprentice works slowly, and checks each one twice."
 wants = [{ resource = "dressed_stone", amount = 12 }]
 gives = [{ resource = "keystones", amount = 2 }]
+teaches = { skill = "masonry", xp = 1000 }
+ending_took = "The apprentice still checks each one twice."
 
 [[visitors]]
 id = "wet_boots"
@@ -521,6 +539,7 @@ text = "\"You keep a light for the far shore. Nobody's done that in a long time.
 thanks = "The stranger walks south. For a while the lantern burns steadier, or you think it does."
 wants = [{ resource = "stillwood", amount = 10 }]
 gives = [{ resource = "keystones", amount = 3 }]
+ending_took = "You still don't know who that was."
 
 [[visitors]]
 id = "valley_child"
@@ -530,6 +549,7 @@ needs_built = "hearth_of_spirits"
 text = "\"They say there's a fire here that spirits made. Is it true? Can I see one? My cart's got a broken board, too, if you've a plank or two to spare.\""
 thanks = "The child watches a spirit work until it gets dark, and has to be called home twice."
 wants = [{ resource = "planks", amount = 5 }]
+ending_took = "The child from the valley came back the next year, and the year after."
 
 [[resources]]
 id = "logs"
@@ -1700,6 +1720,7 @@ text = "\"I could smell your kiln from the ford. I'm building a bridge for peopl
 thanks = "The bridge-builder counts the bricks, nods once, and is off before the cart has stopped creaking."
 wants = [{ resource = "bricks", amount = 30 }]
 gives = [{ resource = "beams", amount = 20 }]
+teaches = { skill = "kilnwork", xp = 1500 }
 
 [[buildings]]
 id = "clay_pits"

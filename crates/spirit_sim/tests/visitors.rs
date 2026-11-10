@@ -313,3 +313,82 @@ fn visitors_alone_never_light_the_hearth() {
     let needed = w.defs.building(kind).cost.iter().find(|c| c.0 == keystones);
     assert!(given < needed.unwrap().1, "{given}");
 }
+
+#[test]
+fn a_lesson_gives_real_xp_and_says_so() {
+    let mut w = with_visitor();
+    assert!(
+        w.visitor()
+            .unwrap()
+            .offer
+            .contains("learn something of Woodcutting")
+    );
+    let def = w.defs.visitors[0].clone();
+    stock(&mut w, &def.wants[0].resource, def.wants[0].amount);
+    let skill = w.defs.skill_id("woodcutting").unwrap();
+    let before = w.player.xp(skill);
+    w.apply(Command::AnswerVisitor(true)).unwrap();
+    assert_eq!(w.player.xp(skill), before + def.teaches.unwrap().xp);
+    assert!(w.notices.contains("a thing or two"));
+}
+
+#[test]
+fn turning_someone_down_teaches_you_nothing() {
+    let mut w = with_visitor();
+    let skill = w.defs.skill_id("woodcutting").unwrap();
+    let before = w.player.xp(skill);
+    w.apply(Command::AnswerVisitor(false)).unwrap();
+    assert_eq!(w.player.xp(skill), before);
+}
+
+#[test]
+fn every_lesson_is_in_a_real_skill() {
+    let w = game();
+    for v in &w.defs.visitors {
+        if let Some(l) = &v.teaches {
+            assert!(w.defs.skill_id(&l.skill).is_some(), "{}", v.id);
+            assert!(l.xp > 0, "{}", v.id);
+        }
+    }
+}
+
+#[test]
+fn what_you_said_ends_up_in_the_story() {
+    let story = |took: bool| {
+        let mut w = game();
+        w.settlement.ended_at = Some(1);
+        let list = if took {
+            &mut w.settlement.offers_accepted
+        } else {
+            &mut w.settlement.offers_refused
+        };
+        list.push("pilgrim".into());
+        w.ending_story().unwrap().join(" ")
+    };
+    assert!(story(true).contains("The pilgrim got home."));
+    assert!(story(false).contains("never did find out"));
+}
+
+#[test]
+fn someone_you_never_answered_is_not_in_the_story() {
+    let mut w = game();
+    w.settlement.ended_at = Some(1);
+    let story = w.ending_story().unwrap().join(" ");
+    assert!(!story.contains("pilgrim"));
+}
+
+#[test]
+fn the_story_is_not_a_ledger() {
+    let mut w = game();
+    w.settlement.ended_at = Some(1);
+    let ids: Vec<String> = w.defs.visitors.iter().map(|v| v.id.clone()).collect();
+    w.settlement.offers_accepted = ids;
+    let told = |w: &World, l: &String| {
+        w.defs
+            .visitors
+            .iter()
+            .any(|v| v.ending_took.as_ref() == Some(l))
+    };
+    let story = w.ending_story().unwrap();
+    assert_eq!(story.iter().filter(|l| told(&w, l)).count(), 3);
+}
