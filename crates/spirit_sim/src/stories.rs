@@ -505,6 +505,7 @@ impl World {
                 lines.push(format!("{}: {}", self.spirit_title(s), deed.text));
             }
         }
+        lines.extend(self.hearth_bond_lines());
         lines.push(format!(
             "{} Trade Caravans went out, and the settlement knows your name.",
             self.settlement.caravans
@@ -551,6 +552,7 @@ impl World {
         if let Some(t) = s.character.and_then(|c| self.defs.traits.get(c as usize)) {
             lines.push(format!("{}: {}", t.name, t.text));
         }
+        lines.extend(self.bond_story_line(s));
         let mut work = Vec::new();
         for (n, what) in [
             (s.units_gathered, "gathered"),

@@ -28,6 +28,9 @@ pub struct Homecoming {
     pub returned: Vec<Returned>,
     /// Whether the Hearth was already lit when they were called.
     pub hearth_stood: bool,
+    /// Companions who crossed together, by name.
+    #[serde(default)]
+    pub together: Vec<(String, String)>,
 }
 
 impl World {
@@ -71,6 +74,7 @@ impl World {
             finished: None,
             returned: Vec::new(),
             hearth_stood: self.hearth_stands(),
+            together: Vec::new(),
         });
         let msg = "You call them home. One by one, they stop what they're doing.".to_string();
         self.events.push(self.tick, EventKind::Player, msg.clone());
@@ -121,10 +125,22 @@ impl World {
         let due = late || self.tick >= h.last_aboard + c.homecoming_gap_ticks;
         let boat = self.boat();
         if due {
-            let ready = self.spirits.iter().position(|s| {
-                let there = boat.is_some_and(|b| s.actor.pos().is_adjacent(b));
-                !s.aboard && (late || (there && s.actor.queue.is_empty()))
-            });
+            // Once one of a pair is aboard, the boat waits for the other.
+            let awaited = self
+                .spirits
+                .iter()
+                .find(|s| !s.aboard && self.companion_of(s).is_some_and(|o| o.aboard))
+                .map(|s| s.id);
+            let ready = self
+                .spirits
+                .iter()
+                .filter(|s| {
+                    let there = boat.is_some_and(|b| s.actor.pos().is_adjacent(b));
+                    !s.aboard && (late || (there && s.actor.queue.is_empty()))
+                })
+                .filter(|s| late || awaited.is_none_or(|a| a == s.id))
+                .min_by_key(|s| (Some(s.id) != awaited, s.id))
+                .map(|s| s.id);
             if let Some(sid) = ready {
                 self.board(sid);
             }
@@ -154,7 +170,12 @@ impl World {
         self.events.push(self.tick, EventKind::Spirit, msg.clone());
         self.notices.push(self.tick, msg);
         let tick = self.tick;
+        let together = self
+            .companion_of(&self.spirits[sid])
+            .filter(|o| o.aboard)
+            .map(|o| (o.name.clone(), self.spirits[sid].name.clone()));
         if let Some(h) = &mut self.settlement.homecoming {
+            h.together.extend(together);
             h.last_aboard = tick;
             h.returned.push(Returned {
                 name: title,
@@ -204,6 +225,12 @@ impl World {
                 "{}: {} {} XP, back where it began.",
                 r.name, r.xp, r.skill
             ));
+        }
+        let template = &self.defs.bonds.boat;
+        if !template.is_empty() {
+            for (a, b) in h.together.iter().take(3) {
+                lines.push(template.replace("{a}", a).replace("{b}", b));
+            }
         }
         lines.push(if h.hearth_stood {
             "You lit them a hearth, and took them back anyway. It's still burning.".to_string()

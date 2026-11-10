@@ -107,6 +107,17 @@ fn main() {
             let total: usize = moments.iter().sum();
             println!("Small moments: {total}, by spirit {moments:?}.");
             println!("Found on the far shore: {:?}", w.settlement.relics_found);
+            let kept: Vec<String> = w
+                .bonds()
+                .iter()
+                .map(|b| {
+                    let (a, c) = (&w.spirits[b.a].name, &w.spirits[b.b].name);
+                    format!("{a} and {c} at {}", w.clock_text(b.since))
+                })
+                .collect();
+            println!("Keeping company: {kept:?}");
+            let shared: Vec<u32> = w.settlement.shared_moments.iter().map(|p| p.2).collect();
+            println!("Moments shared, by pair: {shared:?}");
             if std::env::args().any(|a| a == "--timeline") {
                 let mut all: Vec<_> = r.firsts.iter().collect();
                 all.sort_by_key(|f| f.0);

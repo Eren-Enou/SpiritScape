@@ -73,6 +73,8 @@ pub enum ScenarioKind {
     LastBoat,
     /// Nothing to do but watch.
     QuietHour,
+    /// Two spirits who have kept each other company a long time.
+    OldFriends,
     /// Everything fire can make, side by side.
     Brickyard,
     /// The Hearth lit, and winter a minute away.
@@ -96,7 +98,7 @@ pub enum ScenarioKind {
 }
 
 impl ScenarioKind {
-    pub const ALL: [ScenarioKind; 38] = [
+    pub const ALL: [ScenarioKind; 39] = [
         ScenarioKind::NewGame,
         ScenarioKind::Demo,
         ScenarioKind::Regrind,
@@ -125,6 +127,7 @@ impl ScenarioKind {
         ScenarioKind::KilnYard,
         ScenarioKind::LastBoat,
         ScenarioKind::QuietHour,
+        ScenarioKind::OldFriends,
         ScenarioKind::Brickyard,
         ScenarioKind::Midwinter,
         ScenarioKind::FullMap,
@@ -167,6 +170,7 @@ impl ScenarioKind {
             ScenarioKind::KilnYard => "kiln_yard",
             ScenarioKind::LastBoat => "last_boat",
             ScenarioKind::QuietHour => "quiet_hour",
+            ScenarioKind::OldFriends => "old_friends",
             ScenarioKind::Brickyard => "brickyard",
             ScenarioKind::Midwinter => "midwinter",
             ScenarioKind::FullMap => "full_map",
@@ -266,6 +270,9 @@ pub struct ScenarioDef {
     /// The Hearth is already lit.
     #[serde(default)]
     pub hearth_lit: bool,
+    /// Spirits who already keep each other company, by their place in `spirits`.
+    #[serde(default)]
+    pub companions: Vec<[usize; 2]>,
 }
 
 /// A full-grown tree of `kind`.
@@ -432,6 +439,7 @@ impl World {
                 moments: scenario.moments,
                 ice_warned: false,
                 relics_found: Vec::new(),
+                shared_moments: Vec::new(),
                 years: Vec::new(),
                 seasons: scenario.seasons,
                 bench_bonus: 0,
@@ -569,6 +577,11 @@ impl World {
         world.tick = scenario.start_minutes * minute;
         if scenario.hearth_lit {
             world.settlement.ended_at = Some(0);
+        }
+        for [a, b] in &scenario.companions {
+            if !world.form_bond(*a, *b) {
+                return Err(format!("spirits {a} and {b} can't keep company"));
+            }
         }
         Ok(world)
     }

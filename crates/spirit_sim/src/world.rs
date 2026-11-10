@@ -132,6 +132,9 @@ pub struct Settlement {
     /// What's been found on the far shore.
     #[serde(default)]
     pub relics_found: Vec<String>,
+    /// How many moments each pair of spirits has shared, lower id first.
+    #[serde(default)]
+    pub shared_moments: Vec<(usize, usize, u32)>,
     /// The totals at the end of each year.
     #[serde(default)]
     pub years: Vec<crate::stories::YearEnd>,

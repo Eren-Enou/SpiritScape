@@ -2144,3 +2144,12 @@ min_savings_pct = 50
 site_search_radius = 6
 # After rejecting or failing a plan, wait before re-evaluating.
 reject_cooldown_seconds = 60.0
+
+# Spirits who keep turning up in each other's moments come to keep each other
+# company. Like the moments, it changes nothing they do.
+[bonds]
+moments = 2
+formed = "{a} and {b} keep each other company now."
+story = "Has kept company with {other} since {time}."
+hearth = "{a} and {b} stood together by the Hearth."
+boat = "{a} and {b} crossed together."
