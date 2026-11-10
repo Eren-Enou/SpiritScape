@@ -68,6 +68,10 @@ pub struct Ledger {
     pub xp_earned: u64,
     /// XP the player transferred into spirits.
     pub xp_separated: u64,
+    /// XP that came back to the player when spirits went home on the Still
+    /// Boat. It was the player's before, so it isn't counted as earned again.
+    #[serde(default)]
+    pub xp_returned: u64,
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -564,6 +568,7 @@ impl World {
         self.notices.total.hash(&mut h);
         self.ledger.xp_earned.hash(&mut h);
         self.ledger.xp_separated.hash(&mut h);
+        self.ledger.xp_returned.hash(&mut h);
         self.player.time.hash(&mut h);
         h.finish()
     }
@@ -1004,7 +1009,7 @@ impl World {
         let after_xp = current_xp.saturating_sub(xp);
         let after_level = table.level_for_xp(after_xp);
         let spirit_level = table.level_for_xp(xp);
-        let tiers = self.defs.tree_tiers(skill);
+        let tiers = self.tiers_in_world(skill);
         let required = |k: &TreeKindId| self.defs.tree(*k).level_required;
         let recipes = self.defs.recipe_tiers(skill);
         let recipe_level = |r: &RecipeId| self.defs.recipe(*r).level_required;
@@ -1053,6 +1058,14 @@ impl World {
             benefit: self.spirit_benefit(skill, spirit_level),
             error,
         }
+    }
+
+    /// The kinds of tree a skill works on that are actually out there. Some
+    /// only appear later, and there's no point announcing them before that.
+    pub fn tiers_in_world(&self, skill: SkillId) -> Vec<TreeKindId> {
+        let mut tiers = self.defs.tree_tiers(skill);
+        tiers.retain(|k| self.trees.iter().any(|t| t.kind == *k));
+        tiers
     }
 
     pub(crate) fn tree_names(&self, kinds: &[TreeKindId]) -> String {
@@ -1400,15 +1413,27 @@ impl World {
     }
 
     pub(crate) fn player_earned_xp(&mut self, skill: SkillId, xp: u64) {
-        let table = &self.defs.xp_table;
-        let before = self.player.level(skill, table);
-        let highest_before = self.player.history(skill).highest_level;
-        self.player.add_xp(skill, xp, &self.defs.xp_table);
         self.ledger.xp_earned += xp;
         *self.player.log.xp_earned.entry(skill).or_default() += xp;
         if let Some(s) = &mut self.player.session {
             s.xp += xp;
         }
+        self.give_player_xp(skill, xp);
+    }
+
+    /// XP a spirit gives back when it goes home. It was the player's before,
+    /// so it goes in its own column rather than counting as earned again.
+    pub(crate) fn player_regained_xp(&mut self, skill: SkillId, xp: u64) {
+        self.ledger.xp_returned += xp;
+        self.give_player_xp(skill, xp);
+    }
+
+    /// Adds XP and says what that opens up.
+    fn give_player_xp(&mut self, skill: SkillId, xp: u64) {
+        let table = &self.defs.xp_table;
+        let before = self.player.level(skill, table);
+        let highest_before = self.player.history(skill).highest_level;
+        self.player.add_xp(skill, xp, &self.defs.xp_table);
         let after = self.player.level(skill, &self.defs.xp_table);
         if after <= before {
             return;
@@ -1420,8 +1445,7 @@ impl World {
             format!("{skill_name} level up! You are now level {after}.")
         };
         let unlocked: Vec<TreeKindId> = self
-            .defs
-            .tree_tiers(skill)
+            .tiers_in_world(skill)
             .into_iter()
             .filter(|k| (before + 1..=after).contains(&self.defs.tree(*k).level_required))
             .collect();

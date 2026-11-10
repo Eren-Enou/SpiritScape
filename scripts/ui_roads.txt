@@ -17,7 +17,7 @@
 37.0 key C
 37.4 shot 04_overview
 37.6 press Save
-38.0 expect Game saved
+38.0 expect Scenario saved
 38.1 key F9
 38.7 expect Game loaded
 39.0 shot 05_reloaded

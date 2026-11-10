@@ -644,10 +644,7 @@ fn update_site_banners(
         let (content, c) = if !w.settlement.site_open[n.0] {
             ("Reserved for you - no spirits".to_string(), INFO)
         } else if waiting > 0 {
-            (
-                format!("{waiting} spirit(s) waiting for trees to regrow"),
-                WARN,
-            )
+            (format!("{waiting} spirit(s) waiting for regrowth"), WARN)
         } else {
             let shunned = w
                 .trees
@@ -829,8 +826,9 @@ fn update_hover_tip(
                 ),
                 _ => {
                     let skill = &w.defs.skill(def.skill).name;
+                    let good = w.defs.resource(def.resource).name.to_lowercase();
                     let mut s = format!(
-                        "{} - needs {skill} Lv {}\n{}/{} logs, {} XP each",
+                        "{} - needs {skill} Lv {}\n{}/{} {good}, {} XP each",
                         def.name,
                         def.level_required,
                         t.logs_left(),

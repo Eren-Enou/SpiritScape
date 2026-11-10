@@ -832,7 +832,7 @@ fn the_report_covers_everything_a_session_is_compared_on() {
         "Gathering",
         "Processing",
         "Moving",
-        "Waiting for trees",
+        "Waiting for regrowth",
         "Waiting for materials",
         "Stuck with a full bag",
         "Trees 1",

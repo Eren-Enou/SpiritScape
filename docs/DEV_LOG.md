@@ -2,6 +2,14 @@
 
 The handoff between development runs. Newest first.
 
+## v0.40 Release candidate
+
+**Status:** on branch `v0.40-release-candidate`, with a pull request into `main`. Not merged.
+
+**Shipped:** all of v0.9 to v0.39 in one candidate, CI, Windows launchers, a two-stage playtest guide, and six defect fixes, among them spirits that were invisible and scenario saves that overwrote your game. No new features.
+
+**Next:** your playtest. Unpublished feature work from after v0.39 is on local `wip/*` branches, to be ported on top of this once it's reviewed.
+
 ## v0.39 The frozen river
 
 **Status:** on branch `v0.39-ice`, with its PR targeting `v0.38-moments`. Not merged.

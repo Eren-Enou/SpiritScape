@@ -144,7 +144,7 @@ impl World {
         let (skill, xp) = (s.skill(), s.gift_xp);
         let name = self.defs.skill(skill).name.clone();
         if xp > 0 {
-            self.player_earned_xp(skill, xp);
+            self.player_regained_xp(skill, xp);
         }
         let msg = if xp > 0 {
             format!("{title} has come home. {xp} {name} XP is yours again.")

@@ -38,18 +38,18 @@ impl Status {
 pub fn spirit_status(s: &Spirit) -> (Status, String) {
     let carried = s.actor.inventory.total();
     match s.actor.queue.front() {
-        Some(Task::Chop { .. }) => (Status::Chopping, "chopping".into()),
-        Some(Task::Craft { .. }) => (Status::Crafting, "sawing".into()),
+        Some(Task::Chop { .. }) => (Status::Chopping, "gathering".into()),
+        Some(Task::Craft { .. }) => (Status::Crafting, "at the bench".into()),
         Some(Task::Move { .. }) if carried > 0 => (Status::Carrying, format!("carrying {carried}")),
         Some(Task::Move { .. }) => (Status::Walking, "walking".into()),
         Some(Task::Build { .. }) => (Status::Building, "building".into()),
         Some(_) => (Status::Handling, "loading".into()),
         None => match (&s.activity, s.wait) {
             (Activity::Blocked(_), Some(WaitKind::Recovery)) => {
-                (Status::Waiting, "waiting for trees".into())
+                (Status::Waiting, "waiting for regrowth".into())
             }
             (Activity::Blocked(_), Some(WaitKind::Inputs)) => {
-                (Status::Waiting, "waiting for logs".into())
+                (Status::Waiting, "waiting for materials".into())
             }
             (Activity::Blocked(_), Some(WaitKind::Station)) => {
                 (Status::Waiting, "waiting for a bench".into())

@@ -220,21 +220,34 @@ impl Sim {
 
     /// Goes back to the last manual save.
     pub fn load_manual(&mut self) {
-        let result = self.store.load(Slot::Manual);
+        let result = self.manual_store().load(Slot::Manual);
         self.use_save(result);
     }
 
     pub fn save_game(&mut self) {
-        self.message = match self
-            .store
-            .write(Slot::Manual, &self.world, self.scenario.key())
-        {
+        let store = self.manual_store();
+        self.message = match store.write(Slot::Manual, &self.world, self.scenario.key()) {
             Ok(()) => {
                 self.autosave_timer = 0.0;
-                "Game saved".into()
+                if self.is_journey() {
+                    "Game saved".into()
+                } else {
+                    "Scenario saved. Your own game's save is untouched.".into()
+                }
             }
             Err(e) => e.to_string(),
         };
+    }
+
+    /// Where Save and Load go. A scenario keeps its saves in a folder of its
+    /// own, so trying one can never overwrite the game you're playing.
+    fn manual_store(&self) -> SaveStore {
+        if self.is_journey() {
+            self.store.clone()
+        } else {
+            let dir = self.store.dir().join("scenarios").join(self.scenario.key());
+            SaveStore::new(dir)
+        }
     }
 
     fn write_autosave(&mut self) {
@@ -476,5 +489,44 @@ fn keyboard_controls(keys: Res<ButtonInput<KeyCode>>, mut sim: ResMut<Sim>) {
     }
     if keys.just_pressed(KeyCode::F6) {
         sim.write_report();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_dir(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("spirit_{name}_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        dir
+    }
+
+    #[test]
+    fn a_scenario_never_saves_over_your_game() {
+        let dir = temp_dir("scenario_save");
+        let mut sim = Sim::new(ScenarioKind::KilnYard);
+        sim.store = SaveStore::new(&dir);
+        sim.save_game();
+        assert!(sim.message.contains("untouched"), "{}", sim.message);
+        assert!(!dir.join("world.save").exists());
+        assert!(
+            dir.join("scenarios")
+                .join("kiln_yard")
+                .join("world.save")
+                .exists()
+        );
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_real_game_still_saves_where_it_always_did() {
+        let dir = temp_dir("journey_save");
+        let mut sim = Sim::journey("normal").unwrap();
+        sim.store = SaveStore::new(&dir);
+        sim.save_game();
+        assert_eq!(sim.message, "Game saved");
+        assert!(dir.join("world.save").exists());
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

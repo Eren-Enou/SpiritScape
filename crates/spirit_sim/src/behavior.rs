@@ -569,7 +569,7 @@ impl World {
         if storage_fields.is_empty() {
             return Err(Blocked::new(
                 WaitKind::Storage,
-                "No storage has room for more logs",
+                "No storage has room for any more",
             ));
         }
 
@@ -660,16 +660,19 @@ impl World {
         }
         let Some((_, tree)) = best_home.or(best) else {
             return Err(if !any_cuttable {
-                "No trees within this spirit's skill level".into()
+                "Nothing here is within this spirit's skill level".into()
             } else if !any_permitted {
-                "Every site with suitable trees is closed to spirits".into()
+                "Every site it could work is closed to spirits".into()
             } else if any_grown {
                 Blocked::new(
                     WaitKind::Recovery,
-                    "All grown trees are taken - waiting for regrowth",
+                    "Everything ready is taken - waiting for regrowth",
                 )
             } else {
-                Blocked::new(WaitKind::Recovery, "No grown trees - waiting for regrowth")
+                Blocked::new(
+                    WaitKind::Recovery,
+                    "Nothing is ready - waiting for regrowth",
+                )
             });
         };
         let t = &self.trees[tree];

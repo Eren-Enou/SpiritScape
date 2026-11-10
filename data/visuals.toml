@@ -368,6 +368,15 @@ model = "models/characters/Mage.glb"
 [characters.roles.woodworker]
 model = "models/characters/Knight.glb"
 
+[characters.roles.quarrier]
+model = "models/characters/Barbarian.glb"
+
+[characters.roles.mason]
+model = "models/characters/Knight.glb"
+
+[characters.roles.kiln_worker]
+model = "models/characters/Rogue_Hooded.glb"
+
 [spirit_look]
 alpha = 0.65
 glow = 0.45

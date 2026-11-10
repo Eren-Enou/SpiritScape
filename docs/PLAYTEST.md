@@ -1,226 +1,81 @@
 # Playtest guide
 
-Nobody has played anything since v0.6, and every balance choice since then comes from scripts. This guide covers it all in one session of about an hour. You don't need the per-version checklists.
+Nobody has played SpiritScape since v0.6. Every balance choice since then comes from automated players, which can show the game works but can't show whether it's any good. This guide is how to find out.
+
+There are two stages. Stage A is the one that matters most.
 
 ## Getting the game
-
-Every version is included on the newest branch, so one checkout is enough:
 
 ```bash
 git fetch origin
 ```
 
 ```bash
-git checkout v0.39-ice
+git checkout v0.40-release-candidate
 ```
 
-Press `F6` at any time to write a report of your session. Note the time whenever something surprises you.
+Then double-click **`play.bat`**. The first time, it builds the game, which takes several minutes. After that it starts straight away.
 
-## 1. A normal game (20 minutes)
+- **Your game is saved in `%APPDATA%\SpiritScape`.** It autosaves, and saves when you close the window. Run `play.bat` again to carry on.
+- **If something goes wrong,** the window stays open with the error, and your save is untouched.
+- **Press `F6` at any time** to write a report of your session. It goes in the save folder as `play_report.txt`.
+- **Note the time whenever something surprises you.** The clock is at the top right.
 
-The most important one. Play as if you'd just found the game.
+If you'd rather not install Rust, someone with it can run `tools\package_windows.ps1` to make a folder you can copy and play from.
 
-```bash
-cargo run --release -- --new-game --save-dir target/playtest
-```
+## Stage A: a normal new game (30 to 60 minutes)
 
-- [ ] Did you know what to do in the first five minutes? Best tried on someone who's never seen the game.
-- [ ] Did tabs appearing as you went help, or feel like things were hidden?
-- [ ] When did you first want to stop?
-- [ ] Did you find one of the old stones without looking for it?
-- [ ] If you played into winter, did you change what you were doing?
-- [ ] Did you notice the first visitor, and think about their offer?
-- [ ] Did making a spirit feel worth the XP it cost?
-- [ ] Do mouse and keyboard work as you expect? This has never been checked with real input since v0.6.
+Run `play.bat`, choose **New Game**, and play. Don't read anything else first. The game should teach you as you go.
 
-## 2. Storage and planks (10 minutes)
+Write down your answers as you play:
 
-```bash
-cargo run --release -- --scenario plank_surplus
-```
+**Getting started**
 
-Read the message, then do what you'd naturally do.
+- [ ] How long before you knew what to do? What told you?
+- [ ] Were the controls easy to find? Anything you looked for and couldn't find?
+- [ ] Did cutting trees feel worth doing?
 
-- [ ] Did you read the whole message, or stop after the first choice?
-- [ ] Would buttons be better than a paragraph?
-- [ ] Did a road feel worth buying? Can you feel the speed on foot?
+**Your first spirit**
 
-## 3. Fitted Panels (10 minutes)
+- [ ] Did you understand what Soul Separation would cost you before you did it?
+- [ ] Did giving up your levels feel like a real choice?
+- [ ] Did you care about the spirit afterwards? Did you rename it?
 
-```bash
-cargo run --release -- --scenario panel_workshop
-```
+**After that**
 
-Walk to the Workshop, press `T` and choose Fitted Panels.
+- [ ] Did the spirits seem to know what they were doing? Did you ever wonder why one was idle?
+- [ ] Was it clear what to build next, and why?
+- [ ] Could you read the panels at a glance, or did you have to study them?
+- [ ] Did sounds and sparks help, or get in the way? (`M` turns sound off.)
+- [ ] When did you first want to stop? When did you first not want to?
 
-- [ ] Is it clear why you'd choose panels?
-- [ ] Is 90 XP a batch too much?
-- [ ] Is waiting at the bench for planks acceptable?
+## Stage B: one system at a time
 
-## 4. The crossing and the plan (10 minutes)
+Double-click **`scenarios.bat`** and pick a number. Each one starts right where that system matters, so you don't have to play for hours to reach it.
 
-```bash
-cargo run --release -- --scenario forest_access
-```
+**Scenarios keep their own saves,** in `%APPDATA%\SpiritScape\scenario-tests`. Nothing you do in one can overwrite your Stage A game.
 
-Press `B`, plan the Forest Crossing, then go and chop.
-
-- [ ] Could you forget about the plan and trust it?
-- [ ] Did it feel like an accomplishment when it opened?
-
-## 5. The quarry (5 minutes)
-
-```bash
-cargo run --release -- --scenario quarry_start
-```
-
-- [ ] Did you find the quarry?
-- [ ] Does cutting stone feel different enough from cutting trees?
-- [ ] Clicking an outcrop has never been tested in the window. Does it work?
-
-## 6. The whole map (5 minutes)
-
-```bash
-cargo run --release -- --scenario full_map --fps
-```
-
-- [ ] Does it look like one settlement?
-- [ ] Walk south over the crossing. Does the Far Shore feel different?
-- [ ] Does a hauler waiting for a full load look sensible, or stuck?
-- [ ] Is it smooth on your machine?
-
-## 7. Trade Caravans (5 minutes)
-
-```bash
-cargo run --release -- --scenario caravan_yard
-```
-
-- [ ] Did a caravan feel like a choice, or a chore?
-- [ ] Did what it brought back feel like a reward?
-- [ ] Try `--scenario late_finds` too. Is there anything there you'd want before the sixth caravan?
-- [ ] In a real game, did a returning visitor make you remember what you'd said?
-
-## 8. A spirit of your own (5 minutes)
-
-```bash
-cargo run --release -- --scenario quarry_start
-```
-
-Make a spirit from the Soul tab (`R`), then look at it in the Spirits tab (`O`).
-
-- [ ] Did it feel like someone, or like a stat line? Did you want to rename it?
-- [ ] Did seeing the next trait change when you made a spirit?
-
-## 9. The Mason's Yard (5 minutes)
-
-```bash
-cargo run --release -- --scenario mason_yard
-```
-
-- [ ] Could you work out what the yard is for?
-
-## 10. The ending (5 minutes)
-
-```bash
-cargo run --release -- --scenario last_stage
-```
-
-Press `B`, plan the Hearth of Spirits and wait. Then press `J`.
-
-- [ ] Did that feel like an ending? Did the spirits coming to the Hearth mean anything?
-
-## 11. The Kiln (5 minutes)
-
-```bash
-cargo run --release -- --scenario kiln_yard
-```
-
-Press `P` and ask for Bricks, then press `G` and ask for some Stone.
-
-- [ ] Could you tell why Bricks were waiting?
-- [ ] Is a chain this long interesting, or just more waiting?
-
-## 12. The other ending (5 minutes)
-
-```bash
-cargo run --release -- --scenario last_boat
-```
-
-Press `J`, and decide.
-
-- [ ] Did you hesitate?
-- [ ] Did the closing words feel earned, or too clever?
-
-## 13. Sound
-
-Listen as you play. `M` turns it off.
-
-- [ ] Are the sounds pleasant, or wearing after an hour?
-
-## 14. A quiet hour (10 minutes)
-
-```bash
-cargo run --release -- --scenario quiet_hour
-```
-
-Watch for a while, or use `8x`. Then rename a spirit and carry on.
-
-- [ ] Did you notice one without being told?
-- [ ] Did any of them make you feel something, or feel too cute?
-
-## 15. Winter, in a real game
-
-Play through at least one winter.
-
-- [ ] Did you feel winter cost you something? The numbers say it costs a lot.
-- [ ] Did you do anything differently once you knew it was coming?
-
-Walk south in winter. To get there quickly:
-
-```bash
-cargo run --release -- --new-game --skip-minutes 95
-```
-
-- [ ] Did you want to cross the ice? Did you feel any risk?
+| # | Scenario | What to try | What to look for |
+|---|---|---|---|
+| 1 | The quarry | Cut stone, then make a Quarrying Spirit | Was it clear stone is a separate skill? |
+| 2 | The Mason's Yard | Dress stone and cut Keystones | Did joining stone and timber make sense? |
+| 3 | A remote outpost | Set up work far from home | Could you tell what the outpost was doing? |
+| 4 | Production chains | Ask for panels and beams in Production (`P`) | Could you see why something wasn't being made? |
+| 5 | Trade Caravans | Plan one in Projects (`B`) and send it | Did what came back feel like a reward? |
+| 6 | The Kiln | Ask for Bricks | Is a chain this long interesting, or just waiting? |
+| 7 | A quiet hour | Watch for a while, then press `O` | Did a spirit's small moments make you feel anything? |
+| 8 | Winter | Walk south across the frozen river | Did you feel any risk? Did the warning come in time? |
+| 9 | The Hearth | Plan the Hearth of Spirits, then press `J` | Did it feel like an ending? |
+| 10 | The Still Boat | Press `J`, and decide | Did you hesitate? Did the closing words feel earned? |
+| 11 | The whole map | Walk around | Does it look like one place? |
 
 ## Four decisions only you can make
 
-1. **Is the pace right?** The reference player reaches the Forest Crossing in under two hours, and panels give about 450 XP a minute.
-2. **Should a full store let you throw goods away?** "Leave your load" keeps Woodcutting 20 reachable, but it's a patch. The alternative is something that uses goods repeatedly, such as road upkeep.
-3. **Should you choose road routes yourself?** They're fixed for now.
-4. **What should come next?** A new skill, more depth in these, or something else entirely.
+1. **Is the pace right?** The automated player meets all 19 goals in about 17 hours. A person will be slower.
+2. **The Still Boat gives sacrificed XP back.** The game began with the rule that a sacrifice is permanent, and this ending breaks that rule on purpose. Keep it, change it, or cut it? See `docs/V0.40_RELEASE_CANDIDATE.md`.
+3. **Winter costs about a fifth of the game's time.** Is that the right size?
+4. **Visitors' offers barely change the economy.** Is being remembered enough of a reward?
 
-## The pull requests
+## What to send back
 
-They're stacked, each targeting the one before, so they must be merged in this order, or reviewed together from the newest branch.
-
-| PR | Version | What it adds |
-|---|---|---|
-| [#7](https://github.com/Eren-Enou/SpiritScape/pull/7) | v0.9 | Forest Crossing, construction plan, hauler scoring |
-| [#8](https://github.com/Eren-Enou/SpiritScape/pull/8) | v0.10 | Plank roads |
-| [#9](https://github.com/Eren-Enou/SpiritScape/pull/9) | v0.11 | Fitted Panels, Warehouse, Carrying Frames |
-| [#10](https://github.com/Eren-Enou/SpiritScape/pull/10) | v0.12 | Guided player, storage message fix |
-| [#11](https://github.com/Eren-Enou/SpiritScape/pull/11) | v0.13 | Rescue for anyone walled in |
-| [#12](https://github.com/Eren-Enou/SpiritScape/pull/12) | v0.14 | Full loads on long trips |
-| [#13](https://github.com/Eren-Enou/SpiritScape/pull/13) | v0.15 | Quarrying and the Stone Causeway |
-| [#14](https://github.com/Eren-Enou/SpiritScape/pull/14) | v0.16 | Ambitions |
-| [#15](https://github.com/Eren-Enou/SpiritScape/pull/15) | v0.17 | Long-run check, wording |
-| [#16](https://github.com/Eren-Enou/SpiritScape/pull/16) | v0.18 | Demand chains, goal messages |
-| [#17](https://github.com/Eren-Enou/SpiritScape/pull/17) | v0.19 | Every goal reachable, Leave your load |
-| [#18](https://github.com/Eren-Enou/SpiritScape/pull/18) | v0.20 | Frame rate check and this guide |
-| [#19](https://github.com/Eren-Enou/SpiritScape/pull/19) | v0.21 | Trade Caravans |
-| [#20](https://github.com/Eren-Enou/SpiritScape/pull/20) | v0.22 | What caravans bring back |
-| [#21](https://github.com/Eren-Enou/SpiritScape/pull/21) | v0.23 | Spirit stories |
-| [#22](https://github.com/Eren-Enou/SpiritScape/pull/22) | v0.24 | Masonry |
-| [#23](https://github.com/Eren-Enou/SpiritScape/pull/23) | v0.25 | The Hearth of Spirits |
-| [#24](https://github.com/Eren-Enou/SpiritScape/pull/24) | v0.26 | The old stones |
-| [#25](https://github.com/Eren-Enou/SpiritScape/pull/25) | v0.27 | Seasons |
-| [#26](https://github.com/Eren-Enou/SpiritScape/pull/26) | v0.28 | Visitors |
-| [#27](https://github.com/Eren-Enou/SpiritScape/pull/27) | v0.29 | Learning as you go |
-| [#28](https://github.com/Eren-Enou/SpiritScape/pull/28) | v0.30 | Sound and feedback |
-| [#29](https://github.com/Eren-Enou/SpiritScape/pull/29) | v0.31 | The moment |
-| [#30](https://github.com/Eren-Enou/SpiritScape/pull/30) | v0.32 | The Far Shore |
-| [#31](https://github.com/Eren-Enou/SpiritScape/pull/31) | v0.33 | Names |
-| [#32](https://github.com/Eren-Enou/SpiritScape/pull/32) | v0.34 | Coming back |
-| [#33](https://github.com/Eren-Enou/SpiritScape/pull/33) | v0.35 | The Kiln |
-| [#34](https://github.com/Eren-Enou/SpiritScape/pull/34) | v0.36 | The Still Boat |
+Your notes from Stage A, the scenarios you tried, and any `play_report.txt`. Screenshots help where something looked wrong.

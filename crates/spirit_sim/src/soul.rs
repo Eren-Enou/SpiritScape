@@ -24,15 +24,15 @@ impl World {
         let tpm = self.defs.ticks_per_second * 60;
         if role.has_job(JobKind::Gather) {
             let best = self
-                .defs
-                .tree_tiers(skill)
+                .tiers_in_world(skill)
                 .into_iter()
                 .rfind(|k| self.defs.tree(*k).level_required <= level);
             return match best {
                 Some(k) => {
                     let def = self.defs.tree(k);
+                    let good = self.defs.resource(def.resource).name.to_lowercase();
                     let rate = format!(
-                        "Cuts about {} logs/min from {} while chopping",
+                        "Cuts about {} {good}/min from {} while working",
                         tpm / def.chop_ticks_at(level).max(1),
                         def.name
                     );
@@ -75,8 +75,7 @@ impl World {
         }
         let level = table.level_for_xp(have);
         let mut tiers: Vec<(String, u32)> = self
-            .defs
-            .tree_tiers(skill)
+            .tiers_in_world(skill)
             .into_iter()
             .map(|k| self.defs.tree(k))
             .filter(|d| !d.spirits_avoid)
@@ -234,8 +233,14 @@ impl World {
         let state = if regained { "again" } else { "now" };
         let mut parts = vec![opening];
         if !trees.is_empty() {
+            // An Oak is a tree. A Clay Bank isn't.
+            let noun = if self.defs.skill(skill).id == "woodcutting" {
+                " trees"
+            } else {
+                "s"
+            };
             parts.push(format!(
-                "{} trees are {state} available.",
+                "{}{noun} are {state} available.",
                 self.tree_names(trees)
             ));
         }

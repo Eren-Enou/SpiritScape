@@ -20,7 +20,7 @@
 4.9 press Cancel: Storehouse
 5.3 expect Storehouse taken off the plan
 5.4 press Save
-5.8 expect Game saved
+5.8 expect Scenario saved
 6.0 key F9
 6.6 expect Game loaded
 6.8 key B

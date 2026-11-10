@@ -184,3 +184,19 @@ fn the_chimney_waits_for_the_hearth_and_changes_the_story() {
     let line = w.defs.building(chimney).ending_line.clone().unwrap();
     assert!(line.contains("valley"));
 }
+
+/// It used to say "Clay Bank: in . 6 Clay each" at Quarrying level 3, hours
+/// before there was any clay in the world.
+#[test]
+fn clay_is_not_mentioned_before_there_is_any() {
+    let mut w = World::from_scenario(ScenarioKind::LateFinds);
+    let quarrying = w.defs.skill_id("quarrying").unwrap();
+    let is_clay = |w: &World, k: &spirit_sim::defs::TreeKindId| w.defs.tree(*k).id == "clay_bank";
+    assert!(!w.tiers_in_world(quarrying).iter().any(|k| is_clay(&w, k)));
+    assert!(w.defs.tree_tiers(quarrying).iter().any(|k| is_clay(&w, k)));
+    w.settlement.caravans = 7;
+    stock(&mut w, "planks", 30);
+    plan(&mut w, "clay_pits").unwrap();
+    assert!(run_until(&mut w, 8000, |w| built(w, "clay_pits")));
+    assert!(w.tiers_in_world(quarrying).iter().any(|k| is_clay(&w, k)));
+}

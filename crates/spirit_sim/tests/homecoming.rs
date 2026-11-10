@@ -182,3 +182,64 @@ fn a_builder_can_be_called_off_a_project() {
     let (loaded, _) = decode(&encode(&w, "last_boat")).unwrap();
     assert!(loaded.spirits.is_empty());
 }
+
+fn all_xp(w: &World) -> u64 {
+    (0..w.defs.skills.len())
+        .map(|i| w.player.xp(spirit_sim::defs::SkillId(i as u16)))
+        .sum()
+}
+
+/// Release-candidate check: the Still Boat gives back exactly what the spirits
+/// were made from, once, and it isn't counted as earned.
+#[test]
+fn returned_xp_is_kept_apart_from_earned_xp() {
+    let mut w = shore();
+    let gave: u64 = w.spirits.iter().map(|s| s.gift_xp).sum();
+    let before = all_xp(&w);
+    let earned = w.ledger.xp_earned;
+    call_and_wait(&mut w);
+    assert_eq!(w.ledger.xp_returned, gave);
+    assert_eq!(
+        w.ledger.xp_earned, earned,
+        "giving it back isn't earning it"
+    );
+    assert_eq!(all_xp(&w), before + gave);
+    assert!(w.apply(Command::CallHome).is_err(), "nobody left to call");
+    w.run_ticks(3000);
+    assert_eq!(w.ledger.xp_returned, gave);
+    assert_eq!(all_xp(&w), before + gave);
+}
+
+#[test]
+fn saving_at_every_step_never_returns_xp_twice() {
+    let mut w = shore();
+    let gave: u64 = w.spirits.iter().map(|s| s.gift_xp).sum();
+    let before = all_xp(&w);
+    w.apply(Command::CallHome).unwrap();
+    for _ in 0..10_000 {
+        if w.homecoming_finished() {
+            break;
+        }
+        w.run_ticks(7);
+        w = decode(&encode(&w, "last_boat")).unwrap().0;
+        assert!(all_xp(&w) <= before + gave);
+    }
+    assert!(w.homecoming_finished());
+    assert_eq!(all_xp(&w), before + gave);
+    assert_eq!(w.ledger.xp_returned, gave);
+    w.check_conservation().unwrap();
+}
+
+#[test]
+fn a_spirit_made_after_the_boat_left_cannot_be_called_home() {
+    let mut w = shore();
+    call_and_wait(&mut w);
+    let skill = w.defs.skill_id("woodcutting").unwrap();
+    let xp = w.defs.xp_table.xp_for_level(5);
+    w.soul_separate(skill, xp).unwrap();
+    let after = all_xp(&w);
+    assert!(!w.can_call_home());
+    assert!(w.apply(Command::CallHome).is_err());
+    w.run_ticks(3000);
+    assert_eq!(all_xp(&w), after, "what it was made from stays given");
+}

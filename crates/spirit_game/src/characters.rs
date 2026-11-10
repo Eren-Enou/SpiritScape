@@ -202,9 +202,10 @@ fn spawn_characters(
     }
     for s in &w.spirits[spawned.spirits..] {
         let role = w.defs.role(s.role);
-        let Some(model_def) = visuals.characters.roles.get(&role.id) else {
-            continue;
-        };
+        // A spirit with no model of its own still has to be seen, or it works
+        // on unnoticed with no name over its head.
+        let model_def = visuals.characters.roles.get(&role.id);
+        let model_def = model_def.unwrap_or(&visuals.characters.player);
         let [r, g, b] = role.color;
         spawn_character(
             &mut commands,

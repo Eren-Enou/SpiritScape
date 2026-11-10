@@ -1691,7 +1691,7 @@ fn update_buttons(
                 format!("Production: {}", if on { "ON" } else { "OFF" })
             }
             UiAction::ToggleWorker(n) => match w.crafters().nth(*n) {
-                Some(s) if s.assigned => format!("{}: on planks", s.name),
+                Some(s) if s.assigned => format!("{}: on production", s.name),
                 Some(s) => format!("{}: unassigned", s.name),
                 None => continue,
             },
@@ -2009,7 +2009,7 @@ fn level_progress(w: &World, xp: u64) -> (f32, Option<u64>) {
 /// What a skill unlocks, as chips: green when the player has it, grey with
 /// its level otherwise.
 fn unlock_chips(w: &World, skill: SkillId, level: u32) -> Vec<Item> {
-    let tiers = w.defs.tree_tiers(skill).into_iter().map(|k| {
+    let tiers = w.tiers_in_world(skill).into_iter().map(|k| {
         let d = w.defs.tree(k);
         (d.name.clone(), d.level_required)
     });
@@ -2736,7 +2736,7 @@ fn menu_lines(sim: &Sim) -> Vec<Line> {
 
 /// The next thing a skill unlocks above `level`.
 fn next_unlock(w: &World, skill: SkillId, level: u32) -> Option<(String, u32)> {
-    let trees = w.defs.tree_tiers(skill).into_iter().map(|k| {
+    let trees = w.tiers_in_world(skill).into_iter().map(|k| {
         let d = w.defs.tree(k);
         (d.name.clone(), d.level_required)
     });
@@ -2796,7 +2796,7 @@ fn workforce_lines(w: &World) -> Vec<Line> {
             muted(format!("{role} Lv {}", s.level())),
             Item::Spacer,
         ];
-        let trees = w.defs.tree_tiers(s.skill()).into_iter();
+        let trees = w.tiers_in_world(s.skill()).into_iter();
         line.extend(
             trees
                 .map(|k| w.defs.tree(k))
@@ -3095,7 +3095,7 @@ fn site_lines(w: &World, i: usize) -> Vec<Line> {
             access,
         ],
         vec![
-            text("Trees   "),
+            text("Ready   "),
             bar(frac, availability_color(frac), 120.0),
             text(format!(
                 "{}/{} standing",
@@ -3103,7 +3103,7 @@ fn site_lines(w: &World, i: usize) -> Vec<Line> {
             )),
         ],
         vec![
-            text("Logs/min"),
+            text("Per min "),
             bar(rate.min(1.0), if rate > 1.0 { WARN } else { INFO }, 120.0),
             text(format!("{:.0}", site.measured_per_min)),
             muted(format!("(sustains ~{:.0})", site.sustainable_per_min)),
@@ -3140,7 +3140,7 @@ fn bottleneck_lines(w: &World) -> Vec<Line> {
         vec![big(r.bottleneck.label(), color)],
         vec![text(r.summary.clone())],
         vec![muted(format!(
-            "Gatherers could cut up to ~{:.0} logs/min if trees were always ready.",
+            "Gatherers could bring in up to ~{:.0} a minute if everything were always ready.",
             r.chop_capacity_per_min
         ))],
     ]
@@ -3160,7 +3160,7 @@ fn time_use_lines(w: &World) -> Vec<Line> {
         Item::Dot(other),
         muted("unload/build"),
         Item::Dot(wait),
-        muted("wait for trees"),
+        muted("wait for regrowth"),
         Item::Dot(idle),
         muted("idle"),
     ]];

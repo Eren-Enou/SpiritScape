@@ -363,7 +363,7 @@ impl World {
             .max_by(|a, b| a.measured_per_min.total_cmp(&b.measured_per_min));
         let production = match busiest {
             Some(s) if s.measured_per_min > 0.0 => format!(
-                "{} is producing {:.0} logs/min (sustainable ~{:.0}). ",
+                "{} is producing {:.0} a minute (sustainable ~{:.0}). ",
                 s.name, s.measured_per_min, s.sustainable_per_min
             ),
             _ => String::new(),
@@ -375,20 +375,20 @@ impl World {
                 "Gatherers are mostly idle: the stock target is met.".to_string()
             }
             Bottleneck::ResourceRecovery => format!(
-                "Workers could gather faster, but available trees are recovering ({}% of working time spent waiting).",
+                "Workers could gather faster, but what's there is recovering ({}% of working time spent waiting).",
                 t.pct_of_working(t.waiting_recovery)
             ),
             Bottleneck::HaulingCapacity => {
                 "Field storage is filling up faster than haulers can empty it.".to_string()
             }
             Bottleneck::StorageCapacity => {
-                "Storage is full: there is nowhere to put logs.".to_string()
+                "Storage is full: there is nowhere to put anything.".to_string()
             }
             Bottleneck::TravelDistance => {
                 format!("Gatherers spend {travel}% of their working time walking.")
             }
             Bottleneck::GatheringSpeed => format!(
-                "Gatherers spend most of their time chopping ({}%); more or higher-level spirits would raise output.",
+                "Gatherers spend most of their time gathering ({}%); more or higher-level spirits would raise output.",
                 t.pct_of_working(t.gathering)
             ),
         };

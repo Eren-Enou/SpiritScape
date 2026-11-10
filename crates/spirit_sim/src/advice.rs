@@ -297,7 +297,7 @@ impl World {
         out += &row("Processing", t.crafting);
         out += &row("Moving", t.traveling);
         out += &row("Loading and unloading", t.handling);
-        out += &row("Waiting for trees", t.waiting_recovery);
+        out += &row("Waiting for regrowth", t.waiting_recovery);
         out += &row("Waiting for materials", t.waiting_input);
         out += &row("Stuck with a full bag", t.blocked_storage);
         out += &row("Idle", t.idle);

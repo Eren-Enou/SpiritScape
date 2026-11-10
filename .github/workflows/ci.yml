@@ -1,0 +1,79 @@
+# Checks every pull request and development branch. The simulation is
+# deterministic and headless, so everything except the scripted UI tests runs
+# here. Those open a real window with a GPU, which a hosted runner doesn't
+# have: see docs/V0.40_RELEASE_CANDIDATE.md for how to run them locally.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "v0.*"
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  checks:
+    name: Format, Clippy and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      # Bevy needs these to compile on Linux, even though nothing here opens a
+      # window.
+      - name: Install system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Formatting
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      # Includes the save-compatibility fixtures, the deterministic replay and
+      # save/load hash checks, and resource conservation.
+      - name: Workspace tests
+        run: cargo test --workspace --no-fail-fast
+
+  long-runs:
+    name: Release-only long runs
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release
+
+      # Whole simulated games, including every long-term goal in one game. Too
+      # slow without optimisation, so they're marked #[ignore] and run here in
+      # release mode.
+      - name: Long-run simulation tests
+        run: >
+          cargo test --release -p spirit_sim
+          --test projects --test roads --test panels --test guided --test ambitions
+          -- --ignored
+
+      - name: Reference game report
+        run: cargo run --release -p spirit_sim --example all_goals_report
