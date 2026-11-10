@@ -29,6 +29,8 @@ pub struct Spawned {
     pub spirits: usize,
     /// The player's own stone is on the map.
     pub your_stone: bool,
+    /// Stones from earlier games are on the map.
+    pub left_before: bool,
 }
 
 #[derive(Component)]
@@ -205,8 +207,8 @@ fn spawn_hover_tip(mut commands: Commands) {
     ));
 }
 
-/// The player's own stone, once it's carved: like the old ones, but new and
-/// pale, and a little shorter.
+/// Stones the player carved: stones from earlier games from the start, and
+/// this game's own once it's carved.
 fn spawn_your_stone(
     mut commands: Commands,
     sim: Res<Sim>,
@@ -214,15 +216,34 @@ fn spawn_your_stone(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    if spawned.your_stone || spawned.generation != Some(sim.generation) {
+    if spawned.generation != Some(sim.generation) {
         return;
     }
-    let Some(stone) = &sim.world.settlement.your_stone else {
-        return;
-    };
-    spawned.your_stone = true;
-    let at = tile_world(stone.at[0] as f32, stone.at[1] as f32);
-    commands.spawn((
+    let settlement = &sim.world.settlement;
+    if !spawned.left_before {
+        spawned.left_before = true;
+        for s in &settlement.left_before {
+            commands.spawn(own_stone(s.at, &mut meshes, &mut materials));
+        }
+    }
+    if let Some(stone) = settlement
+        .your_stone
+        .as_ref()
+        .filter(|_| !spawned.your_stone)
+    {
+        spawned.your_stone = true;
+        commands.spawn(own_stone(stone.at, &mut meshes, &mut materials));
+    }
+}
+
+/// A stone the player carved: like the old ones, but pale, and a little shorter.
+fn own_stone(
+    at: [i32; 2],
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+) -> impl Bundle {
+    let at = tile_world(at[0] as f32, at[1] as f32);
+    (
         WorldEntity,
         Mesh3d(meshes.add(Cuboid::new(0.42, 1.3, 0.3))),
         MeshMaterial3d(materials.add(StandardMaterial {
@@ -232,7 +253,7 @@ fn spawn_your_stone(
         })),
         Transform::from_translation(at + Vec3::new(0.3, 0.65, 0.3))
             .with_rotation(Quat::from_rotation_z(-0.05)),
-    ));
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -257,6 +278,7 @@ pub fn rebuild_on_restart(
         buildings: 0,
         spirits: 0,
         your_stone: false,
+        left_before: false,
     };
     let w = &sim.world;
     let t = &visuals.terrain;

@@ -2,6 +2,16 @@
 
 The handoff between development runs. Newest first.
 
+## v0.49 Last time
+
+**Status:** on branch `v0.49-last-time`, with its PR targeting `v0.48-your-stone`. Not merged.
+
+**Shipped:** a stone carved in a real game is kept in `stones.txt` beside the saves, and the next new game stands it beside the first old stone, up to three games' worth, newest first. Walking up to one finds it. Finding it adds a line to the stone you carve this time and to the closing words. A `last_time` scenario.
+
+**Decided:** only a real game keeps its stone, never a scenario. The words are trimmed to six lines of 200 characters, so a damaged or edited file can't fill the screen. Nothing points to the stones but their place by the first old stone.
+
+**Next:** a playtest. Failing that, polish and readability over the whole game.
+
 ## v0.48 Your stone
 
 **Status:** on branch `v0.48-your-stone`, with its PR targeting `v0.47-kept-company`. Not merged.

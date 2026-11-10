@@ -193,6 +193,7 @@ impl Sim {
             Ok(world) => {
                 self.adopt(world, ScenarioKind::NewGame);
                 self.message = String::new();
+                self.recall_stones();
                 // The old save stays until this game first saves over it.
             }
             Err(e) => self.menu_error = Some(e),
@@ -346,6 +347,27 @@ You can no longer make {} - retrain to regain it",
             Ok(()) => format!("Play report written to {}", path.display()),
             Err(e) => format!("Couldn't write the play report: {e}"),
         };
+    }
+
+    /// Stands the stones carved in earlier games in a new one.
+    pub fn recall_stones(&mut self) {
+        if self.is_journey() && self.world.tick == 0 {
+            let kept = crate::stones::load(self.store.dir());
+            self.world.leave_from_before(kept);
+        }
+    }
+
+    /// Carves a stone, and in a real game keeps it for the next one.
+    pub fn carve_stone(&mut self, choice: usize) {
+        self.command(Command::CarveStone(choice));
+        let Some(stone) = &self.world.settlement.your_stone else {
+            return;
+        };
+        if self.is_journey()
+            && let Err(e) = crate::stones::remember(self.store.dir(), &stone.lines)
+        {
+            self.message = format!("Your stone is carved, but couldn't be kept for next time: {e}");
+        }
     }
 
     pub fn command(&mut self, cmd: Command) {
@@ -531,5 +553,32 @@ mod tests {
         assert_eq!(sim.message, "Game saved");
         assert!(dir.join("world.save").exists());
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_new_game_finds_the_stone_the_last_one_left() {
+        let dir = temp_dir("stones");
+        let mut sim = Sim::journey("normal").unwrap();
+        sim.store = SaveStore::new(&dir);
+        sim.recall_stones();
+        assert!(sim.world.settlement.left_before.is_empty());
+        let words = vec!["I gave 900 XP.".to_string(), "I'm still here.".to_string()];
+        crate::stones::remember(&dir, &words).unwrap();
+        sim.new_journey("normal");
+        let left = &sim.world.settlement.left_before;
+        assert_eq!(left.len(), 1);
+        assert_eq!(left[0].lines, words);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn only_a_real_game_keeps_its_stone() {
+        let dir = temp_dir("scenario_stone");
+        let mut sim = Sim::new(ScenarioKind::Midwinter);
+        sim.store = SaveStore::new(&dir);
+        sim.carve_stone(0);
+        assert!(sim.world.settlement.your_stone.is_some());
+        assert!(crate::stones::load(&dir).is_empty());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

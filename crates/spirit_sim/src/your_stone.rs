@@ -29,6 +29,18 @@ pub struct YourStoneDefs {
     /// The last lines to choose from.
     #[serde(default)]
     pub choices: Vec<StoneChoice>,
+    /// Where stones from earlier games stand, most recent first.
+    #[serde(default)]
+    pub left_spots: Vec<[i32; 2]>,
+    /// Said on finding a stone from an earlier game, before its words.
+    #[serde(default)]
+    pub found: String,
+    /// A line for a new stone, once an old one of yours has been found.
+    #[serde(default)]
+    pub found_line: String,
+    /// A line for the closing words, once an old one of yours has been found.
+    #[serde(default)]
+    pub found_ending: String,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -37,6 +49,18 @@ pub struct StoneChoice {
     pub label: String,
     pub text: String,
 }
+
+/// A stone carved in an earlier game, standing in this one.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LeftStone {
+    pub at: [i32; 2],
+    pub lines: Vec<String>,
+    pub found: bool,
+}
+
+/// The most lines a stone from an earlier game can bring, and how long each.
+const MAX_LINES: usize = 6;
+const MAX_CHARS: usize = 200;
 
 /// A stone the player carved, with its words as they were that day.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -94,6 +118,9 @@ impl World {
         if all_read && !defs.stones.is_empty() {
             lines.push(defs.stones.clone());
         }
+        if self.found_one_from_before() && !defs.found_line.is_empty() {
+            lines.push(defs.found_line.clone());
+        }
         lines.push(last.text.clone());
         Some(lines)
     }
@@ -124,11 +151,62 @@ impl World {
         Ok(msg)
     }
 
-    /// A line for either ending's closing words, once there's a stone.
-    pub(crate) fn your_stone_line(&self) -> Option<String> {
-        self.settlement
-            .your_stone
-            .as_ref()
-            .map(|_| "You left a stone of your own, for whoever comes next.".to_string())
+    /// Lines for either ending's closing words, about stones of your own.
+    pub(crate) fn your_stone_line(&self) -> Vec<String> {
+        let mut lines = Vec::new();
+        let found = &self.defs.your_stone.found_ending;
+        if self.found_one_from_before() && !found.is_empty() {
+            lines.push(found.clone());
+        }
+        if self.settlement.your_stone.is_some() {
+            lines.push("You left a stone of your own, for whoever comes next.".to_string());
+        }
+        lines
+    }
+
+    /// Stands stones carved in earlier games by the first old stone, most
+    /// recent first, as many as there are places for. Only once, at the start.
+    pub fn leave_from_before(&mut self, stones: Vec<Vec<String>>) {
+        if !self.settlement.left_before.is_empty() {
+            return;
+        }
+        let spots = self.defs.your_stone.left_spots.clone();
+        for (at, lines) in spots.into_iter().zip(stones) {
+            let lines: Vec<String> = lines
+                .into_iter()
+                .map(|l| l.trim().chars().take(MAX_CHARS).collect::<String>())
+                .filter(|l| !l.is_empty())
+                .take(MAX_LINES)
+                .collect();
+            if !lines.is_empty() {
+                self.settlement.left_before.push(LeftStone {
+                    at,
+                    lines,
+                    found: false,
+                });
+            }
+        }
+    }
+
+    /// Whether the player has found a stone from an earlier game.
+    pub fn found_one_from_before(&self) -> bool {
+        self.settlement.left_before.iter().any(|s| s.found)
+    }
+
+    /// Finds a stone from an earlier game the player has walked up to.
+    pub(crate) fn update_left_before(&mut self) {
+        let at = self.player.actor.pos();
+        let near = self.settlement.left_before.iter().position(|s| {
+            let p = crate::grid::TilePos::new(s.at[0], s.at[1]);
+            !s.found && p.manhattan(at) <= 1
+        });
+        let Some(i) = near else {
+            return;
+        };
+        self.settlement.left_before[i].found = true;
+        let words = self.settlement.left_before[i].lines.join(" ");
+        let msg = format!("{} {words}", self.defs.your_stone.found);
+        self.events.push(self.tick, EventKind::Player, msg.clone());
+        self.notices.push(self.tick, msg);
     }
 }

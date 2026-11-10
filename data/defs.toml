@@ -2168,3 +2168,8 @@ choices = [
     { label = "They look up", text = "Whoever finds this: they look up, if you let them." },
     { label = "I'm still here", text = "Whoever finds this: I'm still here." },
 ]
+# A stone carved in one game stands in the next, beside the first old stone.
+left_spots = [[3, 6], [1, 6], [3, 4]]
+found = "You know these chisel marks. You left this stone, last time:"
+found_line = "I found the one I left before. It was still there."
+found_ending = "You found the stone you left last time. It was still standing."
