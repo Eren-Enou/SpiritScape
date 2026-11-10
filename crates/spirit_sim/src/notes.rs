@@ -27,6 +27,10 @@ impl World {
                 lines: self.notes_people(),
             },
             NoteSection {
+                title: "Who keeps company",
+                lines: self.bond_notes(),
+            },
+            NoteSection {
                 title: "How the years have gone",
                 lines: self.year_lines(),
             },

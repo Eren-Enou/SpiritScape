@@ -1,0 +1,12 @@
+# UI test of two spirits who keep each other company:
+#   cargo run --release -- --scenario old_friends --save-dir target/ui_saves47 --script scripts/ui_companions.txt --capture target/ui_companions
+1.5 expect keep each other company now
+1.7 shot 01_formed
+2.0 key O
+2.5 expect THEIR STORY
+2.6 expect Has kept company with
+2.8 shot 02_their_story
+3.0 key L
+3.5 expect Who keeps company
+3.7 shot 03_notes
+4.4 exit

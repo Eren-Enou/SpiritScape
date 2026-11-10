@@ -113,11 +113,13 @@ impl World {
         }
         let pick = fits[mix(turn + 1) % fits.len()];
         let tick = self.tick;
-        let other = self.companion(s).map(|o| o.name.clone());
+        let other = self.companion(s).map(|o| (o.id, o.name.clone()));
+        let pair = self.defs.moments[pick].pair;
         let s = &mut self.spirits[sid];
         s.moments.push((pick as u16, tick));
-        if let Some(other) = other.filter(|_| self.defs.moments[pick].pair) {
+        if let Some((oid, other)) = other.filter(|_| pair) {
             s.moment_others.insert(pick as u16, other);
+            self.shared_moment(sid, oid);
         }
         let text = self.moment_text(&self.spirits[sid], pick);
         self.events.push(tick, EventKind::Spirit, text);

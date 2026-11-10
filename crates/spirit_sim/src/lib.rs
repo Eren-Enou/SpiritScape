@@ -8,6 +8,7 @@ pub mod advice;
 pub mod ambitions;
 pub mod autoplay;
 pub mod behavior;
+pub mod bonds;
 pub mod defs;
 pub mod entities;
 pub mod events;

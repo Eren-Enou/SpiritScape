@@ -328,6 +328,9 @@ pub struct Spirit {
     /// Who was with it, for the moments that had someone else in them.
     #[serde(default)]
     pub moment_others: BTreeMap<u16, String>,
+    /// The spirit it keeps company with, and since when.
+    #[serde(default)]
+    pub companion: Option<(SpiritId, u64)>,
 }
 
 impl Spirit {
@@ -371,6 +374,7 @@ impl Spirit {
             renamed: false,
             moments: Vec::new(),
             moment_others: BTreeMap::new(),
+            companion: None,
         }
     }
 

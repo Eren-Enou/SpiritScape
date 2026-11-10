@@ -2,6 +2,16 @@
 
 The handoff between development runs. Newest first.
 
+## v0.47 Kept company
+
+**Status:** on branch `v0.47-kept-company`, with its PR targeting `v0.46-together`. Not merged.
+
+**Shipped:** two spirits who share two moments come to keep each other company, one companion each. Their stories, the notes, the Hearth's closing words and the Still Boat's remember it, and the boat waits for the second of a pair. An `old_friends` scenario. The first milestone built fresh on the release candidate, rather than ported.
+
+**Decided:** it changes nothing in the economy, and the player can only notice a bond, not make one. Two shared moments is the threshold: seven pairs reach it in the reference game, and two bonds form.
+
+**Next:** more meaning in the old-stones story, or places worth exploring.
+
 ## v0.46 Together
 
 **Status:** on branch `v0.46-together`, with its PR targeting `v0.45-settings`. Not merged.
