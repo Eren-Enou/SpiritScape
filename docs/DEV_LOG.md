@@ -2,6 +2,14 @@
 
 The handoff between development runs. Newest first.
 
+## v0.51 What it's for
+
+**Status:** on branch `v0.51-what-its-for`, with its PR targeting `v0.50-one-thing`. Not merged.
+
+**Shipped:** the Progress tab's "Settlement improvements" card is now "What you've built": only what's standing, each with what it's for. The Projects tab gains "What they're for": one line for each building you can plan, in the same order as the buttons. Before, the plan buttons only gave costs, and the Progress card listed every building the player could order, built or not, running well past the bottom of the window late in a game.
+
+**Next:** keep reading screenshots from late in a game.
+
 ## v0.50 One thing at a time
 
 **Status:** on branch `v0.50-one-thing`, with its PR targeting `v0.49-last-time`. Not merged.
