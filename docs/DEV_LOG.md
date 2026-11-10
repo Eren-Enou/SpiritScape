@@ -2,6 +2,16 @@
 
 The handoff between development runs. Newest first.
 
+## v0.48 Your stone
+
+**Status:** on branch `v0.48-your-stone`, with its PR targeting `v0.47-kept-company`. Not merged.
+
+**Shipped:** once either ending has happened, the player can carve a stone of their own, once, where they stand. Its words come from the game: what they gave, a pair who kept company, whether they read every old stone. The last line is the player's choice of three. It stands on the map, and both endings and the notes remember it.
+
+**Decided:** the words are frozen when it's carved, like the old stones. The choice of last line changes nothing else. It isn't a goal and nothing points to it except the Progress tab after the ending.
+
+**Next:** carry a stone into the next game, so a new player can find what an old one left.
+
 ## v0.47 Kept company
 
 **Status:** on branch `v0.47-kept-company`, with its PR targeting `v0.46-together`. Not merged.

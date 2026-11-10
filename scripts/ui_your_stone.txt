@@ -1,0 +1,18 @@
+# UI test of carving a stone of your own, once the Hearth is lit:
+#   cargo run --release -- --scenario midwinter --save-dir target/ui_saves48 --script scripts/ui_your_stone.txt --capture target/ui_your_stone
+1.5 key J
+2.0 expect You could leave a stone of your own
+2.1 expect We built a hearth
+2.2 expect Carve: They look up
+2.3 scroll 1380 700 -10
+2.5 shot 01_before
+2.6 press Carve: They look up
+3.0 expect they look up, if you let them
+3.1 expect You left a stone of your own
+3.4 shot 02_carved
+3.6 key L
+4.0 expect Your stone
+4.2 shot 03_notes
+4.4 key H
+5.0 shot 04_on_the_map
+5.6 exit

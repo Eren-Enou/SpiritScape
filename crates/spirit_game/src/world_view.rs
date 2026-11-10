@@ -27,6 +27,8 @@ pub struct Spawned {
     pub generation: Option<u32>,
     pub buildings: usize,
     pub spirits: usize,
+    /// The player's own stone is on the map.
+    pub your_stone: bool,
 }
 
 #[derive(Component)]
@@ -90,6 +92,7 @@ impl Plugin for WorldViewPlugin {
                 (
                     rebuild_on_restart,
                     spawn_new_buildings,
+                    spawn_your_stone,
                     (
                         sync_trees,
                         tint_crowns,
@@ -202,6 +205,36 @@ fn spawn_hover_tip(mut commands: Commands) {
     ));
 }
 
+/// The player's own stone, once it's carved: like the old ones, but new and
+/// pale, and a little shorter.
+fn spawn_your_stone(
+    mut commands: Commands,
+    sim: Res<Sim>,
+    mut spawned: ResMut<Spawned>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    if spawned.your_stone || spawned.generation != Some(sim.generation) {
+        return;
+    }
+    let Some(stone) = &sim.world.settlement.your_stone else {
+        return;
+    };
+    spawned.your_stone = true;
+    let at = tile_world(stone.at[0] as f32, stone.at[1] as f32);
+    commands.spawn((
+        WorldEntity,
+        Mesh3d(meshes.add(Cuboid::new(0.42, 1.3, 0.3))),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::srgb(0.80, 0.78, 0.72),
+            emissive: LinearRgba::rgb(0.22, 0.21, 0.17),
+            ..default()
+        })),
+        Transform::from_translation(at + Vec3::new(0.3, 0.65, 0.3))
+            .with_rotation(Quat::from_rotation_z(-0.05)),
+    ));
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn rebuild_on_restart(
     mut commands: Commands,
@@ -223,6 +256,7 @@ pub fn rebuild_on_restart(
         generation: Some(sim.generation),
         buildings: 0,
         spirits: 0,
+        your_stone: false,
     };
     let w = &sim.world;
     let t = &visuals.terrain;

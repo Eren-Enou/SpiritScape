@@ -34,6 +34,7 @@ pub mod tips;
 pub mod training;
 pub mod visitors;
 pub mod world;
+pub mod your_stone;
 
 pub use defs::GameDefs;
 pub use scenario::ScenarioKind;
