@@ -2,3 +2,5 @@
 *.bin binary
 *.png binary
 *.save binary
+# cmd mishandles labels and goto without Windows line endings.
+*.bat text eol=crlf
