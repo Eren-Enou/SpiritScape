@@ -2,6 +2,14 @@
 
 The handoff between development runs. Newest first.
 
+## v0.60 Old and new
+
+**Status:** on branch `v0.60-old-and-new`, with its PR targeting `v0.59-what-happened`. Not merged.
+
+**Shipped:** four small moments for your spirits beside the last of the old helpers, once it has come home and stopped walking. "{name} and the old helper looked up at the same time." Like every moment, they change nothing. Also `docs/REVIEW.md`, a guide to the 21 stacked pull requests: their order, which change rules, the decisions waiting, the changed assertions, and how to merge from the bottom up.
+
+**Next:** a playtest.
+
 ## v0.59 What happened
 
 **Status:** on branch `v0.59-what-happened`, with its PR targeting `v0.58-two-games`. Not merged.

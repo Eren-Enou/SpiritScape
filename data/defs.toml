@@ -2127,6 +2127,28 @@ pair = true
 after_hours = 10
 text = "{name} stopped working when {other} did, and they stood there."
 
+# Moments beside the last of the old helpers, once it has come home. The old
+# stones say the helpers never looked up.
+[[moments]]
+id = "helper_stood"
+near_helper = true
+text = "{name} stood beside the old helper for a while. Neither of them did anything."
+
+[[moments]]
+id = "helper_hands"
+near_helper = true
+text = "{name} watched the old helper's hands, which were still for once."
+
+[[moments]]
+id = "helper_log"
+near_helper = true
+text = "{name} brought the old helper a log, then took it back to the pile."
+
+[[moments]]
+id = "helper_looked_up"
+near_helper = true
+text = "{name} and the old helper looked up at the same time."
+
 [objective]
 # "Maintain <target> <resource> in the main settlement storage."
 resource = "logs"

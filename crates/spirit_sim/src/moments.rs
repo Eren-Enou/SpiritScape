@@ -42,6 +42,9 @@ pub struct MomentDef {
     /// Needs another spirit close by, for `{other}` in the text.
     #[serde(default)]
     pub pair: bool,
+    /// Only beside the last of the old helpers, once it has come home.
+    #[serde(default)]
+    pub near_helper: bool,
 }
 
 /// A number that looks random, but is the same every time.
@@ -66,6 +69,21 @@ impl World {
             && (!m.shore || s.actor.pos().y >= SHORE_ROW)
             && self.tick >= s.born + m.after_hours * hour
             && (!m.pair || self.companion(s).is_some())
+            && (!m.near_helper || self.beside_old_helper(s))
+    }
+
+    /// Whether this spirit is beside the old helper, now it's home and still.
+    fn beside_old_helper(&self, s: &Spirit) -> bool {
+        let home = self
+            .settlement
+            .last_helper
+            .as_ref()
+            .is_some_and(|h| h.answer == crate::last_helper::HelperAnswer::Came);
+        if !home || self.last_helper_walking() {
+            return false;
+        }
+        self.last_helper_at()
+            .is_some_and(|at| at.manhattan(s.actor.pos()) <= COMPANION_TILES)
     }
 
     /// The spirit nearest this one, if any is close.

@@ -266,3 +266,49 @@ fn reading_the_last_stone_from_any_side_is_enough_to_meet_it() {
     }
     assert!(sides >= 2, "{sides}");
 }
+
+/// Moments that mention the old helper, said so far.
+fn helper_moments(w: &World) -> usize {
+    w.events
+        .iter()
+        .filter(|e| e.text.contains("the old helper"))
+        .count()
+}
+
+/// The Last Stone, with small moments every second, and an answer given.
+fn answered(come: bool) -> World {
+    let mut w = by_the_stone();
+    w.settlement.moments = true;
+    w.defs.construction.moment_ticks = 10;
+    walk_up(&mut w);
+    w.apply(Command::AnswerHelper(come)).unwrap();
+    w
+}
+
+#[test]
+fn your_spirits_notice_the_old_helper_once_it_is_home() {
+    let mut w = answered(true);
+    // Nothing while it's still walking.
+    w.run_ticks(200);
+    assert!(w.last_helper_walking());
+    assert_eq!(helper_moments(&w), 0);
+    for _ in 0..200 {
+        if !w.last_helper_walking() {
+            break;
+        }
+        w.run_ticks(50);
+    }
+    assert!(!w.last_helper_walking(), "it never got home");
+    w.run_ticks(3000);
+    assert!(helper_moments(&w) > 0, "nobody noticed it");
+    // Each spirit has each moment once, as ever.
+    let kinds = w.defs.moments.iter().filter(|m| m.near_helper).count();
+    assert!(helper_moments(&w) <= kinds * w.spirits.len());
+}
+
+#[test]
+fn left_by_its_stone_it_is_too_far_away_to_notice() {
+    let mut w = answered(false);
+    w.run_ticks(4000);
+    assert_eq!(helper_moments(&w), 0);
+}
