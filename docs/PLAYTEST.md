@@ -11,7 +11,7 @@ git fetch origin
 ```
 
 ```bash
-git checkout v0.58-two-games
+git checkout v0.59-what-happened
 ```
 
 Then double-click **`play.bat`**. The first time, it builds the game, which takes several minutes. After that it starts straight away.
@@ -89,3 +89,5 @@ Double-click **`scenarios.bat`** and pick a number. Each one starts right where 
 ## What to send back
 
 Your notes from Stage A, the scenarios you tried, and any `play_report.txt`. Screenshots help where something looked wrong.
+
+Press `F6` just before you stop. The report ends with **What happened**: how far you got, the spirits you made and named, the old stones you read, what you did about the last helper, and which ending you reached, if any. That way your notes can be about how it felt.

@@ -34,6 +34,7 @@ pub mod tasks;
 pub mod tips;
 pub mod training;
 pub mod visitors;
+pub mod what_happened;
 pub mod world;
 pub mod your_stone;
 

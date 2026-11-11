@@ -48,6 +48,11 @@ pub struct LastHelperDefs {
     pub boat_came: String,
     #[serde(default)]
     pub boat_stayed: String,
+    /// The closing words when it was met but never answered.
+    #[serde(default)]
+    pub hearth_waiting: String,
+    #[serde(default)]
+    pub boat_waiting: String,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -242,7 +247,8 @@ impl World {
             (HelperAnswer::Stayed, false) => &d.hearth_stayed,
             (HelperAnswer::Came, true) => &d.boat_came,
             (HelperAnswer::Stayed, true) => &d.boat_stayed,
-            (HelperAnswer::Waiting, _) => return None,
+            (HelperAnswer::Waiting, false) => &d.hearth_waiting,
+            (HelperAnswer::Waiting, true) => &d.boat_waiting,
         };
         (!line.is_empty()).then(|| line.clone())
     }
