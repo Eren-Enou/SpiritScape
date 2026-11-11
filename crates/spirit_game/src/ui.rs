@@ -2280,9 +2280,16 @@ fn recipe_lines(w: &World) -> Vec<Line> {
             chip("ready", GOOD)
         };
         lines.push(vec![colored(o.name, color), Item::Spacer, state]);
+        // Two short lines rather than one long one, which used to wrap in
+        // the middle of "made/min".
+        lines.push(vec![
+            muted(format!("  {} -> {}", o.inputs, o.output)),
+            Item::Spacer,
+            muted(format!("{} XP each", o.xp)),
+        ]);
         lines.push(vec![muted(format!(
-            "     {} -> {}, {} XP  ({} XP/min, {} made/min)",
-            o.inputs, o.output, o.xp, o.xp_per_min, o.output_per_min
+            "  {} XP/min, {} made a minute",
+            o.xp_per_min, o.output_per_min
         ))]);
     }
     if let Some(b) = w.station() {
@@ -2301,10 +2308,12 @@ fn training_plan_lines(w: &World) -> Vec<Line> {
     let mut lines = vec![
         vec![text(p.mode.trade())],
         vec![colored(p.limit, INFO)],
-        vec![muted(format!(
-            "You use {} {}/min  |  gatherers bring {}/min  |  {} spare",
-            p.use_per_min, p.material, p.gathered_per_min, p.spare
-        ))],
+        vec![
+            muted(format!("You use {} {}/min", p.use_per_min, p.material)),
+            Item::Spacer,
+            muted(format!("gatherers bring {}/min", p.gathered_per_min)),
+        ],
+        vec![muted(format!("{} spare", p.spare))],
     ];
     if p.mode == TrainingMode::Optimized {
         for (name, done) in p.checks {

@@ -2,6 +2,14 @@
 
 The handoff between development runs. Newest first.
 
+## v0.55 Tidy lines
+
+**Status:** on branch `v0.55-tidy-lines`, with its PR targeting `v0.54-one-plank`. Not merged.
+
+**Shipped:** two lines in the Training tab that wrapped in the middle of a unit are split where they read naturally. Each recipe is now what goes in and comes out, with the XP for each on the right, then a line for XP per minute and how many are made a minute. "You use / gatherers bring / spare" is two lines instead of one wrapped one.
+
+**Next:** with fifteen milestones waiting for review since the release candidate, the most useful thing is a playtest. Until there is one, keep reading screenshots for anything that reads wrong.
+
 ## v0.54 One plank
 
 **Status:** on branch `v0.54-one-plank`, with its PR targeting `v0.53-room`. Not merged.
