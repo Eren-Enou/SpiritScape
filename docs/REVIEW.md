@@ -1,6 +1,6 @@
 # Reviewing the stack
 
-There are 21 open pull requests here, #38 to #58, each built on the one before. Nothing in them is merged, and only you can merge them. This page is meant to make that easier.
+There are 22 open pull requests here, #38 to #59, each built on the one before. Nothing in them is merged, and only you can merge them. This page is meant to make that easier.
 
 ## The order
 
@@ -29,6 +29,7 @@ Each pull request targets the one before it, so its diff shows only that milesto
 | #56 | v0.58 Two games in a row | A long test of the stone across two games, and the helper made hard to miss | no |
 | #57 | v0.59 What happened | The F6 play report says what happened | no |
 | #58 | v0.60 Old and new | Your spirits notice the old helper by the fire | no |
+| #59 | v0.61 The cold camp | Light the fire the old carver never had, once your Hearth burns | no |
 
 "Changes rules" means something a player could measure: XP, speed, costs, what spirits do. The rest is words, panels, story and checks. The reference game meets all 19 goals by 16:57:21 from v0.47 on.
 

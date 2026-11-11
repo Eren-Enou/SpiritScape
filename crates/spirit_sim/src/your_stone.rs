@@ -102,7 +102,15 @@ impl World {
         lines.push(
             first
                 .replace("{xp}", &xp.to_string())
-                .replace("{made}", &made.to_string()),
+                .replace("{made}", &made.to_string())
+                .replace(
+                    "{helpers}",
+                    &if made == 1 {
+                        "1 helper".to_string()
+                    } else {
+                        format!("{made} helpers")
+                    },
+                ),
         );
         let pair = match &self.settlement.homecoming {
             Some(h) => h.together.first().cloned(),

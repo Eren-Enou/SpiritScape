@@ -9,6 +9,7 @@ pub mod ambitions;
 pub mod autoplay;
 pub mod behavior;
 pub mod bonds;
+pub mod cold_camp;
 pub mod defs;
 pub mod entities;
 pub mod events;

@@ -506,6 +506,25 @@ spirits = [
     { role = "hauler", xp = 388, spawn = "H" },
 ]
 
+[cold_camp]
+title = "The cold camp"
+description = "Your Hearth is lit. Near the Mossed Stone is a ring of stones where somebody camped and never lit a fire. Walk up to it."
+objective_target = 20
+auto_gather = true
+hearth_lit = true
+player_xp = { woodcutting = 388 }
+main_storage = { logs = 60 }
+player_at = [40, 10]
+prebuilt = [
+    { building = "hearth_foundations", at = [9, 13] },
+    { building = "hearth_walls", at = [11, 13] },
+    { building = "hearth_of_spirits", at = [13, 13] },
+]
+spirits = [
+    { role = "woodcutter", xp = 388, spawn = "W", gifted = true },
+    { role = "hauler", xp = 388, spawn = "H" },
+]
+
 [brickyard]
 title = "Brickyard"
 description = "The Kiln, Warm Walls, a Hearth Chimney and the Still Boat, side by side. Plan Clay Pits in the Projects tab (B) for the clay."

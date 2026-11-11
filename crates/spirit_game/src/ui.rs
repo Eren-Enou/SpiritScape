@@ -2028,6 +2028,7 @@ fn header_lines(sim: &Sim) -> Vec<Line> {
         ScenarioKind::OldFriends => "Old friends",
         ScenarioKind::LastTime => "Last time",
         ScenarioKind::LastStone => "The Last Stone",
+        ScenarioKind::ColdCamp => "The cold camp",
         ScenarioKind::Brickyard => "Brickyard",
         ScenarioKind::Midwinter => "Midwinter",
         ScenarioKind::FullMap => "Full map",

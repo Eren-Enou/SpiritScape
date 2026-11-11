@@ -69,6 +69,13 @@ impl World {
             (None, false) => "never seen",
         };
         lines.push(format!("The last helper: {helper}."));
+        let camp = &self.settlement.cold_camp;
+        let camp = match (camp.found, camp.lit) {
+            (_, Some(t)) => format!("lit at {}", clock(t)),
+            (Some(t), None) => format!("found at {}, never lit", clock(t)),
+            (None, None) => "never found".to_string(),
+        };
+        lines.push(format!("The cold camp: {camp}."));
 
         // A tally, not every name: the notes have the names.
         let people = self.notes_people();

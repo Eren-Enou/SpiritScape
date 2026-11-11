@@ -495,8 +495,12 @@ impl World {
                 secs / 60 % 60
             ),
             format!(
-                "You gave {given} XP of yourself to make {} spirits, and it's still here, in them.",
-                made.len()
+                "You gave {given} XP of yourself to make {}, and it's still here, in {}.",
+                match made.len() {
+                    1 => "1 spirit".to_string(),
+                    n => format!("{n} spirits"),
+                },
+                if made.len() == 1 { "it" } else { "them" },
             ),
         ];
         for s in self.spirits.iter().filter(|s| !s.deeds.is_empty()).take(4) {
@@ -514,6 +518,7 @@ impl World {
         lines.extend(self.building_lines(true));
         lines.extend(self.relic_line());
         lines.extend(self.last_helper_line(false));
+        lines.extend(self.cold_camp_line());
         lines.extend(self.your_stone_line());
         if self.settlement.markers_read.len() == self.defs.markers.len() {
             lines.push("Whoever cut those stones built no hearth. You did.".into());

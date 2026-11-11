@@ -11,7 +11,7 @@ git fetch origin
 ```
 
 ```bash
-git checkout v0.60-old-and-new
+git checkout v0.61-cold-camp
 ```
 
 Then double-click **`play.bat`**. The first time, it builds the game, which takes several minutes. After that it starts straight away.
@@ -78,6 +78,7 @@ Double-click **`scenarios.bat`** and pick a number. Each one starts right where 
 | 14 | Old friends | Press `O` and read both their stories | Did knowing two of them keep company change how you see them? |
 | 15 | Last time | Walk up past the first old stone, top left | Did finding your own words there mean anything? |
 | 16 | The Last Stone | Walk up to who is standing there, and answer it | Did the choice feel like it mattered, though it changes nothing you can count? |
+| 17 | The cold camp | Walk up to the ring of stones | Did lighting a fire there mean anything, after the old stones? |
 
 ## Four decisions only you can make
 
