@@ -1218,6 +1218,7 @@ impl World {
         let mut events = Vec::new();
         self.player.account_tick();
         self.step_player(&mut events);
+        self.step_last_helper();
         self.step_spirits(&mut events);
         for e in events {
             self.handle_event(e);

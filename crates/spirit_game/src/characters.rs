@@ -354,16 +354,35 @@ fn sync_characters(
     let w = &sim.world;
     for (mut c, mut tf) in &mut characters {
         if c.who == Who::Helper {
-            let Some(at) = w.last_helper_at() else {
+            let (Some(at), Some((vx, vy))) = (w.last_helper_at(), w.last_helper_visual()) else {
                 tf.translation.y = -100.0;
                 continue;
             };
-            tf.translation = tile_world(at.x as f32, at.y as f32);
-            let wanted = if w.last_helper_carving() && !sim.paused {
+            tf.translation = tile_world(vx, vy);
+            let walking = w.last_helper_walking();
+            let wanted = if walking && !sim.paused {
+                set.walk
+            } else if w.last_helper_carving() && !sim.paused {
                 set.work
             } else {
                 set.idle
             };
+            if walking {
+                let next = w
+                    .settlement
+                    .last_helper
+                    .as_ref()
+                    .and_then(|h| h.walker.as_ref())
+                    .and_then(|m| m.path.front().copied());
+                if let Some(n) = next {
+                    let dir = Vec2::new(n.x as f32 - vx, n.y as f32 - vy);
+                    if dir.length_squared() > 1e-4 {
+                        let want = Quat::from_rotation_y(dir.x.atan2(dir.y));
+                        let t = (time.delta_secs() * 12.0).min(1.0);
+                        tf.rotation = tf.rotation.slerp(want, t);
+                    }
+                }
+            }
             if w.last_helper_carving() {
                 // Facing its stone.
                 let [sx, sy] = w
