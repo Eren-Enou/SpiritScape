@@ -732,7 +732,9 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
             });
 
             tab_panel(p, Tab::Production, |p| {
-                card(p, "WHAT LIMITS PLANKS", |c| body(c, Card::ProductionLimit));
+                card(p, "WHAT'S HOLDING PRODUCTION UP", |c| {
+                    body(c, Card::ProductionLimit)
+                });
                 card(p, "ORDERS", |c| {
                     body(c, Card::Orders);
                     for i in 0..EXTRA_ORDER_BUTTONS {
@@ -3444,6 +3446,23 @@ fn production_lines(w: &World) -> Vec<Line> {
 
 fn production_limit_lines(w: &World) -> Vec<Line> {
     let r = w.production_report();
+    // With Planks fine, the headline belongs to whatever order is stuck.
+    // Saying "None (target met)" above a stalled order sends the player away.
+    let planks_fine = matches!(
+        r.bottleneck,
+        ProductionBottleneck::None | ProductionBottleneck::Disabled
+    );
+    let stuck = w
+        .order_reports()
+        .into_iter()
+        .filter(|o| !w.stations_for(o.output).is_empty())
+        .find(|o| o.stalled);
+    if let Some(o) = stuck.filter(|_| planks_fine) {
+        return vec![
+            vec![big(format!("{} stalled", o.name), WARN)],
+            vec![text(o.status)],
+        ];
+    }
     let color = match r.bottleneck {
         ProductionBottleneck::None => GOOD,
         ProductionBottleneck::ProcessingSpeed => INFO,
@@ -3657,5 +3676,53 @@ mod one_thing_at_a_time {
             assert!(skills.contains(name), "{name} missing: {skills}");
         }
         assert!(!words(&ambition_lines(&w)).contains("come into view"));
+    }
+}
+
+#[cfg(test)]
+mod whats_stuck {
+    use super::*;
+
+    fn words(lines: &[Line]) -> String {
+        let mut out = Vec::new();
+        for item in lines.iter().flatten() {
+            if let Item::Text { text, .. } = item {
+                out.push(text.clone());
+            }
+        }
+        out.join(" ")
+    }
+
+    #[test]
+    fn a_stalled_order_is_the_headline_when_planks_are_fine() {
+        let mut w = World::from_scenario(spirit_sim::ScenarioKind::FullMap);
+        w.run_ticks(400);
+        let planks = w.production_report().bottleneck;
+        let stalled: Vec<_> = w
+            .order_reports()
+            .into_iter()
+            .filter(|o| o.stalled)
+            .collect();
+        let said = words(&production_limit_lines(&w));
+        if matches!(
+            planks,
+            ProductionBottleneck::None | ProductionBottleneck::Disabled
+        ) && let Some(o) = stalled.first()
+        {
+            assert!(said.contains(&format!("{} stalled", o.name)), "{said}");
+            assert!(!said.contains("None (target met)"), "{said}");
+        } else {
+            panic!("the full map should have Planks fine and an order stalled: {planks:?}, {said}");
+        }
+    }
+
+    #[test]
+    fn with_nothing_stalled_it_reads_as_before() {
+        let w = World::from_scenario(spirit_sim::ScenarioKind::QuietHour);
+        let shown = w.order_reports().into_iter();
+        let mut shown = shown.filter(|o| !w.stations_for(o.output).is_empty());
+        assert!(shown.all(|o| !o.stalled));
+        let said = words(&production_limit_lines(&w));
+        assert!(!said.contains("stalled"), "{said}");
     }
 }
