@@ -439,6 +439,8 @@ pub struct GameDefs {
     pub bonds: crate::bonds::BondDefs,
     /// What a stone of your own can say.
     pub your_stone: crate::your_stone::YourStoneDefs,
+    /// The last of the old carver's helpers.
+    pub last_helper: crate::last_helper::LastHelperDefs,
     /// What spirits made by Soul Separation can be like.
     pub traits: Vec<crate::stories::TraitDef>,
     /// Milestones in a spirit's working life.
@@ -498,6 +500,8 @@ struct RawDefs {
     bonds: crate::bonds::BondDefs,
     #[serde(default)]
     your_stone: crate::your_stone::YourStoneDefs,
+    #[serde(default)]
+    last_helper: crate::last_helper::LastHelperDefs,
     #[serde(default)]
     traits: Vec<crate::stories::TraitDef>,
     #[serde(default)]
@@ -1158,6 +1162,7 @@ impl GameDefs {
             relics: raw.relics,
             bonds: raw.bonds,
             your_stone: raw.your_stone,
+            last_helper: raw.last_helper,
             traits: raw.traits,
             deeds: raw.deeds,
             moments: raw.moments,

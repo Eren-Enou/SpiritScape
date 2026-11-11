@@ -77,6 +77,8 @@ pub enum ScenarioKind {
     OldFriends,
     /// A new map with a stone from an earlier game standing on it.
     LastTime,
+    /// Beside the Last Stone, already read, with someone standing by it.
+    LastStone,
     /// Everything fire can make, side by side.
     Brickyard,
     /// The Hearth lit, and winter a minute away.
@@ -100,7 +102,7 @@ pub enum ScenarioKind {
 }
 
 impl ScenarioKind {
-    pub const ALL: [ScenarioKind; 40] = [
+    pub const ALL: [ScenarioKind; 41] = [
         ScenarioKind::NewGame,
         ScenarioKind::Demo,
         ScenarioKind::Regrind,
@@ -131,6 +133,7 @@ impl ScenarioKind {
         ScenarioKind::QuietHour,
         ScenarioKind::OldFriends,
         ScenarioKind::LastTime,
+        ScenarioKind::LastStone,
         ScenarioKind::Brickyard,
         ScenarioKind::Midwinter,
         ScenarioKind::FullMap,
@@ -175,6 +178,7 @@ impl ScenarioKind {
             ScenarioKind::QuietHour => "quiet_hour",
             ScenarioKind::OldFriends => "old_friends",
             ScenarioKind::LastTime => "last_time",
+            ScenarioKind::LastStone => "last_stone",
             ScenarioKind::Brickyard => "brickyard",
             ScenarioKind::Midwinter => "midwinter",
             ScenarioKind::FullMap => "full_map",
@@ -280,6 +284,12 @@ pub struct ScenarioDef {
     /// Stones from earlier games, as a real game brings them from beside the saves.
     #[serde(default)]
     pub left_before: Vec<Vec<String>>,
+    /// Where the player starts, if not at the map's own start.
+    #[serde(default)]
+    pub player_at: Option<[i32; 2]>,
+    /// Old stones already read.
+    #[serde(default)]
+    pub stones_read: Vec<String>,
 }
 
 /// A full-grown tree of `kind`.
@@ -382,7 +392,10 @@ impl World {
             .position(|b| b.kind == main_kind)
             .ok_or("map has no main storage marker")?;
 
-        let player_pos = map.marker('P').ok_or("map has no player start 'P'")?;
+        let player_pos = match scenario.player_at {
+            Some([x, y]) => TilePos::new(x, y),
+            None => map.marker('P').ok_or("map has no player start 'P'")?,
+        };
         let player = Player::new(Actor::new(
             player_pos,
             defs.player.move_ticks,
@@ -449,6 +462,7 @@ impl World {
                 shared_moments: Vec::new(),
                 your_stone: None,
                 left_before: Vec::new(),
+                last_helper: None,
                 years: Vec::new(),
                 seasons: scenario.seasons,
                 bench_bonus: 0,
@@ -588,6 +602,7 @@ impl World {
             world.settlement.ended_at = Some(0);
         }
         world.leave_from_before(scenario.left_before.clone());
+        world.settlement.markers_read = scenario.stones_read.clone();
         for [a, b] in &scenario.companions {
             if !world.form_bond(*a, *b) {
                 return Err(format!("spirits {a} and {b} can't keep company"));

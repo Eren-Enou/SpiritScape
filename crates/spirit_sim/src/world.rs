@@ -141,6 +141,9 @@ pub struct Settlement {
     /// Stones carved in earlier games, standing in this one.
     #[serde(default)]
     pub left_before: Vec<crate::your_stone::LeftStone>,
+    /// The last of the old helpers, once you've met it.
+    #[serde(default)]
+    pub last_helper: Option<crate::last_helper::LastHelper>,
     /// The totals at the end of each year.
     #[serde(default)]
     pub years: Vec<crate::stories::YearEnd>,
@@ -289,6 +292,8 @@ pub enum Command {
     CallHome,
     /// Once it's over, carve a stone where you stand, ending with this line.
     CarveStone(usize),
+    /// Ask the last of the old helpers home, or leave it where it is.
+    AnswerHelper(bool),
     /// Give a spirit a name of the player's choosing.
     RenameSpirit {
         id: SpiritId,
@@ -781,6 +786,7 @@ impl World {
             Command::AnswerVisitor(accept) => self.answer_visitor(accept),
             Command::CallHome => self.call_home(),
             Command::CarveStone(choice) => self.carve_stone(choice),
+            Command::AnswerHelper(come) => self.answer_helper(come),
             Command::RenameSpirit { id, name } => self.rename_spirit(id, &name),
             Command::SetAutoGather(on) => Ok(self.set_auto_gather(on)),
             Command::SetPlayerRecipe(r) => self.set_player_recipe(r),
@@ -1232,6 +1238,7 @@ impl World {
             self.update_markers();
             self.update_relics();
             self.update_left_before();
+            self.update_last_helper();
         }
     }
 

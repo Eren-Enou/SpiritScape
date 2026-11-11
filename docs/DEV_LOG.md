@@ -2,6 +2,16 @@
 
 The handoff between development runs. Newest first.
 
+## v0.56 The last helper
+
+**Status:** on branch `v0.56-last-helper`, with its PR targeting `v0.55-tidy-lines`. Not merged.
+
+**Shipped:** once the Last Stone is read, the last of the old carver's helpers can be seen beside it, carving. Walk up and it looks up at you. Ask it home, and it stands by your fire and watches. Leave it, and it goes back to carving. It does no work either way. Both endings and the notes remember what you did, and if it came home it crosses on the Still Boat with the rest. A `last_stone` scenario.
+
+**Decided:** it gives nothing and costs nothing, so the choice is only about what it means. A free worker would have made the answer obvious.
+
+**Next:** it appears by the fire at once instead of walking home. Worth giving it the walk.
+
 ## v0.55 Tidy lines
 
 **Status:** on branch `v0.55-tidy-lines`, with its PR targeting `v0.54-one-plank`. Not merged.

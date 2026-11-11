@@ -2180,3 +2180,20 @@ left_spots = [[3, 6], [1, 6], [3, 4]]
 found = "You know these chisel marks. You left this stone, last time:"
 found_line = "I found the one I left before. It was still there."
 found_ending = "You found the stone you left last time. It was still standing."
+
+# The last of the old carver's helpers, still out by the Last Stone. It can be
+# seen once that stone is read. It does no work, whatever you answer.
+[last_helper]
+at = [58, 10]
+after_stone = "hollow"
+name = "The last helper"
+found = "Someone is standing by the Last Stone with a chisel in its hand. It's one of theirs: the last of the helpers whoever cut the old stones made. It stops, and looks up at you."
+question = "The last of the old helpers is looking at you."
+ask = "Ask it to come home"
+leave = "Leave it where it is"
+came = "It puts the chisel down and follows you home. It doesn't work any more. It stands by the fire, and watches."
+stayed = "You leave it by its stone. When you look back, it's carving again."
+hearth_came = "The last of the old helpers stood by your hearth. It had never seen one."
+hearth_stayed = "The last of the old helpers is still out by its stone, carving."
+boat_came = "The last of the old helpers crossed with them. Nobody had called it home in a very long time."
+boat_stayed = "The last of the old helpers stayed by its stone. Nobody called it, and it didn't ask."

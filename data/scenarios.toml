@@ -488,6 +488,24 @@ spirits = [
     { role = "hauler", xp = 388, spawn = "H" },
 ]
 
+[last_stone]
+title = "The Last Stone"
+description = "You've just read the Last Stone. Someone is standing beside it. Walk up."
+objective_target = 20
+auto_gather = true
+player_xp = { woodcutting = 388 }
+main_storage = { logs = 60 }
+player_at = [55, 10]
+stones_read = ["hollow"]
+# The Hollow Grove is only reached over the Forest Crossing, in a real game too.
+prebuilt = [
+    { building = "forest_crossing", at = [48, 4] },
+]
+spirits = [
+    { role = "woodcutter", xp = 388, spawn = "W", gifted = true },
+    { role = "hauler", xp = 388, spawn = "H" },
+]
+
 [brickyard]
 title = "Brickyard"
 description = "The Kiln, Warm Walls, a Hearth Chimney and the Still Boat, side by side. Plan Clay Pits in the Projects tab (B) for the clay."
