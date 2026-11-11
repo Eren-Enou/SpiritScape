@@ -15,6 +15,11 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct LastHelperDefs {
     pub at: [i32; 2],
+    /// How close the player has to come before it looks up. Close enough
+    /// that reading its stone is enough: a player who reads the stone and
+    /// walks away mustn't miss it.
+    #[serde(default)]
+    pub notices_within: u32,
     /// The old stone that has to be read before it can be seen.
     #[serde(default)]
     pub after_stone: String,
@@ -187,7 +192,8 @@ impl World {
             return;
         }
         let [x, y] = self.defs.last_helper.at;
-        if self.player.actor.pos().manhattan(TilePos::new(x, y)) > 1 {
+        let within = self.defs.last_helper.notices_within.max(1);
+        if self.player.actor.pos().manhattan(TilePos::new(x, y)) > within {
             return;
         }
         let tick = self.tick;

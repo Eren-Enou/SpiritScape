@@ -11,7 +11,7 @@ git fetch origin
 ```
 
 ```bash
-git checkout v0.57-walk-home
+git checkout v0.58-two-games
 ```
 
 Then double-click **`play.bat`**. The first time, it builds the game, which takes several minutes. After that it starts straight away.

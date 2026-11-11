@@ -2,7 +2,7 @@
 #   cargo run --release -- --scenario last_stone --save-dir target/ui_saves56 --script scripts/ui_last_helper.txt --capture target/ui_last_helper
 1.5 expect The last helper
 1.7 shot 01_carving
-1.9 tile 57 10
+1.9 tile 55 10
 5.0 expect looks up at you
 5.1 expect Ask it to come home
 5.2 expect Leave it where it is

@@ -2184,7 +2184,9 @@ found_ending = "You found the stone you left last time. It was still standing."
 # The last of the old carver's helpers, still out by the Last Stone. It can be
 # seen once that stone is read. It does no work, whatever you answer.
 [last_helper]
-at = [58, 10]
+at = [57, 10]
+# Near enough that whoever reads the Last Stone meets it.
+notices_within = 3
 after_stone = "hollow"
 name = "The last helper"
 found = "Someone is standing by the Last Stone with a chisel in its hand. It's one of theirs: the last of the helpers whoever cut the old stones made. It stops, and looks up at you."
