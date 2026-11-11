@@ -11,7 +11,7 @@ git fetch origin
 ```
 
 ```bash
-git checkout v0.51-what-its-for
+git checkout v0.52-whats-stuck
 ```
 
 Then double-click **`play.bat`**. The first time, it builds the game, which takes several minutes. After that it starts straight away.

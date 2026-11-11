@@ -2,6 +2,16 @@
 
 The handoff between development runs. Newest first.
 
+## v0.52 What's stuck
+
+**Status:** on branch `v0.52-whats-stuck`, with its PR targeting `v0.51-what-its-for`. Not merged.
+
+**Shipped:** the Production tab's headline card, "What limits Planks", is now "What's holding production up". When Planks are fine and another order is stuck, it names that order and why: "Structural Beams stalled. Hauling capacity is limiting Hardwood Logs delivery." Before, it said "None (target met)" over a stalled order.
+
+**Found by:** reading the full-map scenario's Production tab. The Settlement tab, the order list and the event log all said Structural Beams were stuck. The one card titled to answer the question said nothing was.
+
+**Next:** the Now and You cards take the top half of the panel in every tab, so most tabs start below the middle. Worth making them smaller late in a game.
+
 ## v0.51 What it's for
 
 **Status:** on branch `v0.51-what-its-for`, with its PR targeting `v0.50-one-thing`. Not merged.
