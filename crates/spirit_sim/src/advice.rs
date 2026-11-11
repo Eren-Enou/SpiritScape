@@ -350,6 +350,10 @@ impl World {
                 );
             }
         }
+        out += "\nWhat happened\n";
+        for line in self.what_happened() {
+            out += &format!("  {line}\n");
+        }
         out
     }
 

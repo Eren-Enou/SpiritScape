@@ -2199,3 +2199,5 @@ hearth_came = "The last of the old helpers stood by your hearth. It had never se
 hearth_stayed = "The last of the old helpers is still out by its stone, carving."
 boat_came = "The last of the old helpers crossed with them. Nobody had called it home in a very long time."
 boat_stayed = "The last of the old helpers stayed by its stone. Nobody called it, and it didn't ask."
+hearth_waiting = "The last of the old helpers is still by its stone, waiting for an answer."
+boat_waiting = "The last of the old helpers watched the boat go. Nobody had answered it."

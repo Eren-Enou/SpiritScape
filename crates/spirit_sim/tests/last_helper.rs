@@ -133,7 +133,10 @@ fn the_hearth_remembers_what_you_did() {
             w.defs.player.carry_capacity,
         );
         w.run_ticks(10);
-        assert!(!w.ending_story().unwrap().join(" ").contains("old helpers"));
+        // Met but not yet answered, it's still part of the ending.
+        let before = w.ending_story().unwrap().join(" ");
+        assert!(before.contains("waiting for an answer"), "{before}");
+        assert!(!before.contains(words), "{before}");
         w.apply(Command::AnswerHelper(come)).unwrap();
         let story = w.ending_story().unwrap().join(" ");
         assert!(story.contains(words), "{story}");

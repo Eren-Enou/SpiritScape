@@ -116,6 +116,14 @@ fn main() {
                 })
                 .collect();
             println!("Keeping company: {kept:?}");
+            if std::env::args().any(|a| a == "--ending") {
+                for line in w.ending_story().unwrap_or_default() {
+                    println!("  | {line}");
+                }
+                for line in w.what_happened() {
+                    println!("  > {line}");
+                }
+            }
             println!(
                 "Old stones read: {} of {}. The last helper: {}.",
                 w.settlement.markers_read.len(),

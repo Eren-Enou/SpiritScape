@@ -91,7 +91,7 @@ impl World {
         finds.iter().map(|b| b.caravan_find.clone()).collect()
     }
 
-    fn notes_people(&self) -> Vec<String> {
+    pub(crate) fn notes_people(&self) -> Vec<String> {
         let s = &self.settlement;
         let here = s.visitor.as_ref().map(|v| v.index as usize);
         let came = |i: usize| i < s.visitors_met as usize || s.visitors_seen.contains(&(i as u32));

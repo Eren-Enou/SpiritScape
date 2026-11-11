@@ -2,6 +2,16 @@
 
 The handoff between development runs. Newest first.
 
+## v0.59 What happened
+
+**Status:** on branch `v0.59-what-happened`, with its PR targeting `v0.58-two-games`. Not merged.
+
+**Shipped:** the F6 play report ends with "What happened". It covers goals met, the spirits made (and which you named), who keeps company, old stones read, far-shore finds, the last helper, a tally of visitors' answers, the ending reached, and any stone carved or found. Before, it only said where the time went. The closing words now also mention the last helper when it was met but never answered.
+
+**Why:** the report is what comes back from a playtest, and so far it could say how the game played but not what happened in it.
+
+**Next:** a playtest.
+
 ## v0.58 Two games in a row
 
 **Status:** on branch `v0.58-two-games`, with its PR targeting `v0.57-walk-home`. Not merged.
