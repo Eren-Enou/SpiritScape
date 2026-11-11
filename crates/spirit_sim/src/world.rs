@@ -144,6 +144,9 @@ pub struct Settlement {
     /// The last of the old helpers, once you've met it.
     #[serde(default)]
     pub last_helper: Option<crate::last_helper::LastHelper>,
+    /// The old carver's cold camp: found, and lit.
+    #[serde(default)]
+    pub cold_camp: crate::cold_camp::ColdCamp,
     /// The totals at the end of each year.
     #[serde(default)]
     pub years: Vec<crate::stories::YearEnd>,
@@ -1240,6 +1243,7 @@ impl World {
             self.update_relics();
             self.update_left_before();
             self.update_last_helper();
+            self.update_cold_camp();
         }
     }
 

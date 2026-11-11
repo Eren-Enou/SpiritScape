@@ -1,0 +1,14 @@
+# UI test of carrying a light from the Hearth to the old cold camp:
+#   cargo run --release -- --scenario cold_camp --save-dir target/ui_saves61 --script scripts/ui_cold_camp.txt --capture target/ui_cold_camp
+1.5 shot 01_cold
+1.7 tile 42 10
+4.5 expect Somebody camped here
+5.0 expect For the first time, there's a fire in the old camp
+5.4 shot 02_lit
+5.6 key J
+6.1 expect lit the fire they never had
+6.3 shot 03_ending
+6.5 key L
+7.0 expect The cold camp
+7.2 shot 04_notes
+7.8 exit

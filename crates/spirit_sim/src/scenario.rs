@@ -79,6 +79,8 @@ pub enum ScenarioKind {
     LastTime,
     /// Beside the Last Stone, already read, with someone standing by it.
     LastStone,
+    /// The Hearth lit, a step from the old carver's cold camp.
+    ColdCamp,
     /// Everything fire can make, side by side.
     Brickyard,
     /// The Hearth lit, and winter a minute away.
@@ -102,7 +104,7 @@ pub enum ScenarioKind {
 }
 
 impl ScenarioKind {
-    pub const ALL: [ScenarioKind; 41] = [
+    pub const ALL: [ScenarioKind; 42] = [
         ScenarioKind::NewGame,
         ScenarioKind::Demo,
         ScenarioKind::Regrind,
@@ -134,6 +136,7 @@ impl ScenarioKind {
         ScenarioKind::OldFriends,
         ScenarioKind::LastTime,
         ScenarioKind::LastStone,
+        ScenarioKind::ColdCamp,
         ScenarioKind::Brickyard,
         ScenarioKind::Midwinter,
         ScenarioKind::FullMap,
@@ -179,6 +182,7 @@ impl ScenarioKind {
             ScenarioKind::OldFriends => "old_friends",
             ScenarioKind::LastTime => "last_time",
             ScenarioKind::LastStone => "last_stone",
+            ScenarioKind::ColdCamp => "cold_camp",
             ScenarioKind::Brickyard => "brickyard",
             ScenarioKind::Midwinter => "midwinter",
             ScenarioKind::FullMap => "full_map",
@@ -463,6 +467,7 @@ impl World {
                 your_stone: None,
                 left_before: Vec::new(),
                 last_helper: None,
+                cold_camp: Default::default(),
                 years: Vec::new(),
                 seasons: scenario.seasons,
                 bench_bonus: 0,

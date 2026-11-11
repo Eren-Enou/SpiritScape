@@ -2,6 +2,14 @@
 
 The handoff between development runs. Newest first.
 
+## v0.61 The cold camp
+
+**Status:** on branch `v0.61-cold-camp`, with its PR targeting `v0.60-old-and-new`. Not merged.
+
+**Shipped:** near the Mossed Stone there's a ring of stones where the old carver camped and never lit a fire. Walk up and you find it. Come back with your own Hearth lit and you light it: a fire burns there from then on, and both endings say so. The notes, the play report and a `cold_camp` scenario cover it. Also fixed: "to make 1 spirits" at the end, and "to make 1 helpers" on a carved stone.
+
+**Next:** a playtest.
+
 ## v0.60 Old and new
 
 **Status:** on branch `v0.60-old-and-new`, with its PR targeting `v0.59-what-happened`. Not merged.

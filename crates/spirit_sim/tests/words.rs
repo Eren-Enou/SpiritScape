@@ -65,3 +65,26 @@ fn nothing_the_busy_scenarios_say_has_one_with_a_plural() {
         }
     }
 }
+
+#[test]
+fn one_spirit_made_is_said_in_the_singular_at_the_end() {
+    // The cold camp scenario has a lit Hearth and one spirit made from your XP.
+    let mut w = World::from_scenario(ScenarioKind::ColdCamp);
+    let made = w.spirits.iter().filter(|s| s.gift_xp > 0).count();
+    assert_eq!(made, 1);
+    let ending = w.ending_story().unwrap().join(" ");
+    assert!(
+        ending.contains("to make 1 spirit, and it's still here, in it."),
+        "{ending}"
+    );
+    let stone = w.stone_words(0).unwrap().join(" ");
+    assert!(stone.contains("to make 1 helper."), "{stone}");
+    w.apply(spirit_sim::world::Command::CarveStone(0)).unwrap();
+    // And more than one stays plural.
+    let w = World::from_scenario(ScenarioKind::Midwinter);
+    let ending = w.ending_story().unwrap().join(" ");
+    assert!(
+        ending.contains("spirits, and it's still here, in them."),
+        "{ending}"
+    );
+}

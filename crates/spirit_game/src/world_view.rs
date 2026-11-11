@@ -402,6 +402,25 @@ pub fn rebuild_on_restart(
         ));
     }
 
+    // The old carver's cold camp: a ring of small stones, with nothing in it.
+    if let Some(at) = w.cold_camp_at() {
+        let centre = tile_world(at.x as f32, at.y as f32);
+        let pebble = meshes.add(Cuboid::new(0.16, 0.12, 0.16));
+        let grey = materials.add(Color::srgb(0.55, 0.55, 0.52));
+        for i in 0..8 {
+            let a = i as f32 * std::f32::consts::TAU / 8.0;
+            commands.spawn((
+                WorldEntity,
+                Mesh3d(pebble.clone()),
+                MeshMaterial3d(grey.clone()),
+                Transform::from_translation(
+                    centre + Vec3::new(a.cos() * 0.38, 0.06, a.sin() * 0.38),
+                )
+                .with_rotation(Quat::from_rotation_y(a)),
+            ));
+        }
+    }
+
     // A small cairn marks each thing left on the far shore.
     for r in &w.defs.relics {
         let at = tile_world(r.at[0] as f32, r.at[1] as f32);

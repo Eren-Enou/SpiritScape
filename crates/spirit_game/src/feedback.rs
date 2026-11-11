@@ -31,6 +31,7 @@ impl Plugin for FeedbackPlugin {
                     fall_snow,
                     show_ice,
                     keep_hearth,
+                    keep_camp_fire,
                     show_closing_screen,
                 ),
             );
@@ -458,6 +459,57 @@ fn keep_hearth(
         *since = 0.0;
         let glow = Color::srgb(1.0, 0.7, 0.3);
         burst(&mut commands, &mut meshes, &mut materials, at, glow, 3);
+    }
+}
+
+/// The fire in the old camp, once it's lit.
+#[derive(Component)]
+struct CampFire;
+
+fn keep_camp_fire(
+    mut commands: Commands,
+    sim: Res<Sim>,
+    time: Res<Time>,
+    fires: Query<Entity, With<CampFire>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut since: Local<f32>,
+) {
+    let lit = sim.world.cold_camp_lit();
+    let Some(p) = sim.world.cold_camp_at().filter(|_| lit) else {
+        for e in &fires {
+            commands.entity(e).despawn();
+        }
+        return;
+    };
+    let at = tile_world(p.x as f32, p.y as f32);
+    if fires.is_empty() {
+        commands.spawn((
+            CampFire,
+            PointLight {
+                color: Color::srgb(1.0, 0.7, 0.35),
+                intensity: 300_000.0,
+                range: 8.0,
+                ..default()
+            },
+            Transform::from_translation(at + Vec3::Y * 1.0),
+        ));
+        commands.spawn((
+            CampFire,
+            Mesh3d(meshes.add(Cone::new(0.18, 0.4))),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: Color::srgb(1.0, 0.6, 0.2),
+                emissive: LinearRgba::rgb(4.0, 1.8, 0.4),
+                ..default()
+            })),
+            Transform::from_translation(at + Vec3::Y * 0.2),
+        ));
+    }
+    *since += time.delta_secs();
+    if *since > 0.9 {
+        *since = 0.0;
+        let glow = Color::srgb(1.0, 0.7, 0.3);
+        burst(&mut commands, &mut meshes, &mut materials, at, glow, 2);
     }
 }
 

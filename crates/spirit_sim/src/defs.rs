@@ -441,6 +441,8 @@ pub struct GameDefs {
     pub your_stone: crate::your_stone::YourStoneDefs,
     /// The last of the old carver's helpers.
     pub last_helper: crate::last_helper::LastHelperDefs,
+    /// Where the old carver camped, and never lit a fire.
+    pub cold_camp: crate::cold_camp::ColdCampDefs,
     /// What spirits made by Soul Separation can be like.
     pub traits: Vec<crate::stories::TraitDef>,
     /// Milestones in a spirit's working life.
@@ -502,6 +504,8 @@ struct RawDefs {
     your_stone: crate::your_stone::YourStoneDefs,
     #[serde(default)]
     last_helper: crate::last_helper::LastHelperDefs,
+    #[serde(default)]
+    cold_camp: crate::cold_camp::ColdCampDefs,
     #[serde(default)]
     traits: Vec<crate::stories::TraitDef>,
     #[serde(default)]
@@ -1163,6 +1167,7 @@ impl GameDefs {
             bonds: raw.bonds,
             your_stone: raw.your_stone,
             last_helper: raw.last_helper,
+            cold_camp: raw.cold_camp,
             traits: raw.traits,
             deeds: raw.deeds,
             moments: raw.moments,

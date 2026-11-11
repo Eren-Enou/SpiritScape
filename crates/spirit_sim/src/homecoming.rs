@@ -244,6 +244,7 @@ impl World {
         lines.extend(self.building_lines(false));
         lines.extend(self.relic_line());
         lines.extend(self.last_helper_line(true));
+        lines.extend(self.cold_camp_line());
         lines.extend(self.your_stone_line());
         if self.settlement.markers_read.len() == self.defs.markers.len() {
             lines.push(

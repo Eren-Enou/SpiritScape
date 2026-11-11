@@ -2187,8 +2187,8 @@ boat = "{a} and {b} crossed together."
 # it is what you did. The last line is the player's to choose.
 [your_stone]
 title = "Your Stone"
-hearth = "I gave {xp} XP of myself to make {made} helpers. We built a hearth, and they stood by it."
-boat = "I gave {xp} XP of myself to make {made} helpers. Then I called them home, and took it back."
+hearth = "I gave {xp} XP of myself to make {helpers}. We built a hearth, and they stood by it."
+boat = "I gave {xp} XP of myself to make {helpers}. Then I called them home, and took it back."
 company = "{a} and {b} kept each other company. I saw it."
 stones = "I read every stone the last one left. This one is for whoever comes next."
 carved = "You carve a stone of your own, where you stand."
@@ -2223,3 +2223,12 @@ boat_came = "The last of the old helpers crossed with them. Nobody had called it
 boat_stayed = "The last of the old helpers stayed by its stone. Nobody called it, and it didn't ask."
 hearth_waiting = "The last of the old helpers is still by its stone, waiting for an answer."
 boat_waiting = "The last of the old helpers watched the boat go. Nobody had answered it."
+
+# Where the old carver camped, near the Mossed Stone, with no fire ever lit in
+# it. Once your Hearth burns, you can bring its light here.
+[cold_camp]
+at = [43, 10]
+name = "The cold camp"
+found = "A ring of stones near the Mossed Stone, with no ashes in it. Somebody camped here for a long time. Nobody ever lit a fire."
+lit = "You've brought the light from your hearth all this way. For the first time, there's a fire in the old camp."
+ending = "You carried a light from your hearth to the old camp, and lit the fire they never had."
