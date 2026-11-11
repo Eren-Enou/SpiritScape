@@ -685,7 +685,7 @@ impl World {
                 let inputs: Vec<String> = d
                     .inputs
                     .iter()
-                    .map(|(r, n)| format!("{n} {}", self.defs.resource(*r).name))
+                    .map(|(r, n)| self.defs.amount(*r, *n))
                     .collect();
                 let missing: Vec<String> = d
                     .inputs
@@ -699,7 +699,7 @@ impl World {
                     id,
                     name: d.name.clone(),
                     inputs: inputs.join(", "),
-                    output: format!("{} {}", d.output.1, self.defs.resource(d.output.0).name),
+                    output: self.defs.amount(d.output.0, d.output.1),
                     level_required: d.level_required,
                     unlocked: level >= d.level_required,
                     selected: self.player.recipe == Some(id),

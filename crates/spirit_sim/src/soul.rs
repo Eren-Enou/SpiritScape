@@ -196,7 +196,7 @@ impl World {
         let inputs: Vec<String> = d
             .inputs
             .iter()
-            .map(|(r, n)| format!("{n} {}", self.defs.resource(*r).name))
+            .map(|(r, n)| self.defs.amount(*r, *n))
             .collect();
         with_reason(
             format!(

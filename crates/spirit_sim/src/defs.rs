@@ -94,6 +94,9 @@ pub struct JobRule {
 pub struct ResourceDef {
     pub id: String,
     pub name: String,
+    /// The name for just one, where it differs: "Plank" for "Planks".
+    #[serde(default)]
+    pub one: String,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -1354,13 +1357,24 @@ impl GameDefs {
     }
 
     /// Formats a resource bundle like "15 Logs".
+    /// "2 Planks", but "1 Plank".
+    pub fn amount(&self, r: ResourceId, n: u32) -> String {
+        let def = self.resource(r);
+        let name = if n == 1 && !def.one.is_empty() {
+            &def.one
+        } else {
+            &def.name
+        };
+        format!("{n} {name}")
+    }
+
     pub fn describe_amounts(&self, amounts: &BTreeMap<ResourceId, u32>) -> String {
         if amounts.is_empty() {
             return "nothing".into();
         }
         amounts
             .iter()
-            .map(|(r, n)| format!("{n} {}", self.resource(*r).name))
+            .map(|(r, n)| self.amount(*r, *n))
             .collect::<Vec<_>>()
             .join(", ")
     }
