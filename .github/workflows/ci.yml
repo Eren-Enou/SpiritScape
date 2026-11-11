@@ -73,6 +73,7 @@ jobs:
         run: >
           cargo test --release -p spirit_sim
           --test projects --test roads --test panels --test guided --test ambitions
+          --test two_games
           -- --ignored
 
       - name: Reference game report

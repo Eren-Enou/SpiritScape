@@ -116,6 +116,16 @@ fn main() {
                 })
                 .collect();
             println!("Keeping company: {kept:?}");
+            println!(
+                "Old stones read: {} of {}. The last helper: {}.",
+                w.settlement.markers_read.len(),
+                w.defs.markers.len(),
+                match (&w.settlement.last_helper, w.last_helper_seen()) {
+                    (Some(h), _) => format!("{:?}", h.answer),
+                    (None, true) => "seen, never met".to_string(),
+                    (None, false) => "never seen".to_string(),
+                }
+            );
             let shared: Vec<u32> = w.settlement.shared_moments.iter().map(|p| p.2).collect();
             println!("Moments shared, by pair: {shared:?}");
             if std::env::args().any(|a| a == "--timeline") {

@@ -2,6 +2,16 @@
 
 The handoff between development runs. Newest first.
 
+## v0.58 Two games in a row
+
+**Status:** on branch `v0.58-two-games`, with its PR targeting `v0.57-walk-home`. Not merged.
+
+**Shipped:** a release-only long test, `two_games.rs`, plays a whole real game to the Hearth with the reference player, carves a stone, then starts the next real game with it and walks up to it. It's the first check of v0.49 as one story rather than in pieces. It runs on CI with the other long runs.
+
+**Found by it:** the reference player reads all seven old stones, the Last Stone included, but never met the last helper from v0.56. It read the stone from the far side and walked on. A person could too, and miss the end of the story. The helper now stands one tile closer and looks up when you come within three tiles, so reading its stone is enough.
+
+**Next:** a playtest.
+
 ## v0.57 The walk home
 
 **Status:** on branch `v0.57-walk-home`, with its PR targeting `v0.56-last-helper`. Not merged.

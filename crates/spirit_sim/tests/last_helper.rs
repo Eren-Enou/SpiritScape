@@ -228,3 +228,38 @@ fn asked_home_it_walks_there_slowly_and_stops_by_the_fire() {
     let back = decode(&encode(&w, "last_stone")).unwrap().0;
     assert_eq!(back.settlement.last_helper, w.settlement.last_helper);
 }
+
+#[test]
+fn reading_the_last_stone_from_any_side_is_enough_to_meet_it() {
+    let probe = World::new_journey("normal").unwrap();
+    let stone = probe
+        .defs
+        .markers
+        .iter()
+        .find(|m| m.id == probe.defs.last_helper.after_stone)
+        .unwrap()
+        .at;
+    let mut sides = 0;
+    for (dx, dy) in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
+        let at = TilePos::new(stone[0] + dx, stone[1] + dy);
+        if !probe.grid.is_walkable(at) {
+            continue;
+        }
+        sides += 1;
+        let mut w = World::new_journey("normal").unwrap();
+        w.player.actor = spirit_sim::entities::Actor::new(
+            at,
+            w.defs.player.move_ticks,
+            w.defs.player.carry_capacity,
+        );
+        assert!(!w.last_helper_seen());
+        w.run_ticks(10);
+        assert!(w.last_helper_seen(), "the stone wasn't read from {at:?}");
+        assert_eq!(
+            answer(&w),
+            Some(HelperAnswer::Waiting),
+            "read from {at:?} but never met it"
+        );
+    }
+    assert!(sides >= 2, "{sides}");
+}
