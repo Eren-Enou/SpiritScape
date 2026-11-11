@@ -2,6 +2,16 @@
 
 The handoff between development runs. Newest first.
 
+## v0.54 One plank
+
+**Status:** on branch `v0.54-one-plank`, with its PR targeting `v0.53-room`. Not merged.
+
+**Shipped:** one of anything is said in the singular: "2 Logs -> 1 Plank", not "1 Planks". Each resource with a plural name has a singular in the data, `one = "Plank"`, and every place that writes an amount goes through one function. A test scans everything four busy scenarios say for "1" followed by a plural.
+
+**Found by:** the Training tab's recipe list in the full-map scenario: "2 Logs -> 1 Planks", "3 Planks -> 1 Fitted Panels", "2 Hardwood Logs -> 1 Structural Beams".
+
+**Next:** keep reading screenshots. The recipe lines also wrap mid-word ("28 made/ min"), which is worth a look.
+
 ## v0.53 Room to read
 
 **Status:** on branch `v0.53-room`, with its PR targeting `v0.52-whats-stuck`. Not merged.

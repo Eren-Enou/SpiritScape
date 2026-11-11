@@ -554,23 +554,28 @@ ending_took = "The child from the valley came back the next year, and the year a
 [[resources]]
 id = "logs"
 name = "Logs"
+one = "Log"
 
 [[resources]]
 id = "planks"
 name = "Planks"
+one = "Plank"
 
 [[resources]]
 id = "hardwood"
 name = "Hardwood Logs"
+one = "Hardwood Log"
 
 [[resources]]
 id = "beams"
 name = "Structural Beams"
+one = "Structural Beam"
 
 # Planks made into something worth keeping: three take up the room of one.
 [[resources]]
 id = "panels"
 name = "Fitted Panels"
+one = "Fitted Panel"
 
 # Cut from outcrops south of home. It's the second thing to gather, and the
 # only way to build across the river without going round by the bridge.
@@ -586,6 +591,7 @@ name = "Dressed Stone"
 [[resources]]
 id = "keystones"
 name = "Keystones"
+one = "Keystone"
 
 # Only the player can bring this home.
 [[resources]]
@@ -1629,6 +1635,7 @@ name = "Charcoal"
 [[resources]]
 id = "bricks"
 name = "Bricks"
+one = "Brick"
 
 [[skills]]
 id = "kilnwork"

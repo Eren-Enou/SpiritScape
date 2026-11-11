@@ -96,7 +96,7 @@ impl World {
         let parts: Vec<String> = self
             .amounts(list)
             .iter()
-            .map(|(r, n)| format!("{n} {}", self.defs.resource(*r).name))
+            .map(|(r, n)| self.defs.amount(*r, *n))
             .collect();
         parts.join(" and ")
     }

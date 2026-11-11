@@ -935,7 +935,7 @@ fn update_hover_tip(
                     let inputs: Vec<_> = d
                         .inputs
                         .iter()
-                        .map(|(res, n)| format!("{n} {}", w.defs.resource(*res).name))
+                        .map(|(res, n)| w.defs.amount(*res, *n))
                         .collect();
                     let lock = if level >= d.level_required {
                         String::new()
