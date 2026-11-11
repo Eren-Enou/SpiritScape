@@ -16,4 +16,7 @@
 8.0 key L
 8.5 expect The last helper
 8.7 shot 05_notes
-9.3 exit
+8.9 press 8x
+13.0 key C
+14.0 shot 06_home_at_last
+14.6 exit

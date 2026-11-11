@@ -2,6 +2,14 @@
 
 The handoff between development runs. Newest first.
 
+## v0.57 The walk home
+
+**Status:** on branch `v0.57-walk-home`, with its PR targeting `v0.56-last-helper`. Not merged.
+
+**Shipped:** asked home, the last helper walks from its stone to beside your fire, at half the player's pace, along a real path. Before, it appeared there at once, though the words said it followed you. If there's no way through, it's simply there, as before.
+
+**Next:** a playtest. There are now seventeen milestones, v0.41 to v0.57, waiting on the release candidate.
+
 ## v0.56 The last helper
 
 **Status:** on branch `v0.56-last-helper`, with its PR targeting `v0.55-tidy-lines`. Not merged.

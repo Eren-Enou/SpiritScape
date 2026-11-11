@@ -85,7 +85,7 @@ impl Building {
 }
 
 /// Tile-to-tile movement. `progress` counts ticks toward entering `path[0]`.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Mover {
     pub pos: TilePos,
     pub path: VecDeque<TilePos>,

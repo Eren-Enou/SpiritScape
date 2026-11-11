@@ -820,12 +820,12 @@ fn update_labels(
                 )
             }
             WorldLabel::Helper => {
-                let Some(at) = w.last_helper_at() else {
+                let Some((x, y)) = w.last_helper_visual() else {
                     vis.set_if_neq(Visibility::Hidden);
                     continue;
                 };
                 let name = w.defs.last_helper.name.clone();
-                let pos = tile_world(at.x as f32, at.y as f32);
+                let pos = tile_world(x, y);
                 (2, pos, 1.05, Some((name, Color::srgb(0.85, 0.85, 0.8))))
             }
             WorldLabel::Site(i) => {

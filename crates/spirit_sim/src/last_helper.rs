@@ -57,6 +57,9 @@ pub enum HelperAnswer {
 pub struct LastHelper {
     pub answer: HelperAnswer,
     pub since: u64,
+    /// Its walk home, once asked. It's old, so it walks at half your pace.
+    #[serde(default)]
+    pub walker: Option<crate::entities::Mover>,
 }
 
 impl World {
@@ -88,8 +91,79 @@ impl World {
         if gone {
             return None;
         }
-        let home = self.hearth().unwrap_or(self.main().pos);
+        if let Some(m) = self
+            .settlement
+            .last_helper
+            .as_ref()
+            .and_then(|h| h.walker.as_ref())
+        {
+            return Some(m.pos);
+        }
+        let home = self.home_for_helper();
         Some(TilePos::new(home.x + 1, home.y + 1))
+    }
+
+    /// Where it's going once asked: the Hearth if it's lit, or Main Storage.
+    fn home_for_helper(&self) -> TilePos {
+        self.hearth().unwrap_or(self.main().pos)
+    }
+
+    /// Where to draw it, in tile units, between tiles while it walks.
+    pub fn last_helper_visual(&self) -> Option<(f32, f32)> {
+        let at = self.last_helper_at()?;
+        let walker = self
+            .settlement
+            .last_helper
+            .as_ref()
+            .and_then(|h| h.walker.as_ref());
+        match walker {
+            Some(m) if m.pos == at => Some(m.visual_pos()),
+            _ => Some((at.x as f32, at.y as f32)),
+        }
+    }
+
+    /// Whether it's on its way home right now.
+    pub fn last_helper_walking(&self) -> bool {
+        let walker = self
+            .settlement
+            .last_helper
+            .as_ref()
+            .and_then(|h| h.walker.as_ref());
+        walker.is_some_and(|m| !m.path.is_empty())
+    }
+
+    /// One tick of the walk home.
+    pub(crate) fn step_last_helper(&mut self) {
+        let Some(m) = self
+            .settlement
+            .last_helper
+            .as_mut()
+            .and_then(|h| h.walker.as_mut())
+        else {
+            return;
+        };
+        if m.path.is_empty() {
+            return;
+        }
+        m.progress += 1;
+        if m.progress >= m.ticks_per_tile {
+            m.progress = 0;
+            if let Some(next) = m.path.pop_front() {
+                m.pos = next;
+            }
+        }
+    }
+
+    /// A walk from its stone to beside your fire, if there's a way. Without
+    /// one, it's simply there, as before.
+    fn walk_home_from(&self, from: TilePos) -> Option<crate::entities::Mover> {
+        let home = self.home_for_helper();
+        let path = self
+            .grid
+            .find_path(from, |p| p.manhattan(home) <= 2 && p != home)?;
+        let mut m = crate::entities::Mover::new(from, self.defs.player.move_ticks.max(1) * 2);
+        m.path = path.into_iter().collect();
+        Some(m)
     }
 
     /// Whether it's carving: always, except while it's looking at you, and
@@ -120,6 +194,7 @@ impl World {
         self.settlement.last_helper = Some(LastHelper {
             answer: HelperAnswer::Waiting,
             since: tick,
+            walker: None,
         });
         let msg = self.defs.last_helper.found.clone();
         self.events.push(tick, EventKind::Player, msg.clone());
@@ -137,9 +212,16 @@ impl World {
         } else {
             (HelperAnswer::Stayed, self.defs.last_helper.stayed.clone())
         };
+        let [x, y] = self.defs.last_helper.at;
+        let walker = if come {
+            self.walk_home_from(TilePos::new(x, y))
+        } else {
+            None
+        };
         self.settlement.last_helper = Some(LastHelper {
             answer,
             since: tick,
+            walker,
         });
         self.events.push(tick, EventKind::Player, msg.clone());
         self.notices.push(tick, msg.clone());

@@ -93,11 +93,10 @@ fn asked_home_it_stands_by_the_fire_and_does_no_work() {
     assert_eq!(answer(&w), Some(HelperAnswer::Came));
     assert_eq!(w.last_helper_question(), None);
     assert!(!w.last_helper_carving());
-    let home = w.main().pos;
-    assert_eq!(
-        w.last_helper_at(),
-        Some(TilePos::new(home.x + 1, home.y + 1))
-    );
+    // It walks home from its stone, rather than appearing there.
+    let [x, y] = w.defs.last_helper.at;
+    assert_eq!(w.last_helper_at(), Some(TilePos::new(x, y)));
+    assert!(w.last_helper_walking());
     assert_eq!(w.spirits.len(), spirits, "it isn't one of your workers");
     assert!(
         w.apply(Command::AnswerHelper(false)).is_err(),
@@ -182,4 +181,50 @@ fn what_you_answered_survives_a_save() {
     w.apply(Command::AnswerHelper(true)).unwrap();
     let back = decode(&encode(&w, "last_stone")).unwrap().0;
     assert_eq!(answer(&back), Some(HelperAnswer::Came));
+}
+
+#[test]
+fn asked_home_it_walks_there_slowly_and_stops_by_the_fire() {
+    let mut w = by_the_stone();
+    walk_up(&mut w);
+    w.apply(Command::AnswerHelper(true)).unwrap();
+    let start = w.last_helper_at().unwrap();
+    let home = w.main().pos;
+    let steps = w
+        .settlement
+        .last_helper
+        .as_ref()
+        .unwrap()
+        .walker
+        .as_ref()
+        .unwrap()
+        .path
+        .len();
+    assert!(steps > 10, "a real walk: {steps} tiles");
+    // Half the player's pace.
+    let per_tile = w.defs.player.move_ticks as u64 * 2;
+    w.run_ticks(per_tile * 3);
+    let after = w.last_helper_at().unwrap();
+    assert_eq!(
+        start.manhattan(after),
+        3,
+        "three tiles in that time: {start:?} -> {after:?}"
+    );
+    for _ in 0..(steps as u64 + 5) {
+        w.run_ticks(per_tile);
+    }
+    assert!(!w.last_helper_walking());
+    let end = w.last_helper_at().unwrap();
+    assert!(
+        end.manhattan(home) <= 2,
+        "{end:?} isn't by the fire at {home:?}"
+    );
+    assert!(w.grid.is_walkable(end) || w.grid.terrain(end).is_some());
+    // The walk survives a save part-way.
+    let mut w = by_the_stone();
+    walk_up(&mut w);
+    w.apply(Command::AnswerHelper(true)).unwrap();
+    w.run_ticks(per_tile * 4 + 3);
+    let back = decode(&encode(&w, "last_stone")).unwrap().0;
+    assert_eq!(back.settlement.last_helper, w.settlement.last_helper);
 }
