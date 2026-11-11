@@ -11,7 +11,7 @@ git fetch origin
 ```
 
 ```bash
-git checkout v0.54-one-plank
+git checkout v0.55-tidy-lines
 ```
 
 Then double-click **`play.bat`**. The first time, it builds the game, which takes several minutes. After that it starts straight away.
