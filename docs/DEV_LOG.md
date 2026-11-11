@@ -2,6 +2,16 @@
 
 The handoff between development runs. Newest first.
 
+## v0.53 Room to read
+
+**Status:** on branch `v0.53-room`, with its PR targeting `v0.52-whats-stuck`. Not merged.
+
+**Shipped:** the You card, above every tab, shows the skill you last earned XP in with its bar and what's next, and every other skill you've met as a small chip with its level. Late in a game, that's 3 lines instead of 9, so each tab's own cards start about 120 pixels higher. Every skill is still in full in the Progress tab.
+
+**Decided:** which skill is shown in full is remembered by the game window, not the simulation, because it's about what you're looking at and nothing else depends on it. Before you've earned any XP this session, it shows the skill you have most XP in.
+
+**Next:** keep reading screenshots, now of the Gathering and Outpost tabs.
+
 ## v0.52 What's stuck
 
 **Status:** on branch `v0.52-whats-stuck`, with its PR targeting `v0.51-what-its-for`. Not merged.
