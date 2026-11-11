@@ -31,6 +31,8 @@ pub struct Spawned {
     pub your_stone: bool,
     /// Stones from earlier games are on the map.
     pub left_before: bool,
+    /// The last of the old helpers is on the map.
+    pub helper: bool,
 }
 
 #[derive(Component)]
@@ -73,6 +75,8 @@ const LOCK_RING_RANGE: i32 = 7;
 pub enum WorldLabel {
     Player,
     Spirit(usize),
+    /// The last of the old carver's helpers.
+    Helper,
     Building(usize),
     /// Name and availability of a gathering site.
     Site(usize),
@@ -279,6 +283,7 @@ pub fn rebuild_on_restart(
         spirits: 0,
         your_stone: false,
         left_before: false,
+        helper: false,
     };
     let w = &sim.world;
     let t = &visuals.terrain;
@@ -813,6 +818,15 @@ fn update_labels(
                     1.9,
                     Some((content, Color::srgb(1.0, 0.92, 0.7))),
                 )
+            }
+            WorldLabel::Helper => {
+                let Some(at) = w.last_helper_at() else {
+                    vis.set_if_neq(Visibility::Hidden);
+                    continue;
+                };
+                let name = w.defs.last_helper.name.clone();
+                let pos = tile_world(at.x as f32, at.y as f32);
+                (2, pos, 1.05, Some((name, Color::srgb(0.85, 0.85, 0.8))))
             }
             WorldLabel::Site(i) => {
                 let def = &w.defs.sites[i];

@@ -1,0 +1,19 @@
+# UI test of meeting the last of the old helpers, by the Last Stone:
+#   cargo run --release -- --scenario last_stone --save-dir target/ui_saves56 --script scripts/ui_last_helper.txt --capture target/ui_last_helper
+1.5 expect The last helper
+1.7 shot 01_carving
+1.9 tile 57 10
+5.0 expect looks up at you
+5.1 expect Ask it to come home
+5.2 expect Leave it where it is
+5.4 shot 02_asked
+5.6 press Ask it to come home
+6.0 expect follows you home
+6.4 shot 03_home
+6.6 key C
+7.6 shot 04_map
+7.8 key C
+8.0 key L
+8.5 expect The last helper
+8.7 shot 05_notes
+9.3 exit

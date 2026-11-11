@@ -169,6 +169,9 @@ enum UiAction {
     LeaveLoad,
     VisitorYes,
     VisitorNo,
+    /// Ask the last of the old helpers home, or leave it be.
+    HelperYes,
+    HelperNo,
     RenameSpirit,
     ToggleAutoGather,
     /// Step through the recipes the player can use.
@@ -269,6 +272,7 @@ enum Card {
     YourStone,
     Standing,
     Visitor,
+    Helper,
     Markers,
     Ending,
     Ambitions,
@@ -585,6 +589,8 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                             ("Turn it down", UiAction::VisitorNo),
                         ],
                     );
+                    body(c, Card::Helper);
+                    button_row(c, &[("", UiAction::HelperYes), ("", UiAction::HelperNo)]);
                 });
             });
 
@@ -1150,9 +1156,11 @@ fn update_menu(
             node.display = shown(sim.menu);
         }
     }
+    // A question from the last helper is worth showing in a scenario too.
+    let goal_shown = sim.is_journey() || sim.world.last_helper_question().is_some();
     for mut node in &mut goal {
-        if node.display != shown(sim.is_journey()) {
-            node.display = shown(sim.is_journey());
+        if node.display != shown(goal_shown) {
+            node.display = shown(goal_shown);
         }
     }
 }
@@ -1243,6 +1251,8 @@ fn on_button(
         UiAction::CarveStone(i) => sim.carve_stone(i),
         UiAction::VisitorYes => sim.command(Command::AnswerVisitor(true)),
         UiAction::VisitorNo => sim.command(Command::AnswerVisitor(false)),
+        UiAction::HelperYes => sim.command(Command::AnswerHelper(true)),
+        UiAction::HelperNo => sim.command(Command::AnswerHelper(false)),
         UiAction::Plan(id) => {
             if let Some(kind) = sim.world.defs.building_kind_id(id) {
                 sim.command(Command::QueueBuilding { kind, site: None });
@@ -1612,6 +1622,7 @@ fn update_buttons(
             UiAction::CarveStone(i) => w.can_carve_stone() && *i < w.defs.your_stone.choices.len(),
             UiAction::VisitorYes => w.visitor().is_some_and(|v| v.can_accept),
             UiAction::VisitorNo => w.visitor().is_some(),
+            UiAction::HelperYes | UiAction::HelperNo => w.last_helper_question().is_some(),
             UiAction::Standing(i, _) => can_dig(w, STANDING_GOODS[*i]),
             // Orders for a bench that hasn't been built are just clutter.
             UiAction::ExtraTarget(i, _) | UiAction::ExtraPriority(i) => w
@@ -1736,6 +1747,8 @@ fn update_buttons(
                 Some(kind) => format!("Order {}", w.defs.building(kind).name),
                 None => continue,
             },
+            UiAction::HelperYes => w.defs.last_helper.ask.clone(),
+            UiAction::HelperNo => w.defs.last_helper.leave.clone(),
             UiAction::CarveStone(i) => match w.defs.your_stone.choices.get(*i) {
                 Some(c) => format!("Carve: {}", c.label),
                 None => continue,
@@ -1947,6 +1960,7 @@ fn update_cards(
             Card::ChainTime => chain_time_lines(&sim.world),
             Card::Goal => goal_lines(&sim.world),
             Card::Visitor => visitor_lines(&sim.world),
+            Card::Helper => helper_lines(&sim.world),
             Card::Markers => marker_lines(&sim.world),
             Card::Ending => ending_lines(&sim.world),
             Card::Ambitions => ambition_lines(&sim.world),
@@ -2013,6 +2027,7 @@ fn header_lines(sim: &Sim) -> Vec<Line> {
         ScenarioKind::QuietHour => "A quiet hour",
         ScenarioKind::OldFriends => "Old friends",
         ScenarioKind::LastTime => "Last time",
+        ScenarioKind::LastStone => "The Last Stone",
         ScenarioKind::Brickyard => "Brickyard",
         ScenarioKind::Midwinter => "Midwinter",
         ScenarioKind::FullMap => "Full map",
@@ -2733,6 +2748,14 @@ fn standing_lines(w: &World) -> Vec<Line> {
         lines.push(vec![text(format!("{name}: {have} of {target}"))]);
     }
     lines
+}
+
+/// The last of the old helpers, while it waits for an answer.
+fn helper_lines(w: &World) -> Vec<Line> {
+    match w.last_helper_question() {
+        Some(q) => vec![vec![colored(q, GOLD)]],
+        None => Vec::new(),
+    }
 }
 
 fn visitor_lines(w: &World) -> Vec<Line> {

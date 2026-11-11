@@ -25,6 +25,8 @@ const HAND_SLOT: &str = "handslot.r";
 pub enum Who {
     Player,
     Spirit(usize),
+    /// The last of the old carver's helpers.
+    Helper,
 }
 
 #[derive(Component)]
@@ -161,6 +163,7 @@ fn spawn_character(
     let label = match who {
         Who::Player => WorldLabel::Player,
         Who::Spirit(id) => WorldLabel::Spirit(id),
+        Who::Helper => WorldLabel::Helper,
     };
     spawn_label(commands, label, 12.0);
 }
@@ -184,11 +187,12 @@ fn spawn_characters(
             }
         }
         for (entity, label) in &labels {
-            if matches!(label, WorldLabel::Spirit(_)) {
+            if matches!(label, WorldLabel::Spirit(_) | WorldLabel::Helper) {
                 commands.entity(entity).despawn();
             }
         }
         spawned.spirits = w.spirits.len();
+        spawned.helper = false;
     }
     if spawned.spirits == 0 && !existing.iter().any(|(_, c)| c.who == Who::Player) {
         spawn_character(
@@ -217,6 +221,20 @@ fn spawn_characters(
         );
     }
     spawned.spirits = w.spirits.len();
+    // Pale and grey: older than any of yours.
+    if !spawned.helper && w.last_helper_at().is_some() {
+        let model_def = visuals.characters.roles.get("kiln_worker");
+        let model_def = model_def.unwrap_or(&visuals.characters.player);
+        spawn_character(
+            &mut commands,
+            &assets,
+            &visuals,
+            Who::Helper,
+            model_def,
+            Some(Color::srgb(0.78, 0.78, 0.74)),
+        );
+        spawned.helper = true;
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -335,7 +353,43 @@ fn sync_characters(
     let Some(set) = &anims.ready else { return };
     let w = &sim.world;
     for (mut c, mut tf) in &mut characters {
+        if c.who == Who::Helper {
+            let Some(at) = w.last_helper_at() else {
+                tf.translation.y = -100.0;
+                continue;
+            };
+            tf.translation = tile_world(at.x as f32, at.y as f32);
+            let wanted = if w.last_helper_carving() && !sim.paused {
+                set.work
+            } else {
+                set.idle
+            };
+            if w.last_helper_carving() {
+                // Facing its stone.
+                let [sx, sy] = w
+                    .defs
+                    .markers
+                    .iter()
+                    .find(|m| m.id == w.defs.last_helper.after_stone)
+                    .map_or([at.x, at.y], |m| m.at);
+                let dir = Vec2::new((sx - at.x) as f32, (sy - at.y) as f32);
+                if dir.length_squared() > 1e-4 {
+                    tf.rotation = Quat::from_rotation_y(dir.x.atan2(dir.y));
+                }
+            }
+            if c.current != Some(wanted)
+                && let Some(rig) = c.rig
+                && let Ok((mut player, mut transitions)) = players.get_mut(rig)
+            {
+                transitions
+                    .play(&mut player, wanted, Duration::from_millis(200))
+                    .repeat();
+                c.current = Some(wanted);
+            }
+            continue;
+        }
         let actor = match c.who {
+            Who::Helper => continue,
             Who::Player => &w.player.actor,
             Who::Spirit(id) => match w.spirits.get(id) {
                 Some(s) if s.aboard => {

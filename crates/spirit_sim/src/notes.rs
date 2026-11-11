@@ -27,6 +27,10 @@ impl World {
                 lines: self.notes_people(),
             },
             NoteSection {
+                title: "The last helper",
+                lines: self.last_helper_notes(),
+            },
+            NoteSection {
                 title: "What you left last time",
                 lines: self
                     .settlement

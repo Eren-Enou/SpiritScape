@@ -16,6 +16,7 @@ pub mod grid;
 pub mod homecoming;
 pub mod inventory;
 pub mod journey;
+pub mod last_helper;
 pub mod metrics;
 pub mod moments;
 pub mod notes;
