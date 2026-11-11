@@ -2111,13 +2111,39 @@ fn skill_lines(w: &World, skill: SkillId) -> Vec<Line> {
     lines
 }
 
+/// The skill the You card shows in full: the one you last earned XP in, or
+/// else the one you have most XP in.
+fn focus_skill(sim: &Sim, met: &[SkillId]) -> Option<SkillId> {
+    let w = &sim.world;
+    sim.recent_skill.filter(|s| met.contains(s)).or_else(|| {
+        met.iter()
+            .copied()
+            .max_by_key(|s| (w.player.xp(*s), std::cmp::Reverse(s.0)))
+    })
+}
+
+/// The skill you're working on in full, and the rest in a line, so the cards
+/// for each tab start higher. Every skill is in the Progress tab in full.
 fn player_lines(sim: &Sim) -> Vec<Line> {
     let w = &sim.world;
-    let mut lines = Vec::new();
-    for skill in soul_skills(w) {
-        if w.is_open(&w.defs.skill(skill).id) {
-            lines.extend(skill_lines(w, skill));
-        }
+    let met: Vec<SkillId> = soul_skills(w)
+        .into_iter()
+        .filter(|s| skill_met(w, *s))
+        .collect();
+    let Some(focus) = focus_skill(sim, &met) else {
+        return Vec::new();
+    };
+    let mut lines = skill_lines(w, focus);
+    let others: Vec<Item> = met
+        .iter()
+        .filter(|s| **s != focus)
+        .map(|s| {
+            let level = w.player.level(*s, &w.defs.xp_table);
+            chip(format!("{} {level}", w.defs.skill(*s).name), MUTED)
+        })
+        .collect();
+    if !others.is_empty() {
+        lines.push(others);
     }
     lines
 }
@@ -3724,5 +3750,50 @@ mod whats_stuck {
         assert!(shown.all(|o| !o.stalled));
         let said = words(&production_limit_lines(&w));
         assert!(!said.contains("stalled"), "{said}");
+    }
+}
+
+#[cfg(test)]
+mod room_to_read {
+    use super::*;
+
+    fn words(lines: &[Line]) -> String {
+        let mut out = Vec::new();
+        for item in lines.iter().flatten() {
+            match item {
+                Item::Text { text, .. } | Item::Chip { text, .. } => out.push(text.clone()),
+                _ => {}
+            }
+        }
+        out.join(" ")
+    }
+
+    #[test]
+    fn one_skill_in_full_and_the_rest_in_a_line() {
+        let mut sim = crate::sim_runner::Sim::new(spirit_sim::ScenarioKind::FullMap);
+        let lines = player_lines(&sim);
+        assert!(lines.len() <= 4, "{} lines: {}", lines.len(), words(&lines));
+        let said = words(&lines);
+        for name in [
+            "Woodcutting",
+            "Woodworking",
+            "Quarrying",
+            "Masonry",
+            "Kilnwork",
+        ] {
+            assert!(said.contains(name), "{name} missing: {said}");
+        }
+        let kiln = sim.world.defs.skill_id("kilnwork").unwrap();
+        sim.recent_skill = Some(kiln);
+        let first = words(&player_lines(&sim)[..1]);
+        assert!(first.starts_with("Kilnwork"), "{first}");
+    }
+
+    #[test]
+    fn a_new_game_shows_its_one_skill_as_before() {
+        let sim = crate::sim_runner::Sim::journey("normal").unwrap();
+        let said = words(&player_lines(&sim));
+        assert!(said.starts_with("Woodcutting"), "{said}");
+        assert!(!said.contains("Woodworking"), "{said}");
     }
 }

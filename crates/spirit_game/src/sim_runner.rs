@@ -23,6 +23,10 @@ const MAX_WAITING_NOTICES: usize = 3;
 #[derive(Resource)]
 pub struct Sim {
     pub world: World,
+    /// The skill the player last earned XP in, for the You card.
+    pub recent_skill: Option<spirit_sim::defs::SkillId>,
+    /// Each skill's XP when last looked at, to notice which one moved.
+    last_xp: Vec<u64>,
     pub scenario: ScenarioKind,
     pub paused: bool,
     pub speed: u32,
@@ -104,6 +108,8 @@ impl Sim {
             save_summary: None,
             menu_error: None,
             placing: None,
+            recent_skill: None,
+            last_xp: Vec::new(),
             selected_spirit: 0,
             world,
             scenario,
@@ -161,6 +167,8 @@ impl Sim {
         self.paused = false;
         self.accumulator = 0.0;
         self.generation += 1;
+        self.recent_skill = None;
+        self.last_xp.clear();
         self.banner = None;
         self.notices_seen = world.notices.total;
         self.waiting_notices.clear();
@@ -370,6 +378,24 @@ You can no longer make {} - retrain to regain it",
         }
     }
 
+    /// Notices which skill the player has just earned XP in. The one that grew
+    /// most since last time wins, and nothing changes while none grows.
+    pub fn note_recent_skill(&mut self) {
+        let skills = self.world.defs.skills.len();
+        let now: Vec<u64> = (0..skills)
+            .map(|i| self.world.player.xp(spirit_sim::defs::SkillId(i as u16)))
+            .collect();
+        if self.last_xp.len() == skills {
+            let grew = (0..skills)
+                .filter(|i| now[*i] > self.last_xp[*i])
+                .max_by_key(|i| (now[*i] - self.last_xp[*i], std::cmp::Reverse(*i)));
+            if let Some(i) = grew {
+                self.recent_skill = Some(spirit_sim::defs::SkillId(i as u16));
+            }
+        }
+        self.last_xp = now;
+    }
+
     pub fn command(&mut self, cmd: Command) {
         self.message = match self.world.apply(cmd) {
             Ok(msg) => msg,
@@ -427,6 +453,7 @@ fn advance_simulation(time: Res<Time>, mut sim: ResMut<Sim>) {
     for _ in 0..ticks {
         sim.world.step();
     }
+    sim.note_recent_skill();
 }
 
 /// Clears the reply to a command once it's had time to be read, so an old
@@ -580,5 +607,18 @@ mod tests {
         assert!(sim.world.settlement.your_stone.is_some());
         assert!(crate::stones::load(&dir).is_empty());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_skill_you_just_used_is_noticed() {
+        let mut sim = Sim::new(ScenarioKind::FullMap);
+        sim.note_recent_skill();
+        assert_eq!(sim.recent_skill, None, "nothing has moved yet");
+        let ww = sim.world.defs.skill_id("woodworking").unwrap();
+        sim.last_xp[ww.0 as usize] -= 10;
+        sim.note_recent_skill();
+        assert_eq!(sim.recent_skill, Some(ww));
+        sim.note_recent_skill();
+        assert_eq!(sim.recent_skill, Some(ww), "it stays until another moves");
     }
 }
