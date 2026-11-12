@@ -1294,8 +1294,8 @@ fn on_button(
             }
         }
         UiAction::SupplyBench => {
-            if let Some(bench) = sim.world.training_bench() {
-                sim.command(Command::SupplyStation(bench.id));
+            if let Some(bench) = sim.world.training_bench().map(|b| b.id) {
+                sim.command(Command::SupplyStation(bench));
             }
         }
         UiAction::PlanCancelActive => {

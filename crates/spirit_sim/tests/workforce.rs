@@ -310,16 +310,36 @@ fn pioneer_earns_a_workforce_and_uses_it_to_extend_the_settlement() {
     assert_eq!(w.player.xp(skill(&w, "construction")), 0);
     assert_eq!(w.spirits[hauler].gift_xp, first_haul_xp);
     assert_eq!(w.spirits[builder].gift_xp, first_build_xp);
+    let project_finish = w.tick;
     let time = w.spirits[hauler].time.total;
     assert!(time.traveling > 0 && time.handling > 0);
+    println!(
+        "pioneer haul_tick={haul_tick} build_tick={build_tick} first_auto_finish={} last_finish={project_finish} project_ticks={project_times:?} earned={} sacrificed={} manual_actions={inputs} hauler_time={time:?} consumed={:?}",
+        w.projects[1].completed_tick.unwrap(),
+        w.ledger.xp_earned,
+        w.ledger.xp_separated,
+        w.ledger.consumed
+    );
+
+    gift(&mut w, "woodcutting");
+    gift(&mut w, "woodworking");
+    w.apply(Command::SetTrainingSupply(false)).unwrap();
+    w.apply(Command::SetProductionEnabled(true)).unwrap();
+    w.apply(Command::SetProductionTarget(40)).unwrap();
     let (mut loaded, _) = decode(&encode(&w, "pioneer_workforce")).unwrap();
+    let planks = loaded.defs.resource_id("planks").unwrap();
+    let before = loaded.ledger.crafted[&planks];
+    wait(&mut loaded, |w| w.main().storage.available(planks) >= 40);
+    let produced = loaded.ledger.crafted[&planks] - before;
+    println!(
+        "pioneer autonomous stock reached in {} ticks with {produced} planks crafted",
+        loaded.tick - project_finish,
+    );
+    assert!(produced > 0);
     loaded.run_ticks(18_000);
     loaded.check_conservation().unwrap();
+    assert!(loaded.main().storage.available(planks) >= 40);
     assert_eq!(loaded.spirits[builder].level(), w.spirits[builder].level());
-    println!(
-        "pioneer haul_tick={haul_tick} build_tick={build_tick} last_finish={} project_ticks={project_times:?} earned={} sacrificed={} manual_actions={inputs} hauler_time={time:?} consumed={:?}",
-        w.tick, w.ledger.xp_earned, w.ledger.xp_separated, w.ledger.consumed
-    );
 }
 
 fn craft_planks(w: &mut World, bench: BuildingId, target: u32) -> u32 {
@@ -392,11 +412,96 @@ fn higher_fixed_competency_improves_carrying_and_construction() {
         let start = w.tick;
         wait(&mut w, |w| w.projects[id].state == ProjectState::Complete);
         assert_eq!(w.spirits[1].level(), level);
-        observations.push((capacity, w.tick - start));
+        let build_ticks = w.tick - start;
+        let cache = w.training_cache().unwrap().id;
+        let resource = logs(&w);
+        let cargo = 24;
+        assert_eq!(w.buildings[cache].storage.deposit(resource, cargo), cargo);
+        *w.ledger.seeded.entry(resource).or_default() += u64::from(cargo);
+        w.apply(Command::SetTrainingCollect(true)).unwrap();
+        let start = w.tick;
+        wait(&mut w, |w| w.main().storage.get(resource) == cargo);
+        observations.push((capacity, build_ticks, w.tick - start));
     }
     assert!(observations[1].0 > observations[0].0);
     assert!(observations[1].1 < observations[0].1);
-    println!("specialization (hauler load, builder work ticks) level 4, 10: {observations:?}");
+    assert!(observations[1].2 < observations[0].2);
+    println!(
+        "specialization (hauler load, builder work ticks, ticks to haul 24) level 4, 10: {observations:?}"
+    );
+}
+
+#[test]
+fn a_version_nine_project_with_a_queued_legacy_pickup_still_finishes() {
+    let mut w = World::new_journey("development").unwrap();
+    seed(&mut w, "logs", 15);
+    let id = plan(&mut w, "training_cache");
+    let builder = w.projects[id].assigned.unwrap();
+    wait(&mut w, |w| {
+        w.spirits[builder]
+            .actor
+            .queue
+            .iter()
+            .any(|t| matches!(t, Task::WithdrawForProject { project, .. } if *project == id))
+    });
+    let main = w.main().id;
+    for task in &mut w.spirits[builder].actor.queue {
+        if let Task::WithdrawForProject {
+            resource, amount, ..
+        } = *task
+        {
+            *task = Task::Withdraw {
+                building: main,
+                resource,
+                amount,
+                reserved: true,
+            };
+        }
+    }
+    let text = encode(&w, "new_game");
+    let (_, body) = text.split_once('\n').unwrap();
+    let mut json: serde_json::Value = serde_json::from_str(body).unwrap();
+    let fields = json["state"]["projects"][id].as_object_mut().unwrap();
+    for added in ["held_at_main", "build_fraction", "min_worker_level"] {
+        fields.remove(added);
+    }
+    let save = spirit_sim::save::seal(9, &json.to_string());
+    let (mut loaded, _) = decode(&save).unwrap();
+    wait(&mut loaded, |w| {
+        w.projects[id].state == ProjectState::Complete
+    });
+    assert_eq!(loaded.spirits.len(), 2);
+    assert_eq!(loaded.projects[id].consumed[&logs(&loaded)], 15);
+    assert_eq!(loaded.main().storage.reserved(logs(&loaded)), 0);
+}
+
+#[test]
+fn advanced_building_checks_skill_before_starting_work() {
+    let mut scenarios = load_scenarios(BUILTIN_SCENARIOS).unwrap();
+    let start = scenarios.get_mut("midwinter").unwrap();
+    start
+        .prebuilt
+        .retain(|seed| seed.building != "hearth_of_spirits");
+    start.spirits.clear();
+    start.hearth_lit = false;
+    start.player_xp.clear();
+    let mut w = World::build(
+        GameDefs::builtin(),
+        &MapLayout::parse(BUILTIN_MAP).unwrap(),
+        start,
+    )
+    .unwrap();
+    for (material, count) in [("keystones", 12), ("panels", 20), ("dressed_stone", 20)] {
+        seed(&mut w, material, count);
+    }
+    let id = plan(&mut w, "hearth_of_spirits");
+    supply(&mut w, id);
+    assert!(
+        w.apply(Command::HelpBuild(id))
+            .unwrap_err()
+            .contains("level 3")
+    );
+    assert_eq!(w.player.xp(skill(&w, "construction")), 0);
 }
 
 #[test]

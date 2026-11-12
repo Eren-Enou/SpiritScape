@@ -1222,6 +1222,12 @@ impl World {
                 .into());
         };
         let amount = need.min(s.actor.inventory.free());
+        if amount == 0 {
+            return Err(Blocked::new(
+                WaitKind::Storage,
+                "No room to collect project materials",
+            ));
+        }
         let main = self.main();
         Ok(JobPlan {
             description: format!(
