@@ -53,4 +53,3 @@
 74.0 expect Log Rack complete
 74.5 shot 04_autonomous_project
 75.0 exit
-

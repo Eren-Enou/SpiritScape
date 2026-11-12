@@ -606,14 +606,19 @@ impl World {
             let kind = self.projects[pid].kind;
             let def = self.defs.building(kind).clone();
             let mut blocked = None;
-
-            let p = &mut self.projects[pid];
-            let main = &mut self.buildings[self.main_storage].storage;
-            let builder = p.assigned.map(|sid| &self.spirits[sid].actor.inventory);
             let player = &self.player.actor;
             let delivering = player.queue.iter().any(
                 |t| matches!(t, crate::tasks::Task::DeliverToSite { project } if *project == pid),
             );
+            let mut player_load = if delivering {
+                self.manual_haul_load()
+            } else {
+                0
+            };
+
+            let p = &mut self.projects[pid];
+            let main = &mut self.buildings[self.main_storage].storage;
+            let builder = p.assigned.map(|sid| &self.spirits[sid].actor.inventory);
 
             if p.held_at_main.is_none() {
                 // Legacy saves recorded total claims, including materials
@@ -655,14 +660,11 @@ impl World {
                 .cost
                 .iter()
                 .map(|&(r, n)| {
-                    let in_transit = builder.map_or(0, |b| b.get(r))
-                        + if delivering {
-                            player.inventory.get(r)
-                        } else {
-                            0
-                        };
-                    let held = p.held(r);
-                    (r, n, p.remaining(r, n).saturating_sub(in_transit + held))
+                    let remaining = p.remaining(r, n);
+                    let player_cargo = player.inventory.get(r).min(remaining).min(player_load);
+                    player_load -= player_cargo;
+                    let in_transit = builder.map_or(0, |b| b.get(r)) + player_cargo;
+                    (r, n, remaining.saturating_sub(in_transit + p.held(r)))
                 })
                 .collect();
             let ready = needed.iter().all(|&(r, _, n)| main.available(r) >= n);

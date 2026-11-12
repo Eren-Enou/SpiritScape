@@ -196,20 +196,41 @@ fn delivery_and_partial_build_replay_across_saves() {
 fn cancelled_pickup_releases_only_the_project_hold_and_keeps_the_players_cargo() {
     let mut w = pioneer();
     seed(&mut w, "logs", 20);
-    let id = plan(&mut w, "training_cache");
     let resource = logs(&w);
+    let main = w.main().id;
+    assert!(w.buildings[main].storage.try_reserve(resource, 4));
+    let id = plan(&mut w, "training_cache");
     let hauling = skill(&w, "hauling");
     w.apply(Command::SupplyProject(id)).unwrap();
     wait(&mut w, |w| w.player.actor.inventory.total() > 0);
     let cargo = w.player.actor.inventory.get(resource);
-    assert_eq!(w.main().storage.reserved(resource), 15 - cargo);
+    assert_eq!(w.main().storage.reserved(resource), 19 - cargo);
     w.apply(Command::CancelProject(id)).unwrap();
     idle(&mut w);
-    assert_eq!(w.main().storage.reserved(resource), 0);
+    assert_eq!(w.main().storage.reserved(resource), 4);
     assert_eq!(w.player.actor.inventory.get(resource), cargo);
     assert_eq!(w.player.xp(hauling), 0);
     assert!(w.projects[id].delivered.is_empty());
     w.check_conservation().unwrap();
+}
+
+#[test]
+fn committed_player_cargo_is_limited_to_the_load_the_site_will_accept() {
+    let mut w = pioneer();
+    seed(&mut w, "logs", 20);
+    let main = w.main().pos;
+    interact(&mut w, main);
+    let id = plan(&mut w, "training_cache");
+    let r = logs(&w);
+    w.apply(Command::SupplyProject(id)).unwrap();
+    w.step();
+    assert!(!w.projects[id].reserved);
+    assert_eq!(w.projects[id].claimed_of(r, 15), w.manual_haul_load());
+    idle(&mut w);
+    assert_eq!(w.projects[id].delivered[&r], 6);
+    supply(&mut w, id);
+    assert_eq!(w.projects[id].delivered[&r], 15);
+    assert_eq!(w.player.actor.inventory.get(r), 5);
 }
 
 #[test]
