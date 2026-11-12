@@ -458,6 +458,12 @@ fn validate(defs: &GameDefs, s: &WorldState) -> Result<(), String> {
         | Task::DepositForPlayer { building }
         | Task::Withdraw { building, .. }
         | Task::Craft { building, .. } => *building < s.buildings.len(),
+        Task::SupplyStation {
+            building, resource, ..
+        } => *building < s.buildings.len() && resource.index() < defs.resources.len(),
+        Task::WithdrawForProject {
+            project, resource, ..
+        } => *project < s.projects.len() && resource.index() < defs.resources.len(),
         Task::DeliverToSite { project } | Task::Build { project } => *project < s.projects.len(),
     };
     check(s.player.actor.queue.iter().all(task_ok), "player task")?;

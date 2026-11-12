@@ -11,7 +11,7 @@ use serde::Deserialize;
 #[derive(Clone, Debug, Deserialize)]
 pub struct TipDef {
     pub id: String,
-    /// `phase:NAME`, `built:ID`, `level:SKILL:N`, `season:ID` or `caravans:N`.
+    /// A phase, completed building, skill level, earned XP, season, or caravan count.
     pub when: String,
     pub text: String,
     /// The tab or skill that stays hidden until this has been said.
@@ -40,6 +40,7 @@ impl World {
             ["phase", name] => phase_named(name).is_some(),
             ["built", id] => self.defs.building_kind_id(id).is_some(),
             ["level", skill, n] => self.defs.skill_id(skill).is_some() && n.parse::<u32>().is_ok(),
+            ["worked", skill] => self.defs.skill_id(skill).is_some(),
             ["season", id] => self.defs.seasons.iter().any(|s| s.id == *id),
             ["caravans", n] => n.parse::<u32>().is_ok(),
             _ => false,
@@ -63,6 +64,10 @@ impl World {
                 let now = self.player.level(s, &self.defs.xp_table);
                 let best = self.player.history(s).highest_level.max(now);
                 n.parse::<u32>().is_ok_and(|n| best >= n)
+            }),
+            ["worked", skill] => self.defs.skill_id(skill).is_some_and(|s| {
+                self.player.log.xp_earned.get(&s).copied().unwrap_or(0) > 0
+                    || self.player.history(s).xp_sacrificed > 0
             }),
             ["season", id] => self.season().is_some_and(|s| s.id == *id),
             ["caravans", n] => n

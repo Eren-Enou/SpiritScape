@@ -538,16 +538,30 @@ pub struct Project {
     /// Stock claimed so far, when storage is too full to wait for everything.
     #[serde(default)]
     pub claimed: BTreeMap<ResourceId, u32>,
+    /// This project's share of Main Storage's reservations, excluding cargo.
+    /// Absent in saves made before project-specific pickups.
+    #[serde(default)]
+    pub held_at_main: Option<BTreeMap<ResourceId, u32>>,
     pub delivered: BTreeMap<ResourceId, u32>,
     pub consumed: BTreeMap<ResourceId, u32>,
     pub build_progress: u32,
     pub build_required: u32,
+    /// Fractional progress when workers of different levels share a site.
+    #[serde(default)]
+    pub build_fraction: u32,
+    /// Previously approved projects keep their original requirements.
+    #[serde(default = "default_build_level")]
+    pub min_worker_level: u32,
     /// Why the planner started this project.
     pub reason: String,
     /// Readable reason when the project cannot progress.
     pub blocked: Option<String>,
     pub created_tick: u64,
     pub completed_tick: Option<u64>,
+}
+
+fn default_build_level() -> u32 {
+    1
 }
 
 impl Project {
@@ -558,6 +572,18 @@ impl Project {
         } else {
             self.claimed.get(&r).copied().unwrap_or(0)
         }
+    }
+
+    pub fn remaining(&self, r: ResourceId, need: u32) -> u32 {
+        need.saturating_sub(self.delivered.get(&r).copied().unwrap_or(0))
+    }
+
+    pub fn held(&self, r: ResourceId) -> u32 {
+        self.held_at_main
+            .as_ref()
+            .and_then(|stock| stock.get(&r))
+            .copied()
+            .unwrap_or(0)
     }
 
     pub fn is_active(&self) -> bool {

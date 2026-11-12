@@ -51,11 +51,21 @@ pub enum Task {
         amount: u32,
         reserved: bool,
     },
+    WithdrawForProject {
+        project: ProjectId,
+        resource: ResourceId,
+        amount: u32,
+    },
     DeliverToSite {
         project: ProjectId,
     },
     Build {
         project: ProjectId,
+    },
+    SupplyStation {
+        building: BuildingId,
+        resource: ResourceId,
+        amount: u32,
     },
     /// Repeats the best available recipe until materials, room or demand run
     /// out. A spirit makes `output`; the player, with none, makes what they can.
@@ -78,8 +88,18 @@ impl Task {
             Task::Withdraw {
                 building, amount, ..
             } => format!("Collect {amount} from building #{building}"),
+            Task::WithdrawForProject {
+                project, amount, ..
+            } => {
+                format!("Collect {amount} for project #{project}")
+            }
             Task::DeliverToSite { project } => format!("Supply project #{project}"),
             Task::Build { project } => format!("Build project #{project}"),
+            Task::SupplyStation {
+                building, amount, ..
+            } => {
+                format!("Supply {amount} to building #{building}")
+            }
             Task::Craft { building, .. } => format!("Craft at building #{building}"),
         }
     }
@@ -116,6 +136,10 @@ pub enum SimEvent {
     ProjectCompleted {
         project: ProjectId,
     },
+    StationSupplied {
+        amount: u32,
+    },
+    PlayerBuilt,
     Crafted {
         who: Who,
         recipe: RecipeId,
@@ -138,6 +162,7 @@ pub struct TaskCtx<'a> {
     pub buildings: &'a mut [Building],
     pub projects: &'a mut [Project],
     pub ledger: &'a mut Ledger,
+    pub main_storage: BuildingId,
     pub tick: u64,
     pub events: &'a mut Vec<SimEvent>,
     /// The player's finished goods stay at the station for a hauler.
@@ -185,8 +210,24 @@ pub fn step(
             amount,
             reserved,
         } => step_withdraw(actor, building, resource, amount, reserved, ctx),
-        Task::DeliverToSite { project } => step_supply(actor, who, project, ctx),
-        Task::Build { project } => step_build(actor, level, project, ctx),
+        Task::WithdrawForProject {
+            project,
+            resource,
+            amount,
+        } => step_project_withdraw(actor, project, resource, amount, ctx),
+        Task::DeliverToSite { project } => step_supply(actor, who, level, project, ctx),
+        Task::Build { project } => step_build(actor, who, level, project, ctx),
+        Task::SupplyStation {
+            building,
+            resource,
+            amount,
+        } => step_station_supply(
+            actor,
+            building,
+            resource,
+            amount.min(ctx.defs.workforce.load_at(level)),
+            ctx,
+        ),
         Task::Craft { building, output } => step_craft(
             actor,
             who,
@@ -519,24 +560,92 @@ fn step_withdraw(
     StepResult::Done
 }
 
+fn step_station_supply(
+    actor: &mut Actor,
+    building: BuildingId,
+    resource: ResourceId,
+    amount: u32,
+    ctx: &mut TaskCtx,
+) -> StepResult {
+    let station = &mut ctx.buildings[building];
+    if !station.is_complete() || !actor.pos().is_adjacent(station.pos) {
+        return StepResult::Failed("Cannot reach the station".into());
+    }
+    let room = crate::workforce::manual_station_room(ctx.defs, station, resource);
+    let carried = actor.inventory.get(resource);
+    let given = station
+        .storage
+        .deposit(resource, room.min(carried).min(amount));
+    if given == 0 {
+        return StepResult::Failed("The station has enough materials".into());
+    }
+    actor.inventory.remove(resource, given);
+    ctx.events.push(SimEvent::StationSupplied { amount: given });
+    StepResult::Done
+}
+
+fn step_project_withdraw(
+    actor: &mut Actor,
+    pid: ProjectId,
+    resource: ResourceId,
+    amount: u32,
+    ctx: &mut TaskCtx,
+) -> StepResult {
+    let project = &mut ctx.projects[pid];
+    let main = &mut ctx.buildings[ctx.main_storage];
+    if !project.is_active() || !actor.pos().is_adjacent(main.pos) {
+        return StepResult::Failed("The project pickup is no longer available".into());
+    }
+    let need = project.held(resource);
+    let want = amount.min(need).min(actor.inventory.free());
+    let taken = main.storage.withdraw_reserved(resource, want);
+    if taken == 0 {
+        return StepResult::Failed("No materials left to collect for this project".into());
+    }
+    if let Some(stock) = &mut project.held_at_main {
+        *stock.entry(resource).or_default() -= taken;
+    }
+    actor.inventory.add(resource, taken);
+    StepResult::Done
+}
+
 fn step_supply(
     actor: &mut Actor,
     who: Who,
+    level: u32,
     project_id: ProjectId,
     ctx: &mut TaskCtx,
 ) -> StepResult {
     let project = &mut ctx.projects[project_id];
+    if !project.is_active() {
+        return StepResult::Done;
+    }
     let site = ctx.buildings[project.building].pos;
     if !actor.pos().is_adjacent(site) {
         return StepResult::Failed("Not at the construction site".into());
     }
     let def = &ctx.defs.buildings[project.kind.index()];
     let mut amount = 0;
+    let load = if who == Who::Player {
+        ctx.defs.workforce.load_at(level)
+    } else {
+        u32::MAX
+    };
     for &(r, need) in &def.cost {
-        let have = project.delivered.get(&r).copied().unwrap_or(0);
-        let give = actor.inventory.remove(r, need.saturating_sub(have));
+        let give = actor
+            .inventory
+            .remove(r, project.remaining(r, need).min(load - amount));
         if give > 0 {
             *project.delivered.entry(r).or_default() += give;
+            let excess = project.held(r).saturating_sub(project.remaining(r, need));
+            if excess > 0 {
+                ctx.buildings[ctx.main_storage]
+                    .storage
+                    .release_reserved(r, excess);
+                if let Some(stock) = &mut project.held_at_main {
+                    *stock.entry(r).or_default() -= excess;
+                }
+            }
             amount += give;
         }
     }
@@ -552,11 +661,15 @@ fn step_supply(
 
 fn step_build(
     actor: &mut Actor,
+    who: Who,
     level: u32,
     project_id: ProjectId,
     ctx: &mut TaskCtx,
 ) -> StepResult {
     let project = &mut ctx.projects[project_id];
+    if !project.is_active() {
+        return StepResult::Done;
+    }
     let building = &mut ctx.buildings[project.building];
     if !actor.pos().is_adjacent(building.pos) {
         return StepResult::Failed("Not at the construction site".into());
@@ -569,11 +682,30 @@ fn step_build(
     if !complete {
         return StepResult::Failed("Construction materials are missing".into());
     }
+    if level < project.min_worker_level {
+        return StepResult::Failed(format!(
+            "Building the {} needs Construction level {}",
+            def.name, project.min_worker_level
+        ));
+    }
+    let duration = def.build_ticks_at(level).max(1);
     if project.build_required == 0 {
-        project.build_required = def.build_ticks_at(level);
+        project.build_required = duration;
     }
     project.state = ProjectState::Building;
-    project.build_progress += 1;
+    // Keep the first worker's estimate for the progress bar. Subsequent
+    // workers add the same fraction they would complete working alone.
+    const SCALE: u64 = 10_000;
+    let work = (u64::from(project.build_required) * SCALE).div_ceil(u64::from(duration));
+    let progress = u64::from(project.build_fraction) + work;
+    project.build_fraction = (progress % SCALE) as u32;
+    project.build_progress = project
+        .build_progress
+        .saturating_add((progress / SCALE) as u32)
+        .min(project.build_required);
+    if who == Who::Player {
+        ctx.events.push(SimEvent::PlayerBuilt);
+    }
     if project.build_progress < project.build_required {
         return StepResult::Continue;
     }

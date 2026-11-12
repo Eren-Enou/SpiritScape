@@ -255,7 +255,16 @@ impl World {
         let held: Vec<(ResourceId, u32)> = def
             .cost
             .iter()
-            .map(|&(r, n)| (r, p.claimed_of(r, n)))
+            .map(|&(r, n)| {
+                (
+                    r,
+                    if p.held_at_main.is_some() {
+                        p.held(r)
+                    } else {
+                        p.claimed_of(r, n)
+                    },
+                )
+            })
             .collect();
         let main = self.main_storage;
         for (r, n) in held {
@@ -271,8 +280,17 @@ impl World {
         p.state = ProjectState::Cancelled;
         p.reserved = false;
         p.claimed.clear();
+        p.held_at_main = Some(Default::default());
         p.assigned = None;
         p.blocked = None;
+        if self.player.actor.queue.iter().any(|task| {
+            matches!(task,
+                crate::tasks::Task::DeliverToSite { project }
+                | crate::tasks::Task::WithdrawForProject { project, .. }
+                | crate::tasks::Task::Build { project } if *project == pid)
+        }) {
+            self.player_stop();
+        }
         self.buildings[building].state = BuildingState::Removed;
         self.grid.set_occupied(site, false);
         let msg = format!("The {} was called off", def.name);
