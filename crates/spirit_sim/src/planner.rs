@@ -582,10 +582,13 @@ impl World {
             assigned: None,
             reserved: false,
             claimed: BTreeMap::new(),
+            held_at_main: Some(BTreeMap::new()),
             delivered: BTreeMap::new(),
             consumed: BTreeMap::new(),
             build_progress: 0,
             build_required: 0,
+            build_fraction: 0,
+            min_worker_level: def.build_level_required,
             reason,
             blocked: None,
             created_tick: self.tick,
@@ -603,51 +606,111 @@ impl World {
             let kind = self.projects[pid].kind;
             let def = self.defs.building(kind).clone();
             let mut blocked = None;
+            let player = &self.player.actor;
+            let delivering = player.queue.iter().any(
+                |t| matches!(t, crate::tasks::Task::DeliverToSite { project } if *project == pid),
+            );
+            let mut player_load = if delivering {
+                self.manual_haul_load()
+            } else {
+                0
+            };
 
-            if !self.projects[pid].reserved {
-                let tight = self.main().storage.free() < self.defs.construction.raw_room;
-                let main = &mut self.buildings[self.main_storage].storage;
-                let p = &mut self.projects[pid];
-                let left = |p: &Project, r, n| n - p.claimed_of(r, n).min(n);
-                let short: Vec<String> = def
-                    .cost
-                    .iter()
-                    .filter(|&&(r, n)| main.available(r) < left(p, r, n))
-                    .map(|&(r, n)| {
-                        let have = main.available(r) + p.claimed_of(r, n);
-                        format!("{have}/{n} {}", self.defs.resource(r).name)
-                    })
-                    .collect();
-                if short.is_empty() {
-                    for &(r, n) in &def.cost {
-                        main.try_reserve(r, left(p, r, n));
+            let p = &mut self.projects[pid];
+            let main = &mut self.buildings[self.main_storage].storage;
+            let builder = p.assigned.map(|sid| &self.spirits[sid].actor.inventory);
+
+            if p.held_at_main.is_none() {
+                // Legacy saves recorded total claims, including materials
+                // already delivered or being carried by the assigned builder.
+                p.held_at_main = Some(
+                    def.cost
+                        .iter()
+                        .map(|&(r, n)| {
+                            let shipped = n - p.remaining(r, n) + builder.map_or(0, |b| b.get(r));
+                            let held = p.claimed_of(r, n).saturating_sub(shipped);
+                            (r, held.min(main.reserved(r)))
+                        })
+                        .collect(),
+                );
+                // Old saves can be mid-trip, with a generic reserved
+                // withdrawal still queued for the assigned builder.
+                if let Some(sid) = p.assigned {
+                    for task in &mut self.spirits[sid].actor.queue {
+                        if let crate::tasks::Task::Withdraw {
+                            building,
+                            resource,
+                            amount,
+                            reserved: true,
+                        } = *task
+                            && building == self.main_storage
+                        {
+                            *task = crate::tasks::Task::WithdrawForProject {
+                                project: pid,
+                                resource,
+                                amount,
+                            };
+                        }
                     }
-                    p.reserved = true;
-                    p.claimed.clear();
-                    p.state = ProjectState::Supplying;
-                    let cost: BTreeMap<_, _> = def.cost.iter().copied().collect();
+                }
+            }
+
+            let builder = p.assigned.map(|sid| &self.spirits[sid].actor.inventory);
+            let mut needed: Vec<_> = def
+                .cost
+                .iter()
+                .map(|&(r, n)| {
+                    let remaining = p.remaining(r, n);
+                    let player_cargo = player.inventory.get(r).min(remaining).min(player_load);
+                    player_load -= player_cargo;
+                    let in_transit = builder.map_or(0, |b| b.get(r)) + player_cargo;
+                    (r, n, remaining.saturating_sub(in_transit + p.held(r)))
+                })
+                .collect();
+            let ready = needed.iter().all(|&(r, _, n)| main.available(r) >= n);
+            let tight = main.free() < self.defs.construction.raw_room;
+            let stock = p.held_at_main.as_mut().expect("project holds initialized");
+            if ready || tight {
+                for (r, _, n) in &mut needed {
+                    let take = (*n).min(main.available(*r));
+                    if take > 0 && main.try_reserve(*r, take) {
+                        *stock.entry(*r).or_default() += take;
+                        *n -= take;
+                    }
+                }
+            }
+
+            if ready {
+                if !p.reserved {
+                    let cost = def.cost.iter().copied().collect();
                     let msg = format!(
                         "Reserved {} in Main Storage for the {}",
                         self.defs.describe_amounts(&cost),
                         def.name
                     );
                     self.events.push(self.tick, EventKind::Construction, msg);
-                } else {
-                    // With no room for what's missing, what's here starts
-                    // moving. That frees the room the rest needs.
-                    if tight {
-                        for &(r, n) in &def.cost {
-                            let take = left(p, r, n).min(main.available(r));
-                            if take > 0 && main.try_reserve(r, take) {
-                                *p.claimed.entry(r).or_default() += take;
-                            }
-                        }
-                    }
-                    blocked = Some(format!(
-                        "Waiting for materials: only {} available in Main Storage",
-                        short.join(", ")
-                    ));
                 }
+                p.reserved = true;
+                p.claimed.clear();
+                if p.state == ProjectState::AwaitingMaterials {
+                    p.state = ProjectState::Supplying;
+                }
+            } else {
+                p.reserved = false;
+                p.claimed.clear();
+                let mut short = Vec::new();
+                for (r, total, missing) in needed {
+                    let claimed = total - missing;
+                    let have = total.min(claimed + main.available(r));
+                    p.claimed.insert(r, claimed);
+                    if have < total {
+                        short.push(format!("{have}/{total} {}", self.defs.resource(r).name));
+                    }
+                }
+                blocked = Some(format!(
+                    "Waiting for materials: only {} available in Main Storage",
+                    short.join(", ")
+                ));
             }
 
             if self.projects[pid].assigned.is_none() {
@@ -661,7 +724,10 @@ impl World {
                     .spirits
                     .iter()
                     .find(|s| {
-                        self.defs.role(s.role).has_job(JobKind::Construct) && !busy.contains(&s.id)
+                        self.defs.role(s.role).has_job(JobKind::Construct)
+                            && s.level() >= self.projects[pid].min_worker_level
+                            && !s.aboard
+                            && !busy.contains(&s.id)
                     })
                     .map(|s| s.id);
                 match builder {
@@ -676,7 +742,16 @@ impl World {
                         self.events.push(self.tick, EventKind::Construction, msg);
                     }
                     None => {
-                        blocked.get_or_insert_with(|| "No Construction Spirit available".into());
+                        blocked.get_or_insert_with(|| {
+                            if self.projects[pid].min_worker_level > 1 {
+                                format!(
+                                    "No Construction Spirit at level {} or above is available",
+                                    self.projects[pid].min_worker_level
+                                )
+                            } else {
+                                "No Construction Spirit available".into()
+                            }
+                        });
                     }
                 }
             }

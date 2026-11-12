@@ -50,6 +50,7 @@ platforms should work but are untested).
 ```bash
 cargo run --release                                     # normal game
 cargo run --release -- --demo                           # field-storage demonstration
+cargo run --release -- --scenario pioneer_workforce     # earn your own hauling and construction spirits
 cargo run --release -- --scenario regrind               # train, sacrifice, retrain
 cargo run --release -- --scenario grove_sustainable     # one spirit, renewable grove
 cargo run --release -- --scenario grove_oversubscribed  # four spirits, shortages

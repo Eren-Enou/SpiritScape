@@ -198,6 +198,9 @@ enum UiAction {
     PlanCancel(usize),
     /// Call off the current project.
     PlanCancelActive,
+    SupplyProject,
+    HelpBuild,
+    SupplyBench,
     /// Show or hide the detail cards.
     ToggleDetails,
     /// Show or hide the development scenario buttons.
@@ -629,6 +632,13 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
 
             tab_panel(p, Tab::Projects, |p| {
                 card(p, "SETTLEMENT PLAN", |c| {
+                    button_row(
+                        c,
+                        &[
+                            ("Help deliver", UiAction::SupplyProject),
+                            ("Help build", UiAction::HelpBuild),
+                        ],
+                    );
                     body(c, Card::Projects);
                     button_row(c, &[("", UiAction::PlanCancelActive)]);
                     for i in 0..PLAN_ROWS {
@@ -842,7 +852,10 @@ fn build_ui(mut commands: Commands, sim: Res<Sim>, start: Res<StartTab>, mut tab
                     body(c, Card::TrainingPlan);
                 });
                 card(p, "WHAT YOU MAKE AT THE BENCH", |c| {
-                    button_row(c, &[("", UiAction::CycleBench)]);
+                    button_row(
+                        c,
+                        &[("", UiAction::CycleBench), ("", UiAction::SupplyBench)],
+                    );
                     button_row(c, &recipe_buttons);
                     body(c, Card::Recipes);
                 });
@@ -1270,6 +1283,21 @@ fn on_button(
                 sim.command(Command::CancelQueued(id));
             }
         }
+        UiAction::SupplyProject | UiAction::HelpBuild => {
+            if let Some(p) = sim.world.active_project() {
+                let cmd = if action == UiAction::SupplyProject {
+                    Command::SupplyProject(p.id)
+                } else {
+                    Command::HelpBuild(p.id)
+                };
+                sim.command(cmd);
+            }
+        }
+        UiAction::SupplyBench => {
+            if let Some(bench) = sim.world.training_bench().map(|b| b.id) {
+                sim.command(Command::SupplyStation(bench));
+            }
+        }
         UiAction::PlanCancelActive => {
             if let Some(p) = sim.world.active_project() {
                 let id = p.id;
@@ -1648,6 +1676,13 @@ fn update_buttons(
             UiAction::PlanUp(i) => *i > 0 && *i < w.settlement.queue.len(),
             UiAction::PlanCancel(i) => *i < w.settlement.queue.len(),
             UiAction::PlanCancelActive => plans.iter().any(|v| v.project.is_some() && v.can_cancel),
+            UiAction::SupplyProject => w
+                .active_project()
+                .is_some_and(|p| !w.project_materials_ready(p.id)),
+            UiAction::HelpBuild => w
+                .active_project()
+                .is_some_and(|p| w.project_materials_ready(p.id)),
+            UiAction::SupplyBench => w.is_open("training") && w.training_bench().is_some(),
             UiAction::PlaceStore => outpost.as_ref().is_some_and(|o| o.store.is_none()),
             UiAction::ToggleOutpost => outpost.is_some(),
             UiAction::TrainHere => outpost.as_ref().is_some_and(|o| o.workshop.is_some()),
@@ -1858,6 +1893,10 @@ fn update_buttons(
                 None => continue,
             },
             UiAction::PlanCancelActive => "Call off the current project".into(),
+            UiAction::SupplyBench => w
+                .training_bench()
+                .map(|b| format!("Supply {}", b.name))
+                .unwrap_or_default(),
             UiAction::CycleBench => match w.training_bench() {
                 Some(b) => {
                     let place = w.defs.site_at(b.pos.x, b.pos.y);
@@ -2031,6 +2070,7 @@ fn header_lines(sim: &Sim) -> Vec<Line> {
         ScenarioKind::ColdCamp => "The cold camp",
         ScenarioKind::Brickyard => "Brickyard",
         ScenarioKind::Midwinter => "Midwinter",
+        ScenarioKind::PioneerWorkforce => "Pioneer workforce",
         ScenarioKind::FullMap => "Full map",
         ScenarioKind::NoRoomLeft => "No room left",
         ScenarioKind::QuarryStart => "Quarry",
@@ -2331,6 +2371,22 @@ fn training_plan_lines(w: &World) -> Vec<Line> {
         ],
         vec![muted(format!("{} spare", p.spare))],
     ];
+    if let Some(skill) = w.defs.skill_id("hauling")
+        && skill_met(w, skill)
+    {
+        lines.push(vec![muted(format!(
+            "Hauling level {}. Carry up to {} per delivery.",
+            w.workforce_level("hauling"),
+            w.manual_haul_load()
+        ))]);
+    }
+    if let Some(skill) = w.defs.skill_id("construction")
+        && skill_met(w, skill)
+    {
+        lines.push(vec![muted(
+            "Construction mastery shortens work at supplied sites.",
+        )]);
+    }
     if p.mode == TrainingMode::Optimized {
         for (name, done) in p.checks {
             let mark = if done {
@@ -2420,6 +2476,42 @@ fn plan_lines(w: &World) -> Vec<Line> {
             continue;
         }
         lines.push(vec![muted(format!("Needs {}", v.cost))]);
+        if let Some(id) = v.project {
+            let p = &w.projects[id];
+            if w.project_materials_ready(id) {
+                let def = w.defs.building(p.kind);
+                let level = w.workforce_level("construction");
+                if level < p.min_worker_level {
+                    lines.push(vec![muted(format!(
+                        "Construction level {} required",
+                        p.min_worker_level
+                    ))]);
+                } else {
+                    lines.push(vec![muted(format!(
+                        "Build time alone: {:.1}s at Construction {level}",
+                        def.build_ticks_at(level) as f32 / w.defs.ticks_per_second as f32
+                    ))]);
+                }
+                if p.build_required > 0 {
+                    lines.push(vec![
+                        text("Built"),
+                        bar(
+                            p.build_progress as f32 / p.build_required as f32,
+                            GOLD,
+                            90.0,
+                        ),
+                    ]);
+                }
+            } else {
+                let delivered = w.defs.describe_amounts(&p.delivered);
+                if !p.delivered.is_empty() {
+                    lines.push(vec![muted(format!("At the site: {delivered}"))]);
+                }
+                lines.push(vec![muted(
+                    "Carry one load from Main Storage or from your bag.",
+                )]);
+            }
+        }
         if !v.benefit.is_empty() {
             lines.push(vec![muted(v.benefit)]);
         }
@@ -2445,7 +2537,8 @@ fn need_lines(w: &World) -> Vec<Line> {
     let needs = w.project_needs();
     if needs.is_empty() {
         let text = match w.active_project() {
-            Some(_) => "Everything is reserved. The builder is on it.",
+            Some(p) if p.assigned.is_some() => "Everything is reserved. The builder is on it.",
+            Some(_) => "Everything is accounted for. You can help in Projects.",
             None => "No project under way.",
         };
         return vec![vec![muted(text)]];
@@ -2555,20 +2648,46 @@ fn soul_lines(sim: &Sim) -> Vec<Line> {
         muted("New spirit"),
         colored(format!("Lv {} forever", p.spirit_level), GOLD),
     ]);
-    let mut spirit = vec![muted("Spirit can do")];
-    if gained.is_empty() {
-        spirit.push(colored("nothing", BAD));
-    } else {
-        spirit.extend(gained.into_iter().map(|n| chip(n, GOOD)));
-    }
-    lines.push(spirit);
-    if lost.is_empty() {
-        lines.push(vec![muted("You keep everything you can do now.")]);
-    } else {
-        let mut line = vec![colored("You lose", BAD)];
-        line.extend(lost.into_iter().map(|n| chip(n, BAD)));
-        line.push(muted("until you retrain"));
-        lines.push(line);
+    match w.defs.skill(sim.soul_skill).id.as_str() {
+        "hauling" => {
+            let cap = w.player.actor.inventory.capacity;
+            let before = w.defs.workforce.load_at(p.current_level).min(cap);
+            let after = w.defs.workforce.load_at(p.after_level).min(cap);
+            lines.push(vec![muted(format!(
+                "Your delivery load: {before} -> {after}"
+            ))]);
+        }
+        "construction" => {
+            if p.after_level < p.current_level {
+                lines.push(vec![muted(
+                    "Your building work takes longer until you retrain.",
+                )]);
+            }
+            if w.defs.buildings.iter().any(|b| {
+                p.after_level < b.build_level_required && b.build_level_required <= p.current_level
+            }) {
+                lines.push(vec![muted(
+                    "You lose access to advanced building work until you retrain.",
+                )]);
+            }
+        }
+        _ => {
+            let mut spirit = vec![muted("Spirit can do")];
+            if gained.is_empty() {
+                spirit.push(colored("nothing", BAD));
+            } else {
+                spirit.extend(gained.into_iter().map(|n| chip(n, GOOD)));
+            }
+            lines.push(spirit);
+            if lost.is_empty() {
+                lines.push(vec![muted("You keep everything you can do now.")]);
+            } else {
+                let mut line = vec![colored("You lose", BAD)];
+                line.extend(lost.into_iter().map(|n| chip(n, BAD)));
+                line.push(muted("until you retrain"));
+                lines.push(line);
+            }
+        }
     }
     if !p.benefit.is_empty() {
         lines.push(vec![muted("For the settlement:"), text(p.benefit.clone())]);

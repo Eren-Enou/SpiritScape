@@ -332,7 +332,9 @@ fn work_target(sim: &Sim, actor: &Actor) -> Option<(bool, bevy::math::IVec2)> {
         Task::Craft { building, .. } => (true, w.buildings[*building].pos),
         Task::Deposit { building }
         | Task::DepositForPlayer { building }
-        | Task::Withdraw { building, .. } => (false, w.buildings[*building].pos),
+        | Task::Withdraw { building, .. }
+        | Task::SupplyStation { building, .. } => (false, w.buildings[*building].pos),
+        Task::WithdrawForProject { .. } => (false, w.main().pos),
         Task::DeliverToSite { project } => (false, w.projects[*project].site),
         Task::Move {
             goal: Goal::Adjacent(p),

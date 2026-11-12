@@ -85,6 +85,8 @@ pub enum ScenarioKind {
     Brickyard,
     /// The Hearth lit, and winter a minute away.
     Midwinter,
+    /// Start without a founding workforce or materials.
+    PioneerWorkforce,
     /// Everything built: every road, both crossings. The busiest map there is.
     FullMap,
     /// Main Storage completely full, with nothing to spend it on.
@@ -104,7 +106,7 @@ pub enum ScenarioKind {
 }
 
 impl ScenarioKind {
-    pub const ALL: [ScenarioKind; 42] = [
+    pub const ALL: [ScenarioKind; 43] = [
         ScenarioKind::NewGame,
         ScenarioKind::Demo,
         ScenarioKind::Regrind,
@@ -139,6 +141,7 @@ impl ScenarioKind {
         ScenarioKind::ColdCamp,
         ScenarioKind::Brickyard,
         ScenarioKind::Midwinter,
+        ScenarioKind::PioneerWorkforce,
         ScenarioKind::FullMap,
         ScenarioKind::NoRoomLeft,
         ScenarioKind::QuarryStart,
@@ -185,6 +188,7 @@ impl ScenarioKind {
             ScenarioKind::ColdCamp => "cold_camp",
             ScenarioKind::Brickyard => "brickyard",
             ScenarioKind::Midwinter => "midwinter",
+            ScenarioKind::PioneerWorkforce => "pioneer_workforce",
             ScenarioKind::FullMap => "full_map",
             ScenarioKind::NoRoomLeft => "no_room_left",
             ScenarioKind::QuarryStart => "quarry_start",

@@ -608,16 +608,15 @@ id = "woodworking"
 name = "Woodworking"
 trainable = true
 
-# Not trainable by the player yet; only used for seeded demonstration spirits.
 [[skills]]
 id = "hauling"
 name = "Hauling"
-trainable = false
+trainable = true
 
 [[skills]]
 id = "construction"
 name = "Construction"
-trainable = false
+trainable = true
 
 # The second gathering skill, separate from Woodcutting. Open from the start.
 [[skills]]
@@ -889,6 +888,24 @@ batch_tiles = 6
 # Haulers choose between carrying jobs by load, distance and urgency.
 scored_carrying = true
 
+[[tips]]
+id = "earned_hauling"
+when = "worked:hauling"
+opens = "hauling"
+text = "Carrying a needed load earns Hauling XP. With practice you carry more, or you can give that skill to a Hauling Spirit."
+
+[[tips]]
+id = "earned_construction"
+when = "worked:construction"
+opens = "construction"
+text = "Building at a supplied site earns Construction XP. With practice you build faster, or you can give that skill to a Construction Spirit."
+
+[workforce]
+haul_xp_per_unit = 8
+build_xp_per_tick = 3
+haul_load = 6
+haul_load_per_level = 2
+
 [construction]
 # Buildings that can wait on the plan at once.
 queue_limit = 4
@@ -968,6 +985,7 @@ jobs = [
 id = "hauler"
 name = "Hauling Spirit"
 skill = "hauling"
+from_soul_separation = true
 move_seconds_per_tile = 0.3
 carry_capacity = 15
 capacity_per_level = 1
@@ -989,6 +1007,7 @@ jobs = [
 id = "builder"
 name = "Construction Spirit"
 skill = "construction"
+from_soul_separation = true
 move_seconds_per_tile = 0.3
 carry_capacity = 10
 deliver_to = "nearest"
@@ -1494,6 +1513,7 @@ benefit = "The second stage of the Hearth of Spirits."
 [[buildings]]
 id = "hearth_of_spirits"
 name = "Hearth of Spirits"
+build_level_required = 3
 capacity = 0
 accepts_gatherer_deposits = false
 manual = true

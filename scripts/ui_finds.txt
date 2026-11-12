@@ -6,9 +6,11 @@
 2.6 expect Oak Saplings added to the plan
 2.8 press Plan Long Racks*
 3.2 expect Long Racks added to the plan
+3.25 scroll 1380 600 -10
 3.4 press Plan Stone Cellar*
 3.8 expect Stone Cellar added to the plan
 4.0 shot 02_planned
+4.1 scroll 1380 600 40
 4.2 press 8x
 30.0 press 1x
 30.2 expect Main Storage now holds

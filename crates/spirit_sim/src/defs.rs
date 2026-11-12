@@ -223,6 +223,39 @@ pub struct ConstructionRules {
     pub stranded_check_ticks: u64,
 }
 
+/// Manual logistics and construction progression.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(default)]
+pub struct WorkforceRules {
+    pub haul_xp_per_unit: u64,
+    pub build_xp_per_tick: u64,
+    pub haul_load: u32,
+    pub haul_load_per_level: u32,
+}
+
+impl WorkforceRules {
+    pub fn load_at(&self, level: u32) -> u32 {
+        self.haul_load
+            .saturating_add(
+                level
+                    .saturating_sub(1)
+                    .saturating_mul(self.haul_load_per_level),
+            )
+            .max(1)
+    }
+}
+
+impl Default for WorkforceRules {
+    fn default() -> Self {
+        Self {
+            haul_xp_per_unit: 8,
+            build_xp_per_tick: 3,
+            haul_load: 6,
+            haul_load_per_level: 2,
+        }
+    }
+}
+
 /// Settlement production settings that aren't player-adjustable.
 #[derive(Clone, Debug)]
 pub struct ProductionRules {
@@ -319,6 +352,7 @@ pub struct BuildingDef {
     pub build_ticks: u32,
     pub build_ticks_per_level_x10: u32,
     pub min_build_ticks: u32,
+    pub build_level_required: u32,
     pub color: [f32; 3],
     /// Recipes can be made here.
     pub is_station: bool,
@@ -468,6 +502,7 @@ pub struct GameDefs {
     pub gathering: GatheringRules,
     pub logistics: LogisticsRules,
     pub construction: ConstructionRules,
+    pub workforce: WorkforceRules,
     pub player: PlayerRules,
     pub soul_min_xp: u64,
     pub roles: Vec<RoleDef>,
@@ -523,6 +558,8 @@ struct RawDefs {
     gathering: RawGathering,
     logistics: RawLogistics,
     construction: RawConstruction,
+    #[serde(default)]
+    workforce: WorkforceRules,
     player: RawPlayer,
     roles: Vec<RawRole>,
     buildings: Vec<RawBuilding>,
@@ -747,6 +784,8 @@ struct RawBuilding {
     build_seconds_per_level: f32,
     #[serde(default)]
     min_build_seconds: f32,
+    #[serde(default = "one")]
+    build_level_required: u32,
     #[serde(default = "default_color")]
     color: [f32; 3],
     #[serde(default)]
@@ -1039,6 +1078,7 @@ impl GameDefs {
                 build_ticks: ticks(b.build_seconds) as u32,
                 build_ticks_per_level_x10: tenth_ticks(b.build_seconds_per_level),
                 min_build_ticks: ticks(b.min_build_seconds) as u32,
+                build_level_required: b.build_level_required.max(1),
                 color: b.color,
                 is_station: false,
                 input_buffer: b.input_buffer,
@@ -1200,6 +1240,7 @@ impl GameDefs {
             gathering,
             logistics,
             construction,
+            workforce: raw.workforce,
             roles,
             buildings,
             objective,

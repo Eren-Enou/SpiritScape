@@ -60,6 +60,15 @@ impl World {
                 None => "Too weak to make anything".into(),
             };
         }
+        if role.has_job(JobKind::Haul) {
+            return format!(
+                "Carries up to {} per load between stores, benches, and training sites",
+                role.capacity_at(level) + self.settlement.carry_bonus
+            );
+        }
+        if role.has_job(JobKind::Construct) {
+            return "Supplies and builds assigned projects. Higher levels build faster.".into();
+        }
         String::new()
     }
 

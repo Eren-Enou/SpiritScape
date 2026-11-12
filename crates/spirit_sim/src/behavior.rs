@@ -1175,7 +1175,10 @@ impl World {
         let site = self.buildings[p.building].pos;
         let site_label = format!("{} site", def.name);
         let s = &self.spirits[sid];
-        let carrying_materials = def.cost.iter().any(|&(r, _)| s.actor.inventory.get(r) > 0);
+        let carrying_materials = def
+            .cost
+            .iter()
+            .any(|&(r, n)| p.remaining(r, n) > 0 && s.actor.inventory.get(r) > 0);
         let missing: Vec<_> = def
             .cost
             .iter()
@@ -1208,9 +1211,7 @@ impl World {
         }
         // Only what's set aside can be fetched, and only what isn't on site.
         let ready = missing.iter().find_map(|&(r, need)| {
-            let total = def.cost.iter().find(|c| c.0 == r).map_or(0, |c| c.1);
-            let delivered = p.delivered.get(&r).copied().unwrap_or(0);
-            let left = p.claimed_of(r, total).saturating_sub(delivered).min(need);
+            let left = p.held(r).min(need);
             (left > 0).then_some((r, left))
         });
         let Some((resource, need)) = ready else {
@@ -1221,6 +1222,12 @@ impl World {
                 .into());
         };
         let amount = need.min(s.actor.inventory.free());
+        if amount == 0 {
+            return Err(Blocked::new(
+                WaitKind::Storage,
+                "No room to collect project materials",
+            ));
+        }
         let main = self.main();
         Ok(JobPlan {
             description: format!(
@@ -1234,11 +1241,10 @@ impl World {
                     goal: Goal::Adjacent(main.pos),
                     label: main.name.clone(),
                 },
-                Task::Withdraw {
-                    building: main.id,
+                Task::WithdrawForProject {
+                    project: pid,
                     resource,
                     amount,
-                    reserved: true,
                 },
                 to_site,
                 Task::DeliverToSite { project: pid },

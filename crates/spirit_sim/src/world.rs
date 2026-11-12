@@ -246,6 +246,12 @@ pub enum Command {
     },
     /// Approve a building the planner won't start on its own.
     RequestBuilding(BuildingKindId),
+    /// Carry one load for the specified construction project.
+    SupplyProject(ProjectId),
+    /// Work at a supplied construction site.
+    HelpBuild(ProjectId),
+    /// Deliver one load of raw materials to a station.
+    SupplyStation(BuildingId),
     /// Stock of a product to maintain, for any order.
     SetOrderTarget {
         output: ResourceId,
@@ -715,6 +721,9 @@ impl World {
                 Ok(msg)
             }
             Command::RequestBuilding(kind) => self.request_building(kind),
+            Command::SupplyProject(id) => self.start_project_delivery(id),
+            Command::HelpBuild(id) => self.start_building(id),
+            Command::SupplyStation(id) => self.start_station_delivery(id),
             Command::RequestBuildingAt { kind, site } => self.request_building_at(kind, site),
             Command::SetOrderTarget { output, target } => {
                 let name = self.defs.resource(output).name.clone();
@@ -910,8 +919,12 @@ impl World {
             .building_at(p)
             .filter(|b| !(b.is_complete() && self.grid.is_walkable(b.pos)))
         {
-            if !b.is_complete() {
-                return Err(format!("{} is still under construction", b.name));
+            if let BuildingState::UnderConstruction { project } = b.state {
+                return if self.project_materials_ready(project) {
+                    self.start_building(project)
+                } else {
+                    self.start_project_delivery(project)
+                };
             }
             let id = b.id;
             let def = self.defs.building(b.kind).clone();
@@ -1274,6 +1287,7 @@ impl World {
         buildings: &'a mut [Building],
         projects: &'a mut [Project],
         ledger: &'a mut Ledger,
+        main_storage: BuildingId,
         tick: u64,
         events: &'a mut Vec<SimEvent>,
         player_output_at_station: bool,
@@ -1287,6 +1301,7 @@ impl World {
             buildings,
             projects,
             ledger,
+            main_storage,
             tick,
             events,
             player_output_at_station,
@@ -1313,6 +1328,7 @@ impl World {
             ledger,
             tick,
             player,
+            main_storage,
             ..
         } = self;
         if player.actor.queue.is_empty() {
@@ -1320,7 +1336,18 @@ impl World {
         }
         let recipe = player.recipe;
         let mut ctx = Self::task_ctx(
-            defs, grid, trees, buildings, projects, ledger, *tick, events, at_station, recipe, room,
+            defs,
+            grid,
+            trees,
+            buildings,
+            projects,
+            ledger,
+            *main_storage,
+            *tick,
+            events,
+            at_station,
+            recipe,
+            room,
         );
         let mut failure = None;
         match tasks::step(&mut player.actor, Who::Player, level, None, &mut ctx) {
@@ -1363,6 +1390,10 @@ impl World {
             Some(Task::Craft { building, .. }) => {
                 self.player_station_level(&self.buildings[*building])
             }
+            Some(Task::Build { .. }) => self.workforce_level("construction"),
+            Some(Task::DeliverToSite { .. } | Task::SupplyStation { .. }) => {
+                self.workforce_level("hauling")
+            }
             _ => 1,
         }
     }
@@ -1396,6 +1427,7 @@ impl World {
                 ledger,
                 tick,
                 spirits,
+                main_storage,
                 ..
             } = self;
             let spirit = &mut spirits[sid];
@@ -1404,7 +1436,18 @@ impl World {
             }
             let level = spirit.level();
             let mut ctx = Self::task_ctx(
-                defs, grid, trees, buildings, projects, ledger, *tick, events, false, None, None,
+                defs,
+                grid,
+                trees,
+                buildings,
+                projects,
+                ledger,
+                *main_storage,
+                *tick,
+                events,
+                false,
+                None,
+                None,
             );
             match tasks::step(
                 &mut spirit.actor,
@@ -1551,8 +1594,13 @@ impl World {
                 who: Who::Player, ..
             } => {}
             SimEvent::SiteSupplied {
-                project, amount, ..
+                who,
+                project,
+                amount,
             } => {
+                if who == Who::Player {
+                    self.earned_hauling_xp(amount);
+                }
                 let p = &self.projects[project];
                 let def = self.defs.building(p.kind);
                 let msg = format!(
@@ -1561,6 +1609,12 @@ impl World {
                     self.defs.describe_amounts(&p.delivered)
                 );
                 self.events.push(self.tick, EventKind::Construction, msg);
+            }
+            SimEvent::StationSupplied { amount } => self.earned_hauling_xp(amount),
+            SimEvent::PlayerBuilt => {
+                if let Some(skill) = self.defs.skill_id("construction") {
+                    self.player_earned_xp(skill, self.defs.workforce.build_xp_per_tick);
+                }
             }
             SimEvent::ProjectCompleted { project } => self.on_project_completed(project),
             SimEvent::Crafted {
